@@ -39,9 +39,9 @@
 #include <utility>
 #include <vector>
 
-//#include <djinterp>
-#include <container/view_common.hpp>
-#include <container/menu_traits.hpp>
+//#include <uxoxo>
+#include <component/view_common.hpp>
+#include <component/menu/menu_traits.hpp>
 
 
 NS_UXOXO
@@ -53,6 +53,8 @@ NS_COMPONENT
 // ===============================================================================
 //   Use the high bits to avoid colliding with view_feat / text_input_feat.
 
+// menu_feat
+//   enum: bitfield flags selecting optional per-item menu capabilities.
 enum menu_feat : unsigned
 {
     mf_none        = 0,
@@ -66,7 +68,10 @@ enum menu_feat : unsigned
 
 constexpr menu_feat operator|(menu_feat a, menu_feat b) noexcept
 {
-    return static_cast<menu_feat>(static_cast<unsigned>(a) | static_cast<unsigned>(b));
+    return static_cast<menu_feat>(
+        static_cast<unsigned>(a) |
+        static_cast<unsigned>(b)
+    );
 }
 
 constexpr bool has_mf(unsigned f, menu_feat bit) noexcept
@@ -80,14 +85,18 @@ constexpr bool has_mf(unsigned f, menu_feat bit) noexcept
 // ===============================================================================
 
 // forward-declare menu for submenu pointer
-template <typename _Data, unsigned _Feat, typename _Icon>
+template <typename _Data,
+          unsigned _Feat,
+          typename _Icon>
 struct menu;
 
 namespace menu_mixin {
 
-    // -- shortcut ---------------------------------------------------------
+    // shortcut_data
+    //   struct: empty-base-optimisation mixin for per-item keyboard shortcuts.
     template <bool _Enable>
-    struct shortcut_data {};
+    struct shortcut_data
+    {};
 
     template <>
     struct shortcut_data<true>
@@ -95,9 +104,12 @@ namespace menu_mixin {
         std::string shortcut;       // display string e.g. "Ctrl+S"
     };
 
-    // -- icon -------------------------------------------------------------
-    template <bool _Enable, typename _Icon = int>
-    struct icon_data {};
+    // icon_data
+    //   struct: empty-base-optimisation mixin for per-item icons.
+    template <bool     _Enable,
+              typename _Icon = int>
+    struct icon_data
+    {};
 
     template <typename _Icon>
     struct icon_data<true, _Icon>
@@ -105,9 +117,11 @@ namespace menu_mixin {
         _Icon icon{};
     };
 
-    // -- checkable --------------------------------------------------------
+    // checkable_data
+    //   struct: empty-base-optimisation mixin for per-item check marks.
     template <bool _Enable>
-    struct checkable_data {};
+    struct checkable_data
+    {};
 
     template <>
     struct checkable_data<true>
@@ -115,11 +129,18 @@ namespace menu_mixin {
         bool checked = false;
     };
 
-    // -- submenu ----------------------------------------------------------
-    template <bool _Enable, typename _Data, unsigned _Feat, typename _Icon>
-    struct submenu_data {};
+    // submenu_data
+    //   struct: empty-base-optimisation mixin for nested submenus.
+    template <bool     _Enable,
+              typename _Data,
+              unsigned _Feat,
+              typename _Icon>
+    struct submenu_data
+    {};
 
-    template <typename _Data, unsigned _Feat, typename _Icon>
+    template <typename _Data,
+              unsigned _Feat,
+              typename _Icon>
     struct submenu_data<true, _Data, _Feat, _Icon>
     {
         std::unique_ptr<menu<_Data, _Feat, _Icon>> submenu;
@@ -134,7 +155,7 @@ namespace menu_mixin {
 // ===============================================================================
 
 // menu_item_type
-//   Distinguishes normal items, separators, and group headers.
+//   enum: distinguishes normal items, separators, and group headers.
 enum class menu_item_type : std::uint8_t
 {
     normal,
@@ -142,9 +163,12 @@ enum class menu_item_type : std::uint8_t
     header          // non-selectable group header
 };
 
-template <typename _Data   = std::string,
-          unsigned _Feat   = mf_none,
-          typename _Icon   = int>
+// menu_item
+//   struct: a single entry in a menu.  Inherits optional data fields via
+// EBO mixins controlled by the _Feat bitfield.
+template <typename _Data = std::string,
+          unsigned _Feat = mf_none,
+          typename _Icon = int>
 struct menu_item
     : menu_mixin::shortcut_data  <has_mf(_Feat, mf_shortcuts)>
     , menu_mixin::icon_data      <has_mf(_Feat, mf_icons), _Icon>
@@ -167,48 +191,66 @@ struct menu_item
     // -- construction -----------------------------------------------------
     menu_item() = default;
 
-    explicit menu_item(_Data lbl)
-        : label(std::move(lbl))
-    {}
+    explicit menu_item(
+            _Data _lbl
+        )
+            : label(std::move(_lbl))
+        {}
 
-    menu_item(_Data lbl, menu_item_type t)
-        : label(std::move(lbl)), type(t)
-    {}
+    menu_item(
+            _Data          _lbl,
+            menu_item_type _t
+        )
+            : label(std::move(_lbl)),
+              type(_t)
+        {}
 
     // -- queries ----------------------------------------------------------
-    [[nodiscard]] bool is_separator() const noexcept 
-    { 
-        return type == menu_item_type::separator; 
+
+    [[nodiscard]] bool is_separator() const noexcept
+    {
+        return type == menu_item_type::separator;
     }
 
-    [[nodiscard]] bool is_header() const noexcept 
-    { 
-        return type == menu_item_type::header; 
+    [[nodiscard]] bool is_header() const noexcept
+    {
+        return type == menu_item_type::header;
     }
 
     [[nodiscard]] bool is_selectable() const noexcept
     {
-        return type == menu_item_type::normal && enabled;
+        return ( (type == menu_item_type::normal) &&
+                 (enabled) );
     }
 
     [[nodiscard]] bool has_submenu() const noexcept
     {
         if constexpr (has_submenus)
+        {
             return this->submenu != nullptr;
+        }
         else
+        {
             return false;
+        }
     }
 };
 
-// convenience: separator factory
-template <typename _D = std::string, unsigned _F = mf_none, typename _I = int>
+// make_separator
+//   convenience factory for separator items.
+template <typename _D = std::string,
+          unsigned _F = mf_none,
+          typename _I = int>
 menu_item<_D, _F, _I> make_separator()
 {
     return menu_item<_D, _F, _I>(_D{}, menu_item_type::separator);
 }
 
-// convenience: header factory
-template <typename _D = std::string, unsigned _F = mf_none, typename _I = int>
+// make_header
+//   convenience factory for group header items.
+template <typename _D = std::string,
+          unsigned _F = mf_none,
+          typename _I = int>
 menu_item<_D, _F, _I> make_header(non_deduced<_D> label)
 {
     return menu_item<_D, _F, _I>(std::move(label), menu_item_type::header);
@@ -221,9 +263,11 @@ menu_item<_D, _F, _I> make_header(non_deduced<_D> label)
 //   A menu is an ordered collection of menu_items.  It satisfies the
 // abstract is_menu trait (has value_type, begin/end, size).
 
-template <typename _Data   = std::string,
-          unsigned _Feat   = mf_none,
-          typename _Icon   = int>
+// menu
+//   struct: ordered collection of menu_item entries with navigation helpers.
+template <typename _Data = std::string,
+          unsigned _Feat = mf_none,
+          typename _Icon = int>
 struct menu
 {
     using value_type      = menu_item<_Data, _Feat, _Icon>;
@@ -236,11 +280,20 @@ struct menu
 
     // -- construction -----------------------------------------------------
     menu() = default;
-    explicit menu(std::string t) : title(std::move(t)) {}
 
-    menu(std::string t, std::initializer_list<value_type> init)
-        : title(std::move(t)), items(init)
-    {}
+    explicit menu(
+            std::string _t
+        )
+            : title(std::move(_t))
+        {}
+
+    menu(
+            std::string                    _t,
+            std::initializer_list<value_type> _init
+        )
+            : title(std::move(_t)),
+              items(_init)
+        {}
 
     // -- container interface (satisfies menu_traits::is_menu) -------------
     iterator        begin()       noexcept { return items.begin(); }
@@ -261,34 +314,49 @@ struct menu
     value_type& add(value_type item)
     {
         items.push_back(std::move(item));
+
         return items.back();
     }
 
     value_type& emplace(non_deduced<_Data> label)
     {
         items.emplace_back(std::move(label));
+
         return items.back();
     }
 
     void add_separator()
     {
         items.push_back(make_separator<_Data, _Feat, _Icon>());
+
+        return;
     }
 
     value_type& add_header(non_deduced<_Data> label)
     {
         items.push_back(make_header<_Data, _Feat, _Icon>(std::move(label)));
+
         return items.back();
     }
 
     bool remove(std::size_t idx)
     {
-        if (idx >= items.size()) return false;
+        if (idx >= items.size())
+        {
+            return false;
+        }
+
         items.erase(items.begin() + static_cast<std::ptrdiff_t>(idx));
+
         return true;
     }
 
-    void clear() { items.clear(); }
+    void clear()
+    {
+        items.clear();
+
+        return;
+    }
 
     // -- queries ----------------------------------------------------------
 
@@ -298,17 +366,29 @@ struct menu
     {
         std::size_t n = 0;
         for (const auto& item : items)
-            if (item.is_selectable()) ++n;
+        {
+            if (item.is_selectable())
+            {
+                ++n;
+            }
+        }
+
         return n;
     }
 
-    // find_by_label
+    // find_by
     //   Returns index of first item matching predicate on label, or -1.
     template <typename _Pred>
     std::size_t find_by(_Pred pred) const
     {
         for (std::size_t i = 0; i < items.size(); ++i)
-            if (pred(items[i].label)) return i;
+        {
+            if (pred(items[i].label))
+            {
+                return i;
+            }
+        }
+
         return static_cast<std::size_t>(-1);
     }
 
@@ -317,24 +397,42 @@ struct menu
     //   Wraps around.  Returns from if none found.
     [[nodiscard]] std::size_t next_selectable(std::size_t from) const
     {
-        if (items.empty()) return from;
-        std::size_t n = items.size();
-        for (std::size_t i = 1; i <= n; ++i) {
-            std::size_t idx = (from + i) % n;
-            if (items[idx].is_selectable()) return idx;
+        if (items.empty())
+        {
+            return from;
         }
+
+        std::size_t n = items.size();
+        for (std::size_t i = 1; i <= n; ++i)
+        {
+            std::size_t idx = (from + i) % n;
+            if (items[idx].is_selectable())
+            {
+                return idx;
+            }
+        }
+
         return from;
     }
 
     // prev_selectable
     [[nodiscard]] std::size_t prev_selectable(std::size_t from) const
     {
-        if (items.empty()) return from;
-        std::size_t n = items.size();
-        for (std::size_t i = 1; i <= n; ++i) {
-            std::size_t idx = (from + n - i) % n;
-            if (items[idx].is_selectable()) return idx;
+        if (items.empty())
+        {
+            return from;
         }
+
+        std::size_t n = items.size();
+        for (std::size_t i = 1; i <= n; ++i)
+        {
+            std::size_t idx = (from + n - i) % n;
+            if (items[idx].is_selectable())
+            {
+                return idx;
+            }
+        }
+
         return from;
     }
 
@@ -342,7 +440,13 @@ struct menu
     [[nodiscard]] std::size_t first_selectable() const
     {
         for (std::size_t i = 0; i < items.size(); ++i)
-            if (items[i].is_selectable()) return i;
+        {
+            if (items[i].is_selectable())
+            {
+                return i;
+            }
+        }
+
         return 0;
     }
 };
@@ -353,129 +457,207 @@ struct menu
 //  5.  FREE-FUNCTION HELPERS
 // ===============================================================================
 
-// set_shortcut  (menu_item)
-template <typename _D, unsigned _F, typename _I>
+// set_shortcut
+template <typename _D,
+          unsigned _F,
+          typename _I>
 void set_shortcut(menu_item<_D, _F, _I>& item, std::string sc)
 {
     static_assert(has_mf(_F, mf_shortcuts), "requires mf_shortcuts");
     item.shortcut = std::move(sc);
+
+    return;
 }
 
-// set_icon  (menu_item)
-template <typename _D, unsigned _F, typename _I>
+// set_icon
+template <typename _D,
+          unsigned _F,
+          typename _I>
 void set_icon(menu_item<_D, _F, _I>& item, non_deduced<_I> icon)
 {
     static_assert(has_mf(_F, mf_icons), "requires mf_icons");
     item.icon = std::move(icon);
+
+    return;
 }
 
-// set_checked  (menu_item)
-template <typename _D, unsigned _F, typename _I>
+// set_checked
+template <typename _D,
+          unsigned _F,
+          typename _I>
 void set_checked(menu_item<_D, _F, _I>& item, bool c)
 {
     static_assert(has_mf(_F, mf_checkable), "requires mf_checkable");
     item.checked = c;
+
+    return;
 }
 
-// toggle_checked  (menu_item)
-template <typename _D, unsigned _F, typename _I>
+// toggle_checked
+template <typename _D,
+          unsigned _F,
+          typename _I>
 void toggle_checked(menu_item<_D, _F, _I>& item)
 {
     static_assert(has_mf(_F, mf_checkable), "requires mf_checkable");
     item.checked = !item.checked;
+
+    return;
 }
 
 // attach_submenu
-template <typename _D, unsigned _F, typename _I>
-void attach_submenu(menu_item<_D, _F, _I>& item,
+template <typename _D,
+          unsigned _F,
+          typename _I>
+void attach_submenu(menu_item<_D, _F, _I>&            item,
                     std::unique_ptr<menu<_D, _F, _I>> sub)
 {
     static_assert(has_mf(_F, mf_submenu), "requires mf_submenu");
     item.submenu = std::move(sub);
+
+    return;
 }
 
 // make_submenu_item
-//   Convenience: creates a normal item with an attached submenu.
-template <typename _D, unsigned _F, typename _I>
+//   convenience: creates a normal item with an attached submenu.
+template <typename _D,
+          unsigned _F,
+          typename _I>
 menu_item<_D, _F, _I> make_submenu_item(
-    non_deduced<_D> label,
+    non_deduced<_D>                   label,
     std::unique_ptr<menu<_D, _F, _I>> sub)
 {
     static_assert(has_mf(_F, mf_submenu), "requires mf_submenu");
     menu_item<_D, _F, _I> item(std::move(label));
     item.submenu = std::move(sub);
+
     return item;
 }
 
 // enable_all
-template <typename _D, unsigned _F, typename _I>
+template <typename _D,
+          unsigned _F,
+          typename _I>
 void enable_all(menu<_D, _F, _I>& m)
 {
-    for (auto& item : m.items) item.enabled = true;
+    for (auto& item : m.items)
+    {
+        item.enabled = true;
+    }
+
+    return;
 }
 
 // disable_all
-template <typename _D, unsigned _F, typename _I>
+template <typename _D,
+          unsigned _F,
+          typename _I>
 void disable_all(menu<_D, _F, _I>& m)
 {
     for (auto& item : m.items)
-        if (item.type == menu_item_type::normal) item.enabled = false;
+    {
+        if (item.type == menu_item_type::normal)
+        {
+            item.enabled = false;
+        }
+    }
+
+    return;
 }
 
 // -- traversal ------------------------------------------------------------
 
 // menu_for_each
-//   Calls fn(item, depth) for every item in the menu.  Recurses into
+//   calls fn(item, depth) for every item in the menu.  Recurses into
 // submenus when mf_submenu is enabled.
-template <typename _D, unsigned _F, typename _I, typename _Fn>
-void menu_for_each(menu<_D, _F, _I>& m, _Fn&& fn, std::size_t depth = 0)
+template <typename _D,
+          unsigned _F,
+          typename _I,
+          typename _Fn>
+void menu_for_each(menu<_D, _F, _I>& m,
+                   _Fn&&             fn,
+                   std::size_t       depth = 0)
 {
-    for (auto& item : m.items) {
+    for (auto& item : m.items)
+    {
         fn(item, depth);
-        if constexpr (has_mf(_F, mf_submenu)) {
+        if constexpr (has_mf(_F, mf_submenu))
+        {
             if (item.submenu)
+            {
                 menu_for_each(*item.submenu, fn, depth + 1);
+            }
         }
     }
+
+    return;
 }
 
 // menu_for_each (const)
-template <typename _D, unsigned _F, typename _I, typename _Fn>
-void menu_for_each(const menu<_D, _F, _I>& m, _Fn&& fn, std::size_t depth = 0)
+template <typename _D,
+          unsigned _F,
+          typename _I,
+          typename _Fn>
+void menu_for_each(const menu<_D, _F, _I>& m,
+                   _Fn&&                   fn,
+                   std::size_t             depth = 0)
 {
-    for (const auto& item : m.items) {
+    for (const auto& item : m.items)
+    {
         fn(item, depth);
-        if constexpr (has_mf(_F, mf_submenu)) {
+        if constexpr (has_mf(_F, mf_submenu))
+        {
             if (item.submenu)
+            {
                 menu_for_each(*item.submenu, fn, depth + 1);
+            }
         }
     }
+
+    return;
 }
 
 // menu_count_all
-//   Total item count including submenus.
-template <typename _D, unsigned _F, typename _I>
+//   total item count including submenus.
+template <typename _D,
+          unsigned _F,
+          typename _I>
 std::size_t menu_count_all(const menu<_D, _F, _I>& m)
 {
     std::size_t n = 0;
     menu_for_each(m, [&n](const auto&, std::size_t) { ++n; });
+
     return n;
 }
 
 // menu_find_item
-//   Finds the first item matching a predicate (depth-first).
-template <typename _D, unsigned _F, typename _I, typename _Pred>
+//   finds the first item matching a predicate (depth-first).
+template <typename _D,
+          unsigned _F,
+          typename _I,
+          typename _Pred>
 menu_item<_D, _F, _I>* menu_find_item(menu<_D, _F, _I>& m, _Pred pred)
 {
-    for (auto& item : m.items) {
-        if (pred(item)) return &item;
-        if constexpr (has_mf(_F, mf_submenu)) {
-            if (item.submenu) {
+    for (auto& item : m.items)
+    {
+        if (pred(item))
+        {
+            return &item;
+        }
+
+        if constexpr (has_mf(_F, mf_submenu))
+        {
+            if (item.submenu)
+            {
                 auto* found = menu_find_item(*item.submenu, pred);
-                if (found) return found;
+                if (found)
+                {
+                    return found;
+                }
             }
         }
     }
+
     return nullptr;
 }
 
@@ -487,7 +669,9 @@ menu_item<_D, _F, _I>* menu_find_item(menu<_D, _F, _I>& m, _Pred pred)
 //   Compile-time fixed-size menu.  Satisfies menu_traits::is_menu because
 // it has value_type + begin()/end().
 
-template <typename _Type,
+// static_menu
+//   class: compile-time fixed-size menu container.
+template <typename    _Type,
           std::size_t N>
 class static_menu
 {
@@ -506,26 +690,32 @@ public:
 
     static_menu() = default;
 
-    constexpr static_menu(std::initializer_list<_Type> init) 
-    {
-        auto it = init.begin();
-        for (size_type i = 0; i < N && i < init.size(); ++i)
-            items_[i] = *(it++);
-    }
+    constexpr static_menu(
+            std::initializer_list<_Type> _init
+        )
+        {
+            auto it = _init.begin();
+            for (size_type i = 0; i < N && i < _init.size(); ++i)
+            {
+                m_items[i] = *(it++);
+            }
+        }
 
     template <typename... _Args,
               typename = std::enable_if_t<sizeof...(_Args) <= N>>
-    constexpr static_menu(_Args&&... args)
-        : items_{ static_cast<_Type>(std::forward<_Args>(args))... }
-    {}
+    constexpr static_menu(
+            _Args&&... _args
+        )
+            : m_items{ static_cast<_Type>(std::forward<_Args>(_args))... }
+        {}
 
     // iterators
-    iterator       begin()       noexcept { return std::begin(items_); }
-    const_iterator begin() const noexcept { return std::begin(items_); }
-    const_iterator cbegin()const noexcept { return std::begin(items_); }
-    iterator       end()         noexcept { return std::end(items_); }
-    const_iterator end()   const noexcept { return std::end(items_); }
-    const_iterator cend()  const noexcept { return std::end(items_); }
+    iterator       begin()       noexcept { return std::begin(m_items); }
+    const_iterator begin() const noexcept { return std::begin(m_items); }
+    const_iterator cbegin()const noexcept { return std::begin(m_items); }
+    iterator       end()         noexcept { return std::end(m_items); }
+    const_iterator end()   const noexcept { return std::end(m_items); }
+    const_iterator cend()  const noexcept { return std::end(m_items); }
 
     reverse_iterator       rbegin()       noexcept { return reverse_iterator(end()); }
     const_reverse_iterator rbegin() const noexcept { return const_reverse_iterator(end()); }
@@ -533,40 +723,48 @@ public:
     const_reverse_iterator rend()   const noexcept { return const_reverse_iterator(begin()); }
 
     // element access
-    reference       operator[](size_type i)       { return items_[i]; }
-    const_reference operator[](size_type i) const { return items_[i]; }
+    reference       operator[](size_type i)       { return m_items[i]; }
+    const_reference operator[](size_type i) const { return m_items[i]; }
 
     reference at(size_type i)
     {
-        if (i >= N) throw std::out_of_range("static_menu index out of range");
-        return items_[i];
+        if (i >= N)
+        {
+            throw std::out_of_range("static_menu index out of range");
+        }
+
+        return m_items[i];
     }
 
     const_reference at(size_type i) const
     {
-        if (i >= N) throw std::out_of_range("static_menu index out of range");
-        return items_[i];
+        if (i >= N)
+        {
+            throw std::out_of_range("static_menu index out of range");
+        }
+
+        return m_items[i];
     }
 
-    reference       front()       { return items_[0]; }
-    const_reference front() const { return items_[0]; }
-    reference       back()        { return items_[N - 1]; }
-    const_reference back()  const { return items_[N - 1]; }
+    reference       front()       { return m_items[0]; }
+    const_reference front() const { return m_items[0]; }
+    reference       back()        { return m_items[N - 1]; }
+    const_reference back()  const { return m_items[N - 1]; }
 
     // capacity
     [[nodiscard]] constexpr bool      empty()    const noexcept { return N == 0; }
     [[nodiscard]] constexpr size_type size()     const noexcept { return N; }
     [[nodiscard]] constexpr size_type max_size() const noexcept { return N; }
 
-    _Type*       data()       noexcept { return items_; }
-    const _Type* data() const noexcept { return items_; }
+    _Type*       data()       noexcept { return m_items; }
+    const _Type* data() const noexcept { return m_items; }
 
 private:
-    _Type items_[N];
+    _Type m_items[N];
 };
 
 // deduction guides
-template <typename    _T, 
+template <typename    _T,
           typename... _U>
 static_menu(_T, _U...) -> static_menu<_T, 1 + sizeof...(_U)>;
 
