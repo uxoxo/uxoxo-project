@@ -1,7 +1,7 @@
 /*******************************************************************************
-* djinterp [ui/qt]                                            qt_adapter.hpp
+* uxoxo [ui/qt]                                               qt_adapter.hpp
 *
-*   Shared customization-point adapter for bridging djinterp data types to
+*   Shared customization-point adapter for bridging uxoxo data types to
 * Qt types.  Used by qt_menu_bar and qt_tree_view (and any future Qt bridge).
 *
 *   Provides default conversions:
@@ -20,15 +20,15 @@
 *     §4  Callback types
 *
 *
-* author(s): Samuel 'teer' Neal-Blim
-* link:   TBA
-* file:   \inc\ui\qt\qt_adapter.hpp                            date: 2026.03.28
+* path:      /inc/uxoxo/ui/qt/qt_adapter.hpp
+* link(s):   TBA
+* author(s): Samuel 'teer' Neal-Blim                           date: 2026.03.28
 *******************************************************************************/
 
-#ifndef  DJINTERP_UI_QT_ADAPTER_
-#define  DJINTERP_UI_QT_ADAPTER_ 1
+#ifndef  UXOXO_UI_QT_ADAPTER_
+#define  UXOXO_UI_QT_ADAPTER_ 1
 
-#include <djinterp>
+#include <uxoxo>
 
 // ═══════════════════════════════════════════════════════════════════════════════
 //  §1  ENVIRONMENT DEFAULTS
@@ -79,9 +79,9 @@
 #include <type_traits>
 
 
-NS_DJINTERP
-namespace ui {
-namespace qt {
+NS_UXOXO
+NS_UI
+NS_QT
 
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -91,32 +91,56 @@ namespace qt {
 namespace adapter_traits {
 namespace detail
 {
-    template <typename, typename = void>
-    struct has_data_type : std::false_type {};
-    template <typename _T>
-    struct has_data_type<_T, std::void_t<typename _T::data_type>> 
-        : std::true_type {};
+    // has_data_type
+    //   trait: detects a public data_type alias.
+    template <typename,
+              typename = void>
+    struct has_data_type : std::false_type
+    {};
 
-    template <typename, typename = void>
-    struct has_icon_type : std::false_type {};
     template <typename _T>
-    struct has_icon_type<_T, std::void_t<typename _T::icon_type>> 
-        : std::true_type {};
+    struct has_data_type<_T, std::void_t<typename _T::data_type>>
+        : std::true_type
+    {};
+
+    // has_icon_type
+    //   trait: detects a public icon_type alias.
+    template <typename,
+              typename = void>
+    struct has_icon_type : std::false_type
+    {};
+
+    template <typename _T>
+    struct has_icon_type<_T, std::void_t<typename _T::icon_type>>
+        : std::true_type
+    {};
 
 #if D_ENV_QT_AVAILABLE
-    template <typename, typename = void>
-    struct has_to_qstring_method : std::false_type {};
+    // has_to_qstring_method
+    //   trait: detects a static to_qstring conversion method.
+    template <typename,
+              typename = void>
+    struct has_to_qstring_method : std::false_type
+    {};
+
     template <typename _T>
     struct has_to_qstring_method<_T, std::void_t<
         decltype(_T::to_qstring(std::declval<const typename _T::data_type&>()))
-    >> : std::true_type {};
+    >> : std::true_type
+    {};
 
-    template <typename, typename = void>
-    struct has_to_qicon_method : std::false_type {};
+    // has_to_qicon_method
+    //   trait: detects a static to_qicon conversion method.
+    template <typename,
+              typename = void>
+    struct has_to_qicon_method : std::false_type
+    {};
+
     template <typename _T>
     struct has_to_qicon_method<_T, std::void_t<
         decltype(_T::to_qicon(std::declval<const typename _T::icon_type&>()))
-    >> : std::true_type {};
+    >> : std::true_type
+    {};
 #endif
 
 }   // namespace detail
@@ -128,12 +152,13 @@ template <typename _T>
 inline constexpr bool has_icon_type_v = detail::has_icon_type<_T>::value;
 
 // is_qt_adapter
-//   type trait: T provides the minimum adapter interface.
+//   trait: T provides the minimum adapter interface.
 template <typename _Type>
 struct is_qt_adapter : std::conjunction<
     detail::has_data_type<_Type>,
     detail::has_icon_type<_Type>
-> {};
+>
+{};
 
 template <typename _T>
 inline constexpr bool is_qt_adapter_v = is_qt_adapter<_T>::value;
@@ -147,6 +172,9 @@ inline constexpr bool is_qt_adapter_v = is_qt_adapter<_T>::value;
 //  §3  DEFAULT ADAPTER
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// qt_adapter
+//   struct: default data-type → Qt-type conversion adapter.  Users specialise
+// for custom types.
 template <typename _Data = std::string,
           typename _Icon = int>
 struct qt_adapter
@@ -158,44 +186,67 @@ struct qt_adapter
     static QString to_qstring(const _Data& data)
     {
         if constexpr (std::is_same_v<_Data, std::string>)
+        {
             return QString::fromStdString(data);
+        }
         else if constexpr (std::is_convertible_v<_Data, const char*>)
+        {
             return QString::fromUtf8(data);
+        }
         else
+        {
             return QString::fromStdString(std::to_string(data));
+        }
     }
 
     static QIcon to_qicon(const _Icon& icon)
     {
-        if constexpr (std::is_integral_v<_Icon>) {
-            if (auto* app = qApp) {
+        if constexpr (std::is_integral_v<_Icon>)
+        {
+            if (auto* app = qApp)
+            {
                 if (auto* style = app->style())
+                {
                     return style->standardIcon(
                         static_cast<QStyle::StandardPixmap>(icon));
+                }
             }
+
             return QIcon();
         }
         else if constexpr (std::is_same_v<_Icon, std::string>)
+        {
             return QIcon(QString::fromStdString(icon));
+        }
         else if constexpr (std::is_same_v<_Icon, QIcon>)
+        {
             return icon;
-        else {
+        }
+        else
+        {
             static_assert(sizeof(_Icon) == 0,
                 "No default icon conversion; specialise qt_adapter");
+
             return QIcon();
         }
     }
 
     static QKeySequence to_qkeysequence(const std::string& shortcut)
     {
-        if (shortcut.empty()) return QKeySequence();
+        if (shortcut.empty())
+        {
+            return QKeySequence();
+        }
+
         return QKeySequence(QString::fromStdString(shortcut));
     }
 #endif
 };
 
-// backward compat alias
-template <typename _Data = std::string, typename _Icon = int>
+// qt_menu_adapter
+//   type: backward compatibility alias for qt_adapter.
+template <typename _Data = std::string,
+          typename _Icon = int>
 using qt_menu_adapter = qt_adapter<_Data, _Icon>;
 
 
@@ -205,6 +256,8 @@ using qt_menu_adapter = qt_adapter<_Data, _Icon>;
 //  §4  CALLBACK TYPES
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// simple_callback
+//   type: basic callback accepting a const reference to the data type.
 template <typename _Data>
 using simple_callback = std::function<void(const _Data&)>;
 
@@ -225,8 +278,8 @@ namespace adapter_verify {
 }
 
 
-}   // namespace qt
-}   // namespace ui
-NS_END  // djinterp
+NS_END  // qt
+NS_END  // ui
+NS_END  // uxoxo
 
-#endif  // DJINTERP_UI_QT_ADAPTER_
+#endif  // UXOXO_UI_QT_ADAPTER_
