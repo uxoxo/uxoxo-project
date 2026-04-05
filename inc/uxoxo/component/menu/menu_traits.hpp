@@ -21,7 +21,7 @@
 *     7.  Convenience _v aliases
 *
 *
-* file:      /inc/uxoxo/component/menu/menu_bar.hpp
+* file:      /inc/uxoxo/component/menu/menu_traits.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                           date: 2026.03.31
 *******************************************************************************/
@@ -252,14 +252,14 @@ namespace detail
     //   type trait: T has a public `separator_type` type alias.
     template <typename _Type,
               typename = void>
-    struct has_separator_type_alias : std::false_type 
-	{};
+    struct has_separator_type_alias : std::false_type
+    {};
 
     template <typename _Type>
     struct has_separator_type_alias<_Type, std::void_t<
         typename _Type::separator_type
-    >> : std::true_type 
-	{};
+    >> : std::true_type
+    {};
 
     // has_is_separator_method
     //   type trait: T has .is_separator(value_type) --> bool.
