@@ -629,7 +629,7 @@ inline constexpr color_depth resolve_color_depth_v =
     resolve_color_depth<_B>::value;
 
 
-NS_END  // trauts
+NS_END  // traits
 NS_END  // templates
 NS_END  // uxoxo
 
