@@ -46,7 +46,7 @@
 #include <utility>
 #include <vector>
 
-#include <djinterp>
+#include <uxoxo>
 #include <ui/signal.hpp>
 #include <ui/component_traits.hpp>
 #include <ui/components.hpp>
@@ -82,14 +82,16 @@ constexpr key_modifier operator|(key_modifier a, key_modifier b) noexcept
 {
     return static_cast<key_modifier>(
         static_cast<unsigned>(a) |
-		static_cast<unsigned>(b)
-	);
+        static_cast<unsigned>(b)
+    );
 }
 
 constexpr key_modifier operator&(key_modifier a, key_modifier b) noexcept
 {
     return static_cast<key_modifier>(
-        static_cast<unsigned>(a) & static_cast<unsigned>(b));
+        static_cast<unsigned>(a) &
+        static_cast<unsigned>(b)
+    );
 }
 
 // key_code
@@ -300,7 +302,7 @@ struct window_hints
 //   Usage:
 //     ui_template tmpl;
 //     tmpl.set_root(mc::build_layout());
-//     tmpl.set_title("djinterp");
+//     tmpl.set_title("uxoxo");
 //     tmpl.bind_key("app.quit", { mod_ctrl, key_code::q }, [&]{ quit(); });
 //     tmpl.bind_event("cmdline", "submitted", [&]{ run_command(); });
 //     tmpl.realize(my_backend);
