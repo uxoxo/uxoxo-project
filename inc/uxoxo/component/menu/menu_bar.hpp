@@ -34,9 +34,9 @@
 #include <utility>
 #include <vector>
 
-//#include <djinterp>
-#include <container/view_common.hpp>
-#include <container/menu.hpp>
+//#include <uxoxo>
+#include <component/view_common.hpp>
+#include <component/menu/menu.hpp>
 
 
 NS_UXOXO
@@ -49,9 +49,11 @@ NS_COMPONENT
 //   A single top-level item in the bar.  Holds a label and an optional
 // drop-down menu.
 
-template <typename _Data   = std::string,
-          unsigned _Feat   = mf_none,
-          typename _Icon   = int>
+// menu_bar_entry
+//   struct: a single top-level item in the menu bar with an optional dropdown.
+template <typename _Data = std::string,
+          unsigned _Feat = mf_none,
+          typename _Icon = int>
 struct menu_bar_entry
 {
     using menu_type = menu<_Data, _Feat, _Icon>;
@@ -63,18 +65,24 @@ struct menu_bar_entry
 
     menu_bar_entry() = default;
 
-    explicit menu_bar_entry(_Data lbl)
-        : label(std::move(lbl))
-    {}
+    explicit menu_bar_entry(
+            _Data _lbl
+        )
+            : label(std::move(_lbl))
+        {}
 
-    menu_bar_entry(_Data lbl, std::unique_ptr<menu_type> dd)
-        : label(std::move(lbl))
-        , dropdown(std::move(dd))
-    {}
+    menu_bar_entry(
+            _Data                       _lbl,
+            std::unique_ptr<menu_type>  _dd
+        )
+            : label(std::move(_lbl)),
+              dropdown(std::move(_dd))
+        {}
 
     [[nodiscard]] bool has_dropdown() const noexcept
     {
-        return dropdown != nullptr && !dropdown->empty();
+        return ( (dropdown != nullptr) &&
+                 (!dropdown->empty()) );
     }
 };
 
@@ -83,6 +91,9 @@ struct menu_bar_entry
 //  2. MENU BAR
 // ===============================================================================
 
+// menu_bar
+//   struct: horizontal menu bar component managing top-level entries, focus,
+// and drop-down state.
 template <typename _Data = std::string,
           unsigned _Feat = mf_none,
           typename _Icon = int>
@@ -111,19 +122,22 @@ struct menu_bar
     entry_type& add(entry_type e)
     {
         entries.push_back(std::move(e));
+
         return entries.back();
     }
 
     entry_type& emplace(non_deduced<_Data> label)
     {
         entries.emplace_back(std::move(label));
+
         return entries.back();
     }
 
-    entry_type& emplace(non_deduced<_Data> label,
+    entry_type& emplace(non_deduced<_Data>              label,
                         std::unique_ptr<menu_type> dd)
     {
         entries.emplace_back(std::move(label), std::move(dd));
+
         return entries.back();
     }
 
@@ -146,13 +160,23 @@ struct menu_bar
     //   Returns a pointer to the currently open drop-down, or nullptr.
     [[nodiscard]] menu_type* active_menu()
     {
-        if (!active || focused >= entries.size()) return nullptr;
+        if ( (!active) ||
+             (focused >= entries.size()) )
+        {
+            return nullptr;
+        }
+
         return entries[focused].dropdown.get();
     }
 
     [[nodiscard]] const menu_type* active_menu() const
     {
-        if (!active || focused >= entries.size()) return nullptr;
+        if ( (!active) ||
+             (focused >= entries.size()) )
+        {
+            return nullptr;
+        }
+
         return entries[focused].dropdown.get();
     }
 
@@ -161,14 +185,24 @@ struct menu_bar
     [[nodiscard]] item_type* active_item()
     {
         auto* m = active_menu();
-        if (!m || dd_cursor >= m->size()) return nullptr;
+        if ( (!m) ||
+             (dd_cursor >= m->size()) )
+        {
+            return nullptr;
+        }
+
         return &(*m)[dd_cursor];
     }
 
     [[nodiscard]] const item_type* active_item() const
     {
         auto* m = active_menu();
-        if (!m || dd_cursor >= m->size()) return nullptr;
+        if ( (!m) ||
+             (dd_cursor >= m->size()) )
+        {
+            return nullptr;
+        }
+
         return &(*m)[dd_cursor];
     }
 
@@ -179,32 +213,54 @@ struct menu_bar
     //   If a drop-down is open, opens the new entry's drop-down.
     bool next()
     {
-        if (entries.empty()) return false;
+        if (entries.empty())
+        {
+            return false;
+        }
+
         std::size_t n = entries.size();
-        for (std::size_t i = 1; i <= n; ++i) {
+        for (std::size_t i = 1; i <= n; ++i)
+        {
             std::size_t idx = (focused + i) % n;
-            if (entries[idx].enabled) {
+            if (entries[idx].enabled)
+            {
                 focused = idx;
-                if (active) open_dropdown();
+                if (active)
+                {
+                    open_dropdown();
+                }
+
                 return true;
             }
         }
+
         return false;
     }
 
     // prev
     bool prev()
     {
-        if (entries.empty()) return false;
+        if (entries.empty())
+        {
+            return false;
+        }
+
         std::size_t n = entries.size();
-        for (std::size_t i = 1; i <= n; ++i) {
+        for (std::size_t i = 1; i <= n; ++i)
+        {
             std::size_t idx = (focused + n - i) % n;
-            if (entries[idx].enabled) {
+            if (entries[idx].enabled)
+            {
                 focused = idx;
-                if (active) open_dropdown();
+                if (active)
+                {
+                    open_dropdown();
+                }
+
                 return true;
             }
         }
+
         return false;
     }
 
@@ -215,12 +271,21 @@ struct menu_bar
     //   Positions dd_cursor on the first selectable item.
     bool open_dropdown()
     {
-        if (focused >= entries.size()) return false;
+        if (focused >= entries.size())
+        {
+            return false;
+        }
+
         auto* dd = entries[focused].dropdown.get();
-        if (!dd || dd->empty()) return false;
+        if ( (!dd) ||
+             (dd->empty()) )
+        {
+            return false;
+        }
 
         active    = true;
         dd_cursor = dd->first_selectable();
+
         return true;
     }
 
@@ -229,13 +294,23 @@ struct menu_bar
     {
         active = false;
         dd_cursor = 0;
+
+        return;
     }
 
     // toggle_dropdown
     void toggle_dropdown()
     {
-        if (active) close_dropdown();
-        else        open_dropdown();
+        if (active)
+        {
+            close_dropdown();
+        }
+        else
+        {
+            open_dropdown();
+        }
+
+        return;
     }
 
     // -- drop-down cursor navigation --------------------------------------
@@ -245,8 +320,14 @@ struct menu_bar
     bool dd_next()
     {
         auto* m = active_menu();
-        if (!m || m->empty()) return false;
+        if ( (!m) ||
+             (m->empty()) )
+        {
+            return false;
+        }
+
         dd_cursor = m->next_selectable(dd_cursor);
+
         return true;
     }
 
@@ -254,8 +335,14 @@ struct menu_bar
     bool dd_prev()
     {
         auto* m = active_menu();
-        if (!m || m->empty()) return false;
+        if ( (!m) ||
+             (m->empty()) )
+        {
+            return false;
+        }
+
         dd_cursor = m->prev_selectable(dd_cursor);
+
         return true;
     }
 
@@ -263,8 +350,14 @@ struct menu_bar
     bool dd_home()
     {
         auto* m = active_menu();
-        if (!m || m->empty()) return false;
+        if ( (!m) ||
+             (m->empty()) )
+        {
+            return false;
+        }
+
         dd_cursor = m->first_selectable();
+
         return true;
     }
 
@@ -272,14 +365,23 @@ struct menu_bar
     bool dd_end()
     {
         auto* m = active_menu();
-        if (!m || m->empty()) return false;
+        if ( (!m) ||
+             (m->empty()) )
+        {
+            return false;
+        }
+
         // find last selectable
-        for (std::size_t i = m->size(); i > 0; --i) {
-            if ((*m)[i - 1].is_selectable()) {
+        for (std::size_t i = m->size(); i > 0; --i)
+        {
+            if ((*m)[i - 1].is_selectable())
+            {
                 dd_cursor = i - 1;
+
                 return true;
             }
         }
+
         return false;
     }
 
@@ -290,12 +392,21 @@ struct menu_bar
     // has a drop-down, toggles it.  Returns the entry that was activated.
     entry_type* activate()
     {
-        if (focused >= entries.size()) return nullptr;
+        if (focused >= entries.size())
+        {
+            return nullptr;
+        }
+
         auto& e = entries[focused];
-        if (!e.enabled) return nullptr;
+        if (!e.enabled)
+        {
+            return nullptr;
+        }
 
         if (e.has_dropdown())
+        {
             toggle_dropdown();
+        }
 
         return &e;
     }
@@ -306,12 +417,18 @@ struct menu_bar
     item_type* activate_dd_item()
     {
         auto* item = active_item();
-        if (!item || !item->is_selectable()) return nullptr;
+        if ( (!item) ||
+             (!item->is_selectable()) )
+        {
+            return nullptr;
+        }
 
         // if the item has a submenu, we don't close - the renderer
         // would open the submenu.  For normal items, close.
         if (!item->has_submenu())
+        {
             close_dropdown();
+        }
 
         return item;
     }
@@ -323,13 +440,21 @@ struct menu_bar
     template <typename _Match>
     bool search_bar(_Match match)
     {
-        for (std::size_t i = 0; i < entries.size(); ++i) {
-            if (entries[i].enabled && match(entries[i].label)) {
+        for (std::size_t i = 0; i < entries.size(); ++i)
+        {
+            if ( (entries[i].enabled) &&
+                 (match(entries[i].label)) )
+            {
                 focused = i;
-                if (active) open_dropdown();
+                if (active)
+                {
+                    open_dropdown();
+                }
+
                 return true;
             }
         }
+
         return false;
     }
 
@@ -339,15 +464,25 @@ struct menu_bar
     bool search_dropdown(_Match match)
     {
         auto* m = active_menu();
-        if (!m || m->empty()) return false;
+        if ( (!m) ||
+             (m->empty()) )
+        {
+            return false;
+        }
+
         std::size_t n = m->size();
-        for (std::size_t i = 1; i <= n; ++i) {
+        for (std::size_t i = 1; i <= n; ++i)
+        {
             std::size_t idx = (dd_cursor + i) % n;
-            if ((*m)[idx].is_selectable() && match((*m)[idx].label)) {
+            if ( ((*m)[idx].is_selectable()) &&
+                 (match((*m)[idx].label)) )
+            {
                 dd_cursor = idx;
+
                 return true;
             }
         }
+
         return false;
     }
 };
@@ -358,12 +493,16 @@ struct menu_bar
 // ===============================================================================
 
 // attach_dropdown
-template <typename _D, unsigned _F, typename _I>
+template <typename _D,
+          unsigned _F,
+          typename _I>
 void attach_dropdown(
-    menu_bar_entry<_D, _F, _I>& entry,
+    menu_bar_entry<_D, _F, _I>&       entry,
     std::unique_ptr<menu<_D, _F, _I>> dd)
 {
     entry.dropdown = std::move(dd);
+
+    return;
 }
 
 
@@ -375,64 +514,82 @@ namespace menu_bar_traits {
 namespace detail
 {
     // has_entries_member
+    //   trait: detects a public .entries member.
     template <typename,
               typename = void>
-    struct has_entries_member : std::false_type {};
+    struct has_entries_member : std::false_type
+    {};
 
     template <typename _Type>
     struct has_entries_member<_Type, std::void_t<
         decltype(std::declval<_Type>().entries)
-    >> : std::true_type {};
+    >> : std::true_type
+    {};
 
     // has_focused_member
+    //   trait: detects a public .focused member.
     template <typename,
               typename = void>
-    struct has_focused_member : std::false_type {};
+    struct has_focused_member : std::false_type
+    {};
 
     template <typename _Type>
     struct has_focused_member<_Type, std::void_t<
         decltype(std::declval<_Type>().focused)
-    >> : std::true_type {};
+    >> : std::true_type
+    {};
 
     // has_active_member
+    //   trait: detects a public .active member.
     template <typename,
               typename = void>
-    struct has_active_member : std::false_type {};
+    struct has_active_member : std::false_type
+    {};
 
     template <typename _Type>
     struct has_active_member<_Type, std::void_t<
         decltype(std::declval<_Type>().active)
-    >> : std::true_type {};
+    >> : std::true_type
+    {};
 
     // has_dd_cursor_member
+    //   trait: detects a public .dd_cursor member.
     template <typename,
               typename = void>
-    struct has_dd_cursor_member : std::false_type {};
+    struct has_dd_cursor_member : std::false_type
+    {};
 
     template <typename _Type>
     struct has_dd_cursor_member<_Type, std::void_t<
         decltype(std::declval<_Type>().dd_cursor)
-    >> : std::true_type {};
+    >> : std::true_type
+    {};
 
-    // has_dropdown_member (on entry type)
+    // has_dropdown_member
+    //   trait: detects a public .dropdown member (on entry type).
     template <typename,
               typename = void>
-    struct has_dropdown_member : std::false_type {};
+    struct has_dropdown_member : std::false_type
+    {};
 
     template <typename _Type>
     struct has_dropdown_member<_Type, std::void_t<
         decltype(std::declval<_Type>().dropdown)
-    >> : std::true_type {};
+    >> : std::true_type
+    {};
 
-    // has_label_member (on entry type)
+    // has_entry_label
+    //   trait: detects a public .label member (on entry type).
     template <typename,
               typename = void>
-    struct has_entry_label : std::false_type {};
+    struct has_entry_label : std::false_type
+    {};
 
     template <typename _Type>
     struct has_entry_label<_Type, std::void_t<
         decltype(std::declval<_Type>().label)
-    >> : std::true_type {};
+    >> : std::true_type
+    {};
 
 }   // namespace detail
 
@@ -445,19 +602,20 @@ template <typename _T> inline constexpr bool has_dropdown_v   = detail::has_drop
 template <typename _T> inline constexpr bool has_entry_label_v= detail::has_entry_label<_T>::value;
 
 // is_menu_bar_entry
-//   type trait: has label + dropdown + enabled.
+//   trait: has label + dropdown + data_type.
 template <typename _Type>
 struct is_menu_bar_entry : std::conjunction<
     detail::has_entry_label<_Type>,
     detail::has_dropdown_member<_Type>,
     view_traits::detail::has_data_type_alias<_Type>
-> {};
+>
+{};
 
 template <typename _T>
 inline constexpr bool is_menu_bar_entry_v = is_menu_bar_entry<_T>::value;
 
 // is_menu_bar
-//   type trait: has entries + focused + active + dd_cursor + focusable.
+//   trait: has entries + focused + active + dd_cursor + focusable.
 template <typename _Type>
 struct is_menu_bar : std::conjunction<
     detail::has_entries_member<_Type>,
@@ -465,18 +623,20 @@ struct is_menu_bar : std::conjunction<
     detail::has_active_member<_Type>,
     detail::has_dd_cursor_member<_Type>,
     view_traits::detail::has_focusable_flag<_Type>
-> {};
+>
+{};
 
 template <typename _T>
 inline constexpr bool is_menu_bar_v = is_menu_bar<_T>::value;
 
 // has_open_dropdown
-//   type trait: the menu bar can have a visible drop-down.
+//   trait: the menu bar can have a visible drop-down.
 template <typename _Type>
 struct has_open_dropdown : std::conjunction<
     is_menu_bar<_Type>,
     detail::has_active_member<_Type>
-> {};
+>
+{};
 
 template <typename _T>
 inline constexpr bool has_open_dropdown_v = has_open_dropdown<_T>::value;
@@ -485,7 +645,7 @@ inline constexpr bool has_open_dropdown_v = has_open_dropdown<_T>::value;
 }   // namespace menu_bar_traits
 
 
-NS_END	// component
+NS_END  // component
 NS_END  // uxoxo
 
 
