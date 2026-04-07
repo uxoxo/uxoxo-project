@@ -65,23 +65,23 @@ enum class cell_role : std::uint8_t
 };
 
 #ifndef UXOXO_COMPONENT_VIEW_COMMON_
-// sort_order
-//   enum: sort direction state for a column.
-enum class sort_order : std::uint8_t
-{
-    none,
-    ascending,
-    descending
-};
+    // sort_order
+    //   enum: sort direction state for a column.
+    enum class sort_order : std::uint8_t
+    {
+        none,
+        ascending,
+        descending
+    };
 
-// text_alignment
-//   enum: horizontal text alignment for a column.
-enum class text_alignment : std::uint8_t
-{
-    left,
-    center,
-    right
-};
+    // text_alignment
+    //   enum: horizontal text alignment for a column.
+    enum class text_alignment : std::uint8_t
+    {
+        left,
+        center,
+        right
+    };
 #endif  // UXOXO_COMPONENT_VIEW_COMMON_
 
 // table_column
@@ -151,7 +151,7 @@ struct cell_range
 
     [[nodiscard]] bool
     contains(std::size_t _row,
-             std::size_t _col) const
+             std::size_t _column) const
     {
         const auto row_start = std::min(start.row,
                                         end.row);
@@ -164,8 +164,8 @@ struct cell_range
 
         return ( (_row >= row_start) &&
                  (_row <= row_end)   &&
-                 (_col >= col_start) &&
-                 (_col <= col_end) );
+                 (_column >= col_start) &&
+                 (_column <= col_end) );
     }
 
     [[nodiscard]] std::size_t
@@ -247,12 +247,12 @@ struct table_view
 D_INLINE std::string
 tv_cell_text(const table_view& _table_view,
              std::size_t       _row,
-             std::size_t       _col)
+             std::size_t       _column)
 {
     if (_table_view.get_cell)
     {
         return _table_view.get_cell(_row,
-                                    _col);
+                                    _column);
     }
 
     return {};
@@ -261,9 +261,11 @@ tv_cell_text(const table_view& _table_view,
 // tv_cell_region
 //   function: classifies a cell's structural region.
 D_INLINE cell_region
-tv_cell_region(const table_view& _table_view,
-               std::size_t       _row,
-               std::size_t       _col)
+tv_cell_region(
+    const table_view& _table_view,
+    std::size_t       _row,
+    std::size_t       _column
+)
 {
     // check header row region
     if (_row < _table_view.header_rows)
@@ -289,24 +291,24 @@ tv_cell_region(const table_view& _table_view,
     }
 
     // check header column region
-    if (_col < _table_view.header_cols)
+    if (_column < _table_view.header_cols)
     {
         return cell_region::header;
     }
 
     // check footer column region
     if ( (_table_view.footer_cols > 0) &&
-         (_col >= _table_view.num_cols - _table_view.footer_cols) )
+         (_column >= _table_view.num_cols - _table_view.footer_cols) )
     {
         return cell_region::footer;
     }
 
     // check total column region
     if ( (_table_view.total_cols > 0) &&
-         (_col >= _table_view.num_cols -
+         (_column >= _table_view.num_cols -
                   _table_view.footer_cols -
                   _table_view.total_cols) &&
-         (_col < _table_view.num_cols - _table_view.footer_cols) )
+         (_column < _table_view.num_cols - _table_view.footer_cols) )
     {
         return cell_region::total;
     }
@@ -317,20 +319,22 @@ tv_cell_region(const table_view& _table_view,
 // tv_cell_role
 //   function: determines the semantic role of a cell.
 D_INLINE cell_role
-tv_cell_role(const table_view& _table_view,
-             std::size_t       _row,
-             std::size_t       _col)
+tv_cell_role(
+    const table_view& _table_view,
+    std::size_t       _row,
+    std::size_t       _column
+)
 {
     // check if the cell is covered by a span
     for (const auto& _span : _table_view.spans)
     {
         if ( (_row >= _span.row)                  &&
              (_row <  _span.row + _span.row_span) &&
-             (_col >= _span.col)                  &&
-             (_col <  _span.col + _span.col_span) )
+             (_column >= _span.col)                  &&
+             (_column <  _span.col + _span.col_span) )
         {
             // span origin breaks out to further classification
-            if ( (_row == _span.row) && (_col == _span.col) )
+            if ( (_row == _span.row) && (_column == _span.col) )
             {
                 break;
             }
@@ -341,11 +345,11 @@ tv_cell_role(const table_view& _table_view,
 
     const auto region = tv_cell_region(_table_view,
                                        _row,
-                                       _col);
+                                       _column);
 
     // header-row/header-col intersection is blank
     if ( (_row < _table_view.header_rows) &&
-         (_col < _table_view.header_cols) )
+         (_column < _table_view.header_cols) )
     {
         return cell_role::blank;
     }
@@ -368,13 +372,15 @@ tv_cell_role(const table_view& _table_view,
 // tv_is_span_origin
 //   function: returns true if a cell is the origin of a span.
 D_INLINE bool
-tv_is_span_origin(const table_view& _table_view,
-                  std::size_t       _row,
-                  std::size_t       _col)
+tv_is_span_origin(
+    const table_view& _table_view,
+    std::size_t       _row,
+    std::size_t       _column
+)
 {
     for (const auto& _span : _table_view.spans)
     {
-        if ( (_span.row == _row) && (_span.col == _col) )
+        if ( (_span.row == _row) && (_span.col == _column) )
         {
             return true;
         }
@@ -386,16 +392,18 @@ tv_is_span_origin(const table_view& _table_view,
 // tv_get_span
 //   function: returns the span containing a cell, or nullptr.
 D_INLINE const cell_span*
-tv_get_span(const table_view& _table_view,
-            std::size_t       _row,
-            std::size_t       _col)
+tv_get_span(
+    const table_view& _table_view,
+    std::size_t       _row,
+    std::size_t       _column
+)
 {
     for (const auto& _span : _table_view.spans)
     {
         if ( (_row >= _span.row)                  &&
              (_row <  _span.row + _span.row_span) &&
-             (_col >= _span.col)                  &&
-             (_col <  _span.col + _span.col_span) )
+             (_column >= _span.col)                  &&
+             (_column <  _span.col + _span.col_span) )
         {
             return &_span;
         }
@@ -697,12 +705,14 @@ tv_page_down(
 // tv_select_cell
 //   function: selects a single cell.
 D_INLINE void
-tv_select_cell(table_view& _table_view,
-               std::size_t _row,
-               std::size_t _col)
+tv_select_cell(
+    table_view& _table_view,
+    std::size_t _row,
+    std::size_t _column
+)
 {
-    _table_view.selection     = { { _row, _col },
-                                  { _row, _col } };
+    _table_view.selection     = { { _row, _column },
+                                  { _row, _column } };
     _table_view.has_selection = true;
 
     return;
@@ -711,8 +721,10 @@ tv_select_cell(table_view& _table_view,
 // tv_select_row
 //   function: selects an entire row.
 D_INLINE void
-tv_select_row(table_view& _table_view,
-              std::size_t _row)
+tv_select_row(
+    table_view& _table_view,
+    std::size_t _row
+)
 {
     _table_view.selection = {
         { _row, 0 },
@@ -729,15 +741,17 @@ tv_select_row(table_view& _table_view,
 // tv_select_column
 //   function: selects an entire column.
 D_INLINE void
-tv_select_column(table_view& _table_view,
-                 std::size_t _col)
+tv_select_column(
+    table_view& _table_view,
+    std::size_t _column
+)
 {
     _table_view.selection = {
-        { 0, _col },
+        { 0, _column },
         { (_table_view.num_rows > 0)
               ? (_table_view.num_rows - 1)
               : 0,
-          _col }
+          _column }
     };
     _table_view.has_selection = true;
 
@@ -747,9 +761,11 @@ tv_select_column(table_view& _table_view,
 // tv_select_range
 //   function: selects an inclusive rectangular range.
 D_INLINE void
-tv_select_range(table_view& _table_view,
-                cell_pos    _start,
-                cell_pos    _end)
+tv_select_range(
+    table_view& _table_view,
+    cell_pos    _start,
+    cell_pos    _end
+)
 {
     _table_view.selection     = { _start, _end };
     _table_view.has_selection = true;
@@ -795,9 +811,11 @@ tv_clear_selection(
 // tv_is_selected
 //   function: returns true if a cell lies within the active selection.
 D_INLINE bool
-tv_is_selected(const table_view& _table_view,
-               std::size_t       _row,
-               std::size_t       _col)
+tv_is_selected(
+    const table_view& _table_view,
+    std::size_t       _row,
+    std::size_t       _column
+)
 {
     if (!_table_view.has_selection)
     {
@@ -805,7 +823,7 @@ tv_is_selected(const table_view& _table_view,
     }
 
     return _table_view.selection.contains(_row,
-                                          _col);
+                                          _column);
 }
 
 // tv_select_at_cursor
@@ -882,23 +900,25 @@ tv_selected_cells(
 // tv_begin_edit
 //   function: begins inline editing for a cell.
 D_INLINE bool
-tv_begin_edit(table_view& _table_view,
-              std::size_t _row,
-              std::size_t _col)
+tv_begin_edit(
+    table_view& _table_view,
+    std::size_t _row,
+    std::size_t _column
+)
 {
     // reject editing of covered (spanned) cells
     if (tv_cell_role(_table_view,
                      _row,
-                     _col) == cell_role::covered)
+                     _column) == cell_role::covered)
     {
         return false;
     }
 
     _table_view.editing     = true;
-    _table_view.edit_cell   = { _row, _col };
+    _table_view.edit_cell   = { _row, _column };
     _table_view.edit_buffer = tv_cell_text(_table_view,
                                            _row,
-                                           _col);
+                                           _column);
     _table_view.edit_cursor = _table_view.edit_buffer.size();
 
     return true;
@@ -958,9 +978,11 @@ tv_cancel_edit(
 // tv_sort_by_column
 //   function: updates sort state and invokes the bound sort callback.
 D_INLINE void
-tv_sort_by_column(table_view& _table_view,
-                  std::size_t _col,
-                  sort_order  _dir)
+tv_sort_by_column(
+    table_view& _table_view,
+    std::size_t _column,
+    sort_order  _dir
+)
 {
     // clear existing sort indicators
     for (auto& _column : _table_view.columns)
@@ -969,23 +991,23 @@ tv_sort_by_column(table_view& _table_view,
     }
 
     // apply sort to the target column if valid and sortable
-    if (_col < _table_view.columns.size())
+    if (_column < _table_view.columns.size())
     {
-        if (!_table_view.columns[_col].sortable)
+        if (!_table_view.columns[_column].sortable)
         {
             return;
         }
 
-        _table_view.columns[_col].sort = _dir;
+        _table_view.columns[_column].sort = _dir;
     }
 
-    _table_view.sort_column = _col;
+    _table_view.sort_column = _column;
     _table_view.sort_dir    = _dir;
 
     // invoke the bound sort callback
     if (_table_view.on_sort)
     {
-        _table_view.on_sort(_col,
+        _table_view.on_sort(_column,
                             _dir);
     }
 
@@ -997,13 +1019,13 @@ tv_sort_by_column(table_view& _table_view,
 D_INLINE void
 tv_toggle_sort(
 	table_view& _table_view,
-	std::size_t _col
+	std::size_t _column
 )
 {
     sort_order next = sort_order::ascending;
 
     // cycle through none -> ascending -> descending -> none
-    if (_table_view.sort_column == _col)
+    if (_table_view.sort_column == _column)
     {
         switch (_table_view.sort_dir)
         {
@@ -1023,7 +1045,7 @@ tv_toggle_sort(
     }
 
     tv_sort_by_column(_table_view,
-                      _col,
+                      _column,
                       next);
 
     return;
@@ -1139,10 +1161,10 @@ tv_bind(
 
     _table_view.get_cell =
         [&_table, _to_string](std::size_t _row,
-                              std::size_t _col) -> std::string
+                              std::size_t _column) -> std::string
         {
             return _to_string(_table.cell(_row,
-                                          _col));
+                                          _column));
         };
 
     _table_view.set_cell    = nullptr;
@@ -1222,13 +1244,13 @@ D_INLINE void
 tv_add_span(
 	table_view& _table_view,
 	std::size_t _row,
-	std::size_t _col,
+	std::size_t _column,
 	std::size_t _row_span,
 	std::size_t _col_span
 )
 {
     _table_view.spans.push_back({ _row,
-                                  _col,
+                                  _column,
                                   _row_span,
                                   _col_span });
 
