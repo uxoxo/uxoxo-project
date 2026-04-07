@@ -6,12 +6,12 @@
 * TUI, imgui, web) reads the resulting table_view struct and draws it
 * however it likes.
 *
-*   Unlike the compile-time table adapter (table_view.hpp / tv_bind), a
-* database_table has runtime-determined dimensions, schema-driven column
+*   Unlike the compile-time table adapter (table_view.hpp / table_viewbind),
+* a database_table has runtime-determined dimensions, schema-driven column
 * names, connection state, and synchronization lifecycle.  This module
 * provides:
 *
-*   - Binding a database_table to a table_view (dtv_bind)
+*   - Binding a database_table to a table_view (database_table_view_bind)
 *   - Schema-driven column descriptors (names, types, alignment)
 *   - Cell extraction via value_to_string
 *   - Connection and sync state exposure
@@ -21,20 +21,20 @@
 *   - Column type-based default alignment (numeric → right, text → left)
 *
 *   Structure:
-*     1.   Database view state (extended state beyond table_view)
-*     2.   Binding (dtv_bind - connect database_table to table_view)
-*     3.   Sync operations (refresh, commit, invalidate)
-*     4.   State queries (connection, dirty, stale, mutable)
-*     5.   Schema queries (column type, column name by index)
-*     6.   Cell write-back
-*     7.   Traits (SFINAE detection for database_table_view)
+*     1.   database view state (extended state beyond table_view)
+*     2.   binding (database_table_view_bind - connect database_table to table_view)
+*     3.   sync operations (refresh, commit, invalidate)
+*     4.   state queries (connection, dirty, stale, mutable)
+*     5.   schema queries (column type, column name by index)
+*     6.   cell write-back
+*     7.   traits (SFINAE detection for database_table_view)
 *
 *   REQUIRES: C++17 or later.
 *
 *
 * path:      /inc/uxoxo/component/table/database_table_view.hpp
 * link(s):   TBA
-* author(s): Samuel 'teer' Neal-Blim                          date: 2026.04.05
+* author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.05
 *******************************************************************************/
 
 #ifndef UXOXO_COMPONENT_DATABASE_TABLE_VIEW_
@@ -97,21 +97,19 @@ struct database_table_state
 // =============================================================================
 //  2.  BINDING - connect a database_table to a table_view
 // =============================================================================
-//   dtv_bind populates a table_view and a database_table_state from a
+//   database_table_view_bind populates a table_view and a database_table_state from a
 // live database_table.  The database_table must outlive the view.
 //
-//   _DbTable:   any database_table<Connection, ValueType, Config>
+//   _DatabaseTable:   any database_table<Connection, ValueType, Config>
 //   _ToString:  (const value_type&) → std::string; defaults to
 //               value_to_string from database_common.hpp.
 
-namespace detail_dtv
-{
-
+NS_INTERNAL
     // default_alignment_for_type
     //   function: returns a sensible default text alignment based on the
     // database column's field_type.  Numeric types align right; text and
     // blobs align left.
-    inline text_alignment
+    D_INLINE text_alignment
     default_alignment_for_type(
         unsigned _field_type_ordinal
     ) noexcept
@@ -126,131 +124,133 @@ namespace detail_dtv
         return text_alignment::left;
     }
 
-}   // namespace detail_dtv
+NS_END   // internal
 
-// dtv_bind
+// database_table_view_bind
 //   function: connects a database_table to a table_view and
 // database_table_state.  Populates dimensions, column descriptors from
 // schema, cell extractor via _ToString, and wires refresh/commit
 // callbacks.
-template<typename _DbTable,
+template<typename _DatabaseTable,
          typename _ToString>
 void
-dtv_bind(table_view&           _tv,
-         database_table_state& _state,
-         _DbTable&             _db_table,
-         _ToString             _to_str)
+database_table_view_bind(
+    table_view&           _table_view,
+    database_table_state& _state,
+    _DatabaseTable&       _database_table,
+    _ToString             _to_str
+)
 {
-    using size_type = typename _DbTable::size_type;
+    using size_type = typename _DatabaseTable::size_type;
 
     // dimensions
-    _tv.num_rows = _db_table.rows();
-    _tv.num_cols = _db_table.cols();
+    _table_view.num_rows = _database_table.rows();
+    _table_view.num_columns = _database_table.cols();
 
     // config regions
-    _tv.header_rows = _DbTable::header_rows();
-    _tv.header_cols = _DbTable::header_cols();
-    _tv.footer_rows = _DbTable::footer_rows();
-    _tv.footer_cols = _DbTable::footer_cols();
-    _tv.total_rows  = 0;
-    _tv.total_cols  = 0;
+    _table_view.header_rows    = _DatabaseTable::header_rows();
+    _table_view.header_columns = _DatabaseTable::header_columns();
+    _table_view.footer_rows    = _DatabaseTable::footer_rows();
+    _table_view.footer_columns = _DatabaseTable::footer_columns();
+    _table_view.total_rows     = 0;
+    _table_view.total_columns  = 0;
 
     // cell extractor
-    _tv.get_cell = [&_db_table, _to_str](
+    _table_view.get_cell = [&_database_table, _to_str](
         std::size_t _row,
-        std::size_t _col
+        std::size_t _column
     ) -> std::string
     {
         // bounds check
-        if ( (_row >= _db_table.rows()) ||
-             (_col >= _db_table.cols()) )
+        if ( (_row >= _database_table.rows()) ||
+             (_column >= _database_table.cols()) )
         {
             return {};
         }
 
-        return _to_str(_db_table.cell(_row,
-                                      _col));
+        return _to_str(_database_table.cell(_row,
+                                      _column));
     };
 
     // column descriptors from schema
-    const auto& schema = _db_table.get_schema();
+    const auto& schema = _database_table.get_schema();
 
-    _tv.columns.clear();
-    _tv.columns.resize(_tv.num_cols);
+    _table_view.columns.clear();
+    _table_view.columns.resize(_table_view.num_columns);
 
-    for (size_type c = 0; c < _tv.num_cols; ++c)
+    for (size_type c = 0; c < _table_view.num_columns; ++c)
     {
         // use schema name if available, fallback to generic
         if (c < schema.columns.size())
         {
-            _tv.columns[c].name = schema.columns[c].name;
+            _table_view.columns[c].name = schema.columns[c].name;
         }
         else
         {
-            _tv.columns[c].name = "Col " + std::to_string(c);
+            _table_view.columns[c].name = "Col " + std::to_string(c);
         }
     }
 
     // spans (database tables typically have none)
-    _tv.spans.clear();
+    _table_view.spans.clear();
 
     // database state
-    _state.connected     = _db_table.is_connected();
-    _state.mutable_table = _db_table.is_mutable();
-    _state.dirty         = _db_table.is_dirty();
-    _state.stale         = _db_table.is_stale();
-    _state.table_name    = _db_table.table_name();
+    _state.connected     = _database_table.is_connected();
+    _state.mutable_table = _database_table.is_mutable();
+    _state.dirty         = _database_table.is_dirty();
+    _state.stale         = _database_table.is_stale();
+    _state.table_name    = _database_table.table_name();
     _state.schema_name   = schema.schema_name;
 
     // refresh callback
-    _state.on_refresh = [&_db_table, &_tv, &_state]() -> bool
+    _state.on_refresh = [&_database_table, &_table_view, &_state]() -> bool
     {
         // require active connection
-        if (!_db_table.is_connected())
+        if (!_database_table.is_connected())
         {
             return false;
         }
 
-        _db_table.refresh();
+        _database_table.refresh();
 
         // re-sync view dimensions
-        _tv.num_rows = _db_table.rows();
-        _tv.num_cols = _db_table.cols();
+        _table_view.num_rows = _database_table.rows();
+        _table_view.num_columns = _database_table.cols();
 
-        _state.dirty = _db_table.is_dirty();
-        _state.stale = _db_table.is_stale();
+        _state.dirty = _database_table.is_dirty();
+        _state.stale = _database_table.is_stale();
 
         // re-generate columns if schema changed
-        const auto& sch = _db_table.get_schema();
-        _tv.columns.resize(_tv.num_cols);
+        const auto& sch = _database_table.get_schema();
+        _table_view.columns.resize(_table_view.num_columns);
 
-        for (std::size_t i = 0; i < _tv.num_cols; ++i)
+        for (std::size_t i = 0; i < _table_view.num_columns; ++i)
         {
             if (i < sch.columns.size())
             {
-                _tv.columns[i].name = sch.columns[i].name;
+                _table_view.columns[i].name = sch.columns[i].name;
             }
         }
 
         // clamp cursor if it now exceeds table bounds
-        if ( (_tv.num_rows > 0) &&
-             (_tv.cursor.row >= _tv.num_rows) )
+        if ( (_table_view.num_rows > 0) &&
+             (_table_view.cursor.row >= _table_view.num_rows) )
         {
-            _tv.cursor.row = _tv.num_rows - 1;
+            _table_view.cursor.row = _table_view.num_rows - 1;
         }
 
         // clamp column cursor
-        if ( (_tv.num_cols > 0) &&
-             (_tv.cursor.col >= _tv.num_cols) )
+        if ( (_table_view.num_columns > 0) &&
+             (_table_view.cursor.col >= _table_view.num_columns) )
         {
-            _tv.cursor.col = _tv.num_cols - 1;
+            _table_view.cursor.col = _table_view.num_columns - 1;
         }
 
         // clamp scroll position
-        if (_tv.scroll_row + _tv.page_rows > _tv.num_rows)
+        if ( (_table_view.scroll_row + _table_view.page_rows) > _table_view.num_rows)
         {
-            _tv.scroll_row = (_tv.num_rows > _tv.page_rows)
-                ? _tv.num_rows - _tv.page_rows
+            _table_view.scroll_row = (_table_view.num_rows > _table_view.page_rows)
+                ? _table_view.num_rows - _table_view.page_rows
                 : 0;
         }
 
@@ -264,35 +264,35 @@ dtv_bind(table_view&           _tv,
     };
 
     // commit callback
-    _state.on_commit = [&_db_table, &_state]() -> bool
+    _state.on_commit = [&_database_table, &_state]() -> bool
     {
         // require connection and mutability
-        if ( (!_db_table.is_connected()) ||
-             (!_db_table.is_mutable()) )
+        if ( (!_database_table.is_connected()) ||
+             (!_database_table.is_mutable()) )
         {
             return false;
         }
 
-        _db_table.commit();
+        _database_table.commit();
 
-        _state.dirty = _db_table.is_dirty();
-        _state.stale = _db_table.is_stale();
+        _state.dirty = _database_table.is_dirty();
+        _state.stale = _database_table.is_stale();
 
         return true;
     };
 
     // cell writer (if mutable)
-    if (_db_table.is_mutable())
+    if (_database_table.is_mutable())
     {
-        _tv.set_cell = [&_db_table, &_state](
+        _table_view.set_cell = [&_database_table, &_state](
                 std::size_t        _row,
-                std::size_t        _col,
+                std::size_t        _column,
                 const std::string& _new_value
             ) -> bool
         {
             // bounds check
-            if ( (_row >= _db_table.rows()) ||
-                 (_col >= _db_table.cols()) )
+            if ( (_row >= _database_table.rows()) ||
+                 (_column >= _database_table.cols()) )
             {
                 return false;
             }
@@ -300,38 +300,40 @@ dtv_bind(table_view&           _tv,
             // write the raw string value into the database_table's
             // local cache.  The caller is responsible for type
             // conversion if needed.
-            _db_table.cell(_row,
-                           _col) = _new_value;
+            _database_table.cell(_row,
+                           _column) = _new_value;
 
-            _state.dirty = _db_table.is_dirty();
+            _state.dirty = _database_table.is_dirty();
 
             return true;
         };
     }
     else
     {
-        _tv.set_cell = nullptr;
+        _table_view.set_cell = nullptr;
     }
 
     return;
 }
 
-// dtv_bind
+// database_table_view_bind
 //   function: convenience overload without explicit _ToString.  Uses
 // database::value_to_string as the default cell formatter.  Requires
 // that the database_table's value_type has a matching value_to_string
 // overload in scope.
-template<typename _DbTable>
+template<typename _DatabaseTable>
 void
-dtv_bind(table_view&           _tv,
-         database_table_state& _state,
-         _DbTable&             _db_table)
+database_table_view_bind(
+    table_view&           _table_view,
+    database_table_state& _state,
+    _DatabaseTable&       _database_table
+)
 {
-    using value_type = typename _DbTable::value_type;
+    using value_type = typename _DatabaseTable::value_type;
 
-    dtv_bind(_tv,
+    database_table_view_bind(_table_view,
              _state,
-             _db_table,
+             _database_table,
              [](const value_type& _v) -> std::string
              {
                  return value_to_string(_v);
@@ -345,11 +347,11 @@ dtv_bind(table_view&           _tv,
 //  3.  SYNC OPERATIONS
 // =============================================================================
 
-// dtv_refresh
+// database_table_view_refresh
 //   function: triggers a refresh of the underlying database_table and
 // re-syncs the view dimensions.  Returns false if not connected.
-inline bool
-dtv_refresh(
+D_INLINE bool
+database_table_view_refresh(
     database_table_state& _state
 )
 {
@@ -361,11 +363,11 @@ dtv_refresh(
     return false;
 }
 
-// dtv_commit
+// database_table_view_commit
 //   function: commits local modifications to the database.  Returns
 // false if not connected or if the table is read-only.
-inline bool
-dtv_commit(
+D_INLINE bool
+database_table_view_commit(
     database_table_state& _state
 )
 {
@@ -377,19 +379,21 @@ dtv_commit(
     return false;
 }
 
-// dtv_sync_state
+// database_table_view_sync_state
 //   function: re-reads connection, dirty, and stale flags from the
 // database_table without performing a full refresh.  Use this after
 // external operations that may have changed the table's sync state.
-template<typename _DbTable>
+template<typename _DatabaseTable>
 void
-dtv_sync_state(database_table_state& _state,
-               const _DbTable&       _db_table)
+database_table_view_sync_state(
+    database_table_state& _state,
+    const _DatabaseTable& _database_table
+)
 {
-    _state.connected     = _db_table.is_connected();
-    _state.mutable_table = _db_table.is_mutable();
-    _state.dirty         = _db_table.is_dirty();
-    _state.stale         = _db_table.is_stale();
+    _state.connected     = _database_table.is_connected();
+    _state.mutable_table = _database_table.is_mutable();
+    _state.dirty         = _database_table.is_dirty();
+    _state.stale         = _database_table.is_stale();
 
     return;
 }
@@ -399,53 +403,53 @@ dtv_sync_state(database_table_state& _state,
 //  4.  STATE QUERIES
 // =============================================================================
 
-// dtv_is_connected
+// database_table_view_is_connected
 //   function: returns whether the database_table has a live connection.
-inline bool
-dtv_is_connected(
+D_INLINE bool
+database_table_view_is_connected(
     const database_table_state& _state
 ) noexcept
 {
     return _state.connected;
 }
 
-// dtv_is_dirty
+// database_table_view_is_dirty
 //   function: returns whether the local cache has uncommitted
 // modifications.
-inline bool
-dtv_is_dirty(
+D_INLINE bool
+database_table_view_is_dirty(
     const database_table_state& _state
 ) noexcept
 {
     return _state.dirty;
 }
 
-// dtv_is_stale
+// database_table_view_is_stale
 //   function: returns whether the local cache may be outdated relative
 // to the database.
-inline bool
-dtv_is_stale(
+D_INLINE bool
+database_table_view_is_stale(
     const database_table_state& _state
 ) noexcept
 {
     return _state.stale;
 }
 
-// dtv_is_mutable
+// database_table_view_is_mutable
 //   function: returns whether the table supports cell editing.
-inline bool
-dtv_is_mutable(
+D_INLINE bool
+database_table_view_is_mutable(
     const database_table_state& _state
 ) noexcept
 {
     return _state.mutable_table;
 }
 
-// dtv_is_editable
+// database_table_view_is_editable
 //   function: returns whether the table is both mutable and connected,
 // the preconditions for cell editing.
-inline bool
-dtv_is_editable(
+D_INLINE bool
+database_table_view_is_editable(
     const database_table_state& _state
 ) noexcept
 {
@@ -453,12 +457,14 @@ dtv_is_editable(
              _state.mutable_table );
 }
 
-// dtv_status_text
+// database_table_view_status_text
 //   function: returns a short status string summarising connection and
 // sync state.  Suitable for display in a status bar.
-inline std::string
-dtv_status_text(const database_table_state& _state,
-                const table_view&           _tv)
+D_INLINE std::string
+database_table_view_status_text(
+    const database_table_state& _state,
+    const table_view&           _table_view
+)
 {
     std::string result;
 
@@ -471,8 +477,8 @@ dtv_status_text(const database_table_state& _state,
     result += _state.table_name;
 
     // dimensions
-    result += " [" + std::to_string(_tv.num_rows)
-            + "×" + std::to_string(_tv.num_cols) + "]";
+    result += " [" + std::to_string(_table_view.num_rows)
+            + "×" + std::to_string(_table_view.num_columns) + "]";
 
     // connection status
     if (!_state.connected)
@@ -507,16 +513,18 @@ dtv_status_text(const database_table_state& _state,
 //  5.  SCHEMA QUERIES
 // =============================================================================
 
-// dtv_column_name
+// database_table_view_column_name
 //   function: returns the schema column name for a column index, or an
 // empty string if out of range.
-inline std::string
-dtv_column_name(const table_view& _tv,
-                std::size_t       _col)
+D_INLINE std::string
+database_table_view_column_name(
+    const table_view& _table_view,
+    std::size_t       _column
+)
 {
-    if (_col < _tv.columns.size())
+    if (_column < _table_view.columns.size())
     {
-        return _tv.columns[_col].name;
+        return _table_view.columns[_column].name;
     }
 
     return {};
@@ -528,47 +536,52 @@ dtv_column_name(const table_view& _tv,
 //   Wraps table_view editing operations with database-specific guards
 // (connection, mutability).
 
-// dtv_begin_edit
-//   function: starts inline editing if the table is editable.  Returns
+// database_table_view_begin_edit
+//   function: starts D_INLINE editing if the table is editable.  Returns
 // false if the table is read-only, disconnected, or the cell is covered.
-inline bool
-dtv_begin_edit(table_view&                 _tv,
-               const database_table_state& _state,
-               std::size_t                 _row,
-               std::size_t                 _col)
+D_INLINE bool
+database_table_view_begin_edit(
+    table_view&                 _table_view,
+    const database_table_state& _state,
+    std::size_t                 _row,
+    std::size_t                 _column
+)
 {
     // require editable state
-    if (!dtv_is_editable(_state))
+    if (!database_table_view_is_editable(_state))
     {
         return false;
     }
 
-    return tv_begin_edit(_tv,
+    return table_viewbegin_edit(_table_view,
                          _row,
-                         _col);
+                         _column);
 }
 
-// dtv_begin_edit_at_cursor
+// database_table_view_begin_edit_at_cursor
 //   function: convenience wrapper that begins editing at the current
 // cursor position.
-inline bool
-dtv_begin_edit_at_cursor(table_view&                 _tv,
-                         const database_table_state& _state)
+D_INLINE bool
+database_table_view_begin_edit_at_cursor(
+    table_view&                 _table_view,
+    const database_table_state& _state)
 {
-    return dtv_begin_edit(_tv,
+    return database_table_view_begin_edit(_table_view,
                           _state,
-                          _tv.cursor.row,
-                          _tv.cursor.col);
+                          _table_view.cursor.row,
+                          _table_view.cursor.col);
 }
 
-// dtv_commit_edit
+// database_table_view_commit_edit
 //   function: commits the edit buffer to the cell, then marks the state
 // as dirty.
-inline bool
-dtv_commit_edit(table_view&           _tv,
-                database_table_state& _state)
+D_INLINE bool
+database_table_view_commit_edit(
+    table_view&           _table_view,
+    database_table_state& _state
+)
 {
-    if (!tv_commit_edit(_tv))
+    if (!table_viewcommit_edit(_table_view))
     {
         return false;
     }
@@ -586,8 +599,7 @@ dtv_commit_edit(table_view&           _tv,
 
 namespace database_table_view_traits
 {
-namespace detail
-{
+NS_INTERNAL
 
     // has_connected_member
     //   trait: detects database_table_state's connected field.
@@ -645,37 +657,37 @@ namespace detail
         : std::true_type
     {};
 
-}   // namespace detail
+}   // internal
 
 template<typename _Type>
-inline constexpr bool has_connected_v =
-    detail::has_connected_member<_Type>::value;
+D_INLINE constexpr bool has_connected_v =
+    internal::has_connected_member<_Type>::value;
 
 template<typename _Type>
-inline constexpr bool has_dirty_v =
-    detail::has_dirty_member<_Type>::value;
+D_INLINE constexpr bool has_dirty_v =
+    internal::has_dirty_member<_Type>::value;
 
 template<typename _Type>
-inline constexpr bool has_on_refresh_v =
-    detail::has_on_refresh_member<_Type>::value;
+D_INLINE constexpr bool has_on_refresh_v =
+    internal::has_on_refresh_member<_Type>::value;
 
 template<typename _Type>
-inline constexpr bool has_table_name_v =
-    detail::has_table_name_member<_Type>::value;
+D_INLINE constexpr bool has_table_name_v =
+    internal::has_table_name_member<_Type>::value;
 
 // is_database_table_state
 //   trait: true if a type satisfies the database_table_state structural
 // interface (connected, dirty, on_refresh, table_name).
 template<typename _Type>
 struct is_database_table_state : std::conjunction<
-    detail::has_connected_member<_Type>,
-    detail::has_dirty_member<_Type>,
-    detail::has_on_refresh_member<_Type>,
-    detail::has_table_name_member<_Type>>
+    internal::has_connected_member<_Type>,
+    internal::has_dirty_member<_Type>,
+    internal::has_on_refresh_member<_Type>,
+    internal::has_table_name_member<_Type>>
 {};
 
 template<typename _Type>
-inline constexpr bool is_database_table_state_v =
+D_INLINE constexpr bool is_database_table_state_v =
     is_database_table_state<_Type>::value;
 
 }   // namespace database_table_view_traits
