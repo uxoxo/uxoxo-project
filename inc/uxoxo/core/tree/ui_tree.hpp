@@ -1,20 +1,20 @@
 /*******************************************************************************
 * uxoxo [core]                                                      ui_tree.hpp
 *
-*   Core semantic tree for the uxoxo meta-framework, backed by the djinterp
+*   Core semantic ui_tree for the uxoxo meta-framework, backed by the djinterp
 * arena_tree for O(1) node management, free-list recycling, and identity
 * tracking.
 *
 *   The ui_tree is the single source of truth for program UI state.  All
-* interfaces — console, WYSIWYG editor, DOM tree view, fairy — interact
-* with the tree exclusively through mutations, and observe changes through
-* the observer pattern.  The constraint system inside tree::apply() is the
+* interfaces — console, WYSIWYG editor, DOM ui_tree view, fairy — interact
+* with the ui_tree exclusively through mutations, and observe changes through
+* the observer pattern.  The constraint system inside ui_tree::apply() is the
 * firewall that prevents any interface from breaking structural invariants.
 *
 *   Integration with djinterp patterns:
 *
 *   observer.hpp — mutation notifications use the three-tier observer
-*     signal system.  Listeners connect to `tree::on_mutation()` and
+*     signal system.  Listeners connect to `ui_tree::on_mutation()` and
 *     receive RAII connection handles for automatic cleanup.  No
 *     abstract base class coupling — any callable works.
 *
@@ -35,25 +35,26 @@
 *     3.   constraint              per-node/per-property constraint
 *     4.   ui_payload              per-node semantic data (arena payload)
 *     5.   DMutationKind           mutation operation enum
-*     6.   mutation                a single tree operation
+*     6.   mutation                a single ui_tree operation
 *     7.   DMutationResult         outcome of applying a mutation
 *     8.   mutation_signal         observer signal type (replaces class)
 *     9.   undo_entry              reversal record (memento snapshot type)
-*     10.  tree                    owns arena, applies mutations, notifies
-*     11.  free function API       node/tree queries and mutation factories
+*     10.  ui_tree                    owns arena, applies mutations, notifies
+*     11.  free function API       node/ui_tree queries and mutation factories
 *     12.  traits                  SFINAE detection
 *
 *   REQUIRES: C++17 or later.
 *
 *
-* path:      /inc/uxoxo/core/ui_tree/ui_tree.hpp
+* path:      /inc/uxoxo/core/tree/ui_tree.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.11
 *******************************************************************************/
 
-#ifndef UXOXO_COMPONENT_UI_TREE_
-#define UXOXO_COMPONENT_UI_TREE_ 1
+#ifndef UXOXO_UI_TREE_
+#define UXOXO_UI_TREE_ 1
 
+// std
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -64,24 +65,24 @@
 #include <utility>
 #include <variant>
 #include <vector>
+// djinterp
+#include <djinterp/core/container/arena/tree/arena_tree.hpp>
+#include <djinterp/core/paradigm/observer/observer.hpp>
+#include <djinterp/core/paradigm/momento/memento.hpp>
+// uxoxo
 #include "../../uxoxo.hpp"
-
-// djinterp infrastructure
-#include "djinterp/container/arena/arena_tree.hpp"
-#include "djinterp/paradigm/pattern/observer.hpp"
-#include "djinterp/paradigm/memento/memento.hpp"
 
 
 NS_UXOXO
-NS_COMPONENT
+NS_UI_TREE
 
 
 // -- arena type imports ------------------------------------------------------
-using djinterp::container::node_id;
-using djinterp::container::null_node;
-using djinterp::container::full_nary_link_policy;
-using djinterp::container::arena_tree;
-using djinterp::container::arena_node;
+using djinterp::node_id;
+using djinterp::null_node;
+using djinterp::full_nary_link_policy;
+using djinterp::arena_tree;
+using djinterp::arena_node;
 
 
 // =============================================================================
@@ -193,28 +194,25 @@ struct ui_payload
                        property_value>  properties;
 
     constraint      node_constraint;
-    std::unordered_map<std::string,
-                       constraint>      prop_constraints;
+    std::unordered_map<std::string, constraint> prop_constraints;
 
     bool            can_receive_children = true;
 
     ui_payload() = default;
 
     explicit ui_payload(
-            std::string _tag
-        )
-            : tag(std::move(_tag))
-        {
-        }
+        std::string _tag
+    )
+        : tag(std::move(_tag))
+    {}
 
     ui_payload(
-            std::string _tag,
-            std::string _label
-        )
-            : tag(std::move(_tag)),
+        std::string _tag,
+        std::string _label
+    )
+        : tag(std::move(_tag)),
               label(std::move(_label))
-        {
-        }
+    {}
 };
 
 
@@ -237,7 +235,7 @@ enum class DMutationKind : std::uint8_t
 // =============================================================================
 
 // mutation
-//   struct: a single proposed tree operation.
+//   struct: a single proposed ui_tree operation.
 struct mutation
 {
     DMutationKind   kind        = DMutationKind::set_property;
@@ -341,7 +339,7 @@ enum class DMutationResult : std::uint8_t
 // callable and receive RAII connection handles.
 //
 // Usage:
-//   auto conn = tree.on_mutation().connect(
+//   auto conn = ui_tree.on_mutation().connect(
 //       [](const mutation& m, DMutationResult r, node_id id)
 //       {
 //           // handle
@@ -349,7 +347,7 @@ enum class DMutationResult : std::uint8_t
 //
 //   scoped_connection guard(std::move(conn));   // auto-disconnect
 //
-//   For single-listener cases (e.g. a fairy that observes one tree),
+//   For single-listener cases (e.g. a fairy that observes one ui_tree),
 // use delegate instead:
 //   delegate<void(const mutation&, DMutationResult, node_id)>
 
@@ -360,29 +358,24 @@ using mutation_signature =
 
 // mutation_signal
 //   type: dynamic observer with RAII connection tracking.
-using mutation_signal =
-    djinterp::pattern::observer<mutation_signature>;
+using mutation_signal = djinterp::observer<mutation_signature>;
 
 // mutation_connection
 //   type: connection handle returned by signal.connect().
-using mutation_connection =
-    djinterp::pattern::connection;
+using mutation_connection = djinterp::connection;
 
 // mutation_scoped_connection
 //   type: RAII guard that disconnects on destruction.
-using mutation_scoped_connection =
-    djinterp::pattern::scoped_connection;
+using mutation_scoped_connection = djinterp::scoped_connection;
 
 // mutation_delegate
 //   type: single-slot zero-overhead listener (8 bytes).
-using mutation_delegate =
-    djinterp::pattern::delegate<mutation_signature>;
+using mutation_delegate = djinterp::delegate<mutation_signature>;
 
 // mutation_event
 //   type: fixed-capacity listener set (no heap).
 template<std::size_t _N>
-using mutation_event =
-    djinterp::pattern::event<mutation_signature, _N>;
+using mutation_event = djinterp::event<mutation_signature, _N>;
 
 
 // =============================================================================
@@ -394,13 +387,13 @@ using mutation_event =
 
 struct undo_entry
 {
-    DMutationKind kind;
-    node_id       affected_id  = null_node;
-    node_id       old_parent   = null_node;
-    node_id       old_prev_sib = null_node;
-    std::string   prop_key;
-    property_valu old_value;
-    bool          had_property = false;
+    DMutationKind  kind;
+    node_id        affected_id  = null_node;
+    node_id        old_parent   = null_node;
+    node_id        old_prev_sib = null_node;
+    std::string    prop_key;
+    property_value old_value;
+    bool           had_property = false;
 };
 
 // -- memento type aliases ----------------------------------------------------
@@ -429,32 +422,30 @@ using undo_caretaker =
 //  10. TREE
 // =============================================================================
 
-// tree
-//   class: the semantic UI tree — single source of truth.
-class tree
+// ui_tree
+//   class: the semantic UI ui_tree — single source of truth.
+class ui_tree
 {
 public:
-    using arena_type =
-        arena_tree<ui_payload, full_nary_link_policy>;
-    using node_type  =
-        arena_node<ui_payload, full_nary_link_policy>;
+    using arena_type = arena_tree<ui_payload, full_nary_link_policy>;
+    using node_type  = arena_node<ui_payload, full_nary_link_policy>;
 
-    tree()
+    ui_tree()
         : m_arena(64)
     {}
 
-    explicit tree(
+    explicit ui_tree(
         std::size_t _reserve
     )
         : m_arena(_reserve)
     {}
 
-    ~tree() = default;
+    ~ui_tree() = default;
 
-    tree(const tree&) = delete;
-    tree& operator=(const tree&) = delete;
-    tree(tree&&) noexcept = default;
-    tree& operator=(tree&&) noexcept = default;
+    ui_tree(const ui_tree&) = delete;
+    ui_tree& operator=(const ui_tree&) = delete;
+    ui_tree(ui_tree&&) noexcept = default;
+    ui_tree& operator=(ui_tree&&) noexcept = default;
 
     // -- root --------------------------------------------------------
 
@@ -1346,7 +1337,7 @@ private:
 
 D_INLINE node_id
 tree_root(
-    const tree& _tree
+    const ui_tree& _tree
 ) noexcept
 {
     return _tree.root();
@@ -1354,7 +1345,7 @@ tree_root(
 
 D_INLINE bool
 tree_valid(
-    const tree& _tree,
+    const ui_tree& _tree,
     node_id     _id
 ) noexcept
 {
@@ -1363,7 +1354,7 @@ tree_valid(
 
 D_INLINE DMutationResult
 tree_apply(
-    tree&           _tree,
+    ui_tree&           _tree,
     const mutation& _mut
 )
 {
@@ -1372,7 +1363,7 @@ tree_apply(
 
 D_INLINE DMutationResult
 tree_apply_batch(
-    tree&                        _tree,
+    ui_tree&                        _tree,
     const std::vector<mutation>& _mutations
 )
 {
@@ -1381,7 +1372,7 @@ tree_apply_batch(
 
 D_INLINE const std::string&
 node_tag(
-    const tree& _tree,
+    const ui_tree& _tree,
     node_id     _id
 )
 {
@@ -1390,7 +1381,7 @@ node_tag(
 
 D_INLINE const std::string&
 node_label(
-    const tree& _tree,
+    const ui_tree& _tree,
     node_id     _id
 )
 {
@@ -1399,7 +1390,7 @@ node_label(
 
 D_INLINE node_id
 node_parent(
-    const tree& _tree,
+    const ui_tree& _tree,
     node_id     _id
 )
 {
@@ -1408,7 +1399,7 @@ node_parent(
 
 D_INLINE std::size_t
 node_child_count(
-    const tree& _tree,
+    const ui_tree& _tree,
     node_id     _id
 )
 {
@@ -1417,7 +1408,7 @@ node_child_count(
 
 D_INLINE node_id
 node_child_at(
-    const tree& _tree,
+    const ui_tree& _tree,
     node_id     _parent,
     std::size_t _index
 )
@@ -1427,7 +1418,7 @@ node_child_at(
 
 D_INLINE DConstraintKind
 node_constraint_kind(
-    const tree& _tree,
+    const ui_tree& _tree,
     node_id     _id
 )
 {
@@ -1436,7 +1427,7 @@ node_constraint_kind(
 
 D_INLINE bool
 node_can_receive_children(
-    const tree& _tree,
+    const ui_tree& _tree,
     node_id     _id
 )
 {
@@ -1445,7 +1436,7 @@ node_can_receive_children(
 
 D_INLINE bool
 node_is_descendant_of(
-    const tree& _tree,
+    const ui_tree& _tree,
     node_id     _child_id,
     node_id     _ancestor_id
 )
@@ -1455,7 +1446,7 @@ node_is_descendant_of(
 
 D_INLINE std::int64_t
 node_property_int(
-    const tree&        _tree,
+    const ui_tree&        _tree,
     node_id            _id,
     const std::string& _key
 )
@@ -1474,7 +1465,7 @@ node_property_int(
 
 D_INLINE double
 node_property_float(
-    const tree&        _tree,
+    const ui_tree&        _tree,
     node_id            _id,
     const std::string& _key
 )
@@ -1493,7 +1484,7 @@ node_property_float(
 
 D_INLINE std::string
 node_property_str(
-    const tree&        _tree,
+    const ui_tree&        _tree,
     node_id            _id,
     const std::string& _key
 )
@@ -1512,7 +1503,7 @@ node_property_str(
 
 D_INLINE bool
 node_property_bool(
-    const tree&        _tree,
+    const ui_tree&        _tree,
     node_id            _id,
     const std::string& _key
 )
@@ -1563,74 +1554,23 @@ mutation_make_set_property(
 
 
 // =============================================================================
-//  12. TRAITS
+//  12. TRAITS & CONCEPTS
 // =============================================================================
-
-namespace ui_tree_traits
-{
-NS_INTERNAL
-
-    template<typename _T, typename = void>
-    struct has_apply_method : std::false_type
-    {
-    };
-
-    template<typename _T>
-    struct has_apply_method<_T,
-        std::void_t<decltype(
-            std::declval<_T>().apply(
-                std::declval<const mutation&>()))>>
-        : std::true_type
-    {
-    };
-
-    template<typename _T, typename = void>
-    struct has_arena_method : std::false_type
-    {
-    };
-
-    template<typename _T>
-    struct has_arena_method<_T,
-        std::void_t<decltype(
-            std::declval<const _T>().arena())>>
-        : std::true_type
-    {
-    };
-
-    template<typename _T, typename = void>
-    struct has_on_mutation_method : std::false_type
-    {
-    };
-
-    template<typename _T>
-    struct has_on_mutation_method<_T,
-        std::void_t<decltype(
-            std::declval<_T>().on_mutation())>>
-        : std::true_type
-    {
-    };
-
-NS_END  // internal
-
-// is_ui_tree
-//   trait: true if a type has apply(), arena(), and on_mutation().
-template<typename _T>
-struct is_ui_tree : std::conjunction<
-    internal::has_apply_method<_T>,
-    internal::has_arena_method<_T>,
-    internal::has_on_mutation_method<_T>
->
-{
-};
-
-template<typename _T>
-D_INLINE constexpr bool is_ui_tree_v = is_ui_tree<_T>::value;
-
-}   // namespace ui_tree_traits
+//   SFINAE traits and C++20 concepts are defined in separate headers
+// for modularity.  Include ui_tree_traits.hpp for C++17 SFINAE-based
+// detection; include ui_tree_concepts.hpp (C++20+) for first-class
+// concept constraints.
 
 
-NS_END  // component
+
+NS_END  // ui_tree
 NS_END  // uxoxo
 
 
-#endif  // UXOXO_COMPONENT_UI_TREE_
+// trait and concept headers must come after the namespace closes
+// so that ui_tree types are complete before detection.
+#include "ui_tree_traits.hpp"
+#include "ui_tree_concepts.hpp"
+
+
+#endif  // UXOXO_UI_TREE_
