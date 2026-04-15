@@ -1,5 +1,5 @@
 /*******************************************************************************
-* uxoxo [component]                                          input_control.hpp
+* uxoxo [component]                                           input_control.hpp
 *
 * Generic input control:
 *   A framework-agnostic, pure-data input control template.  This is the
@@ -26,15 +26,19 @@
 *   Feature composition follows the same EBO-mixin bitfield pattern
 * used by tree_node, list_entry, and text_input.
 *
+*   Shared operations (enable, disable, set_value, clear, undo,
+* commit, set_read_only) are provided by the ADL-dispatched free
+* functions in component_common.hpp.  Legacy ic_-prefixed wrappers
+* are retained for backward compatibility.
+*
 * Contents:
-*   §1  Feature flags (input_control_feat)
-*   §2  EBO mixins
-*   §3  input_control struct
-*   §4  Free functions (enable, disable, commit)
-*   §5  Traits (SFINAE detection)
+*   1.  Feature flags (input_control_feat)
+*   2.  input_control struct
+*   3.  Legacy free functions (ic_-prefixed, thin wrappers)
+*   4.  Traits (SFINAE detection, delegates to component_traits)
 *
 *
-* path:      /inc/uxoxo/component/input_control.hpp
+* path:      /inc/uxoxo/templates/component/input/input_control.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                      date: 2026.04.09
 *******************************************************************************/
@@ -42,24 +46,30 @@
 #ifndef  UXOXO_COMPONENT_INPUT_CONTROL_
 #define  UXOXO_COMPONENT_INPUT_CONTROL_ 1
 
+// std
 #include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <string>
 #include <type_traits>
 #include <utility>
-
-#include <uxoxo>
-#include <component/view_common.hpp>
+// djinterp
+#include <djinterp/core/djinterp.hpp>
+// uxoxo
+#include "../../../uxoxo.hpp"
+#include "../view_common.hpp"
+#include "../../component_mixin.hpp"
+#include "../../component_traits.hpp"
+#include "../../component_common.hpp"
 
 
 NS_UXOXO
 NS_COMPONENT
 
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §1  INPUT CONTROL FEATURE FLAGS
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  1.  INPUT CONTROL FEATURE FLAGS
+// ===============================================================================
 //   Start at bit 16 to avoid colliding with view_feat (0–7)
 // and text_input_feat (8–15).
 
@@ -79,77 +89,34 @@ constexpr unsigned operator|(input_control_feat a,
     return static_cast<unsigned>(a) | static_cast<unsigned>(b);
 }
 
-constexpr bool has_icf(unsigned       f,
+constexpr bool has_icf(unsigned           f,
                        input_control_feat bit) noexcept
 {
     return (f & static_cast<unsigned>(bit)) != 0;
 }
 
-
-/*****************************************************************************/
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §2  EBO MIXINS
-// ═══════════════════════════════════════════════════════════════════════════════
-
-namespace input_mixin {
-
-    // ── label ────────────────────────────────────────────────────────
-    template <bool _Enable>
-    struct label_data
-    {};
-
-    template <>
-    struct label_data<true>
-    {
-        std::string label;
-    };
-
-    // ── clearable ────────────────────────────────────────────────────
-    template <bool _Enable, typename _Value>
-    struct clearable_data
-    {};
-
-    template <typename _Value>
-    struct clearable_data<true, _Value>
-    {
-        _Value default_value {};
-    };
-
-    // ── undoable ─────────────────────────────────────────────────────
-    template <bool _Enable, typename _Value>
-    struct undo_data
-    {};
-
-    template <typename _Value>
-    struct undo_data<true, _Value>
-    {
-        _Value   previous_value {};
-        bool     has_previous = false;
-    };
-
-}   // namespace input_mixin
-
-
-/*****************************************************************************/
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §3  INPUT CONTROL
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  2.  INPUT CONTROL
+// ===============================================================================
 //   _Value     the type of the control's payload (std::string for text,
 //              int for a spinner, bool for a checkbox, etc.)
 //   _Feat      bitwise OR of input_control_feat flags
 //
 //   The commit callback type is std::function<void(const _Value&)>.
-// It is invoked by ic_commit() when the user confirms the current
+// It is invoked by commit() when the user confirms the current
 // value.  The callback is optional (empty by default).
+//
+//   EBO mixins are sourced from the shared component_mixin
+// namespace.  This eliminates the input_mixin duplication — the
+// same mixin definitions are shared with output_control and any
+// future component.
 
 template <typename _Value,
           unsigned _Feat = icf_none>
 struct input_control
-    : input_mixin::label_data     <has_icf(_Feat, icf_labeled)>
-    , input_mixin::clearable_data <has_icf(_Feat, icf_clearable), _Value>
-    , input_mixin::undo_data      <has_icf(_Feat, icf_undoable),  _Value>
+    : component_mixin::label_data     <has_icf(_Feat, icf_labeled)>
+    , component_mixin::clearable_data <has_icf(_Feat, icf_clearable), _Value>
+    , component_mixin::undo_data      <has_icf(_Feat, icf_undoable),  _Value>
 {
     using value_type    = _Value;
     using commit_fn     = std::function<void(const _Value&)>;
@@ -160,15 +127,15 @@ struct input_control
     static constexpr bool is_undoable     = has_icf(_Feat, icf_undoable);
     static constexpr bool focusable       = true;
 
-    // ── core state ───────────────────────────────────────────────────
+    // -- core state ---------------------------------------------------
     _Value  value    {};
     bool    enabled  = true;
     bool    read_only = false;
 
-    // ── commit callback ──────────────────────────────────────────────
+    // -- commit callback ----------------------------------------------
     commit_fn  on_commit;
 
-    // ── construction ─────────────────────────────────────────────────
+    // -- construction -------------------------------------------------
     input_control() = default;
 
     explicit input_control(
@@ -177,7 +144,7 @@ struct input_control
             : value(std::move(initial))
         {}
 
-    // ── queries ──────────────────────────────────────────────────────
+    // -- queries ------------------------------------------------------
     [[nodiscard]] bool
     is_enabled() const noexcept
     {
@@ -188,254 +155,172 @@ struct input_control
 
 /*****************************************************************************/
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §4  FREE FUNCTIONS
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  3.  LEGACY FREE FUNCTIONS
+// ===============================================================================
+//   These ic_-prefixed functions are retained for backward
+// compatibility.  New code should prefer the ADL-dispatched
+// equivalents in component_common.hpp:
+//
+//     ic_enable(ic)       →  enable(ic)
+//     ic_disable(ic)      →  disable(ic)
+//     ic_set_read_only()  →  set_read_only(ic, ro)
+//     ic_set_value()      →  set_value(ic, val)
+//     ic_commit()         →  commit(ic)
+//     ic_clear()          →  clear(ic)
+//     ic_undo()           →  undo(ic)
 
 // ic_enable
 template <typename _V, unsigned _F>
-void ic_enable(input_control<_V, _F>& ic)
+void ic_enable(input_control<_V, _F>& _ic)
 {
-    ic.enabled = true;
+    enable(_ic);
 
     return;
 }
 
 // ic_disable
 template <typename _V, unsigned _F>
-void ic_disable(input_control<_V, _F>& ic)
+void ic_disable(input_control<_V, _F>& _ic)
 {
-    ic.enabled = false;
+    disable(_ic);
 
     return;
 }
 
 // ic_set_read_only
 template <typename _V, unsigned _F>
-void ic_set_read_only(input_control<_V, _F>& ic,
-                      bool                   ro)
+void ic_set_read_only(input_control<_V, _F>& _ic,
+                      bool                   _ro)
 {
-    ic.read_only = ro;
+    set_read_only(_ic, _ro);
 
     return;
 }
 
 // ic_set_value
-//   replaces the control's value.  Stores the previous value
-// if the control is undoable.
 template <typename _V, unsigned _F>
-void ic_set_value(input_control<_V, _F>& ic,
-                  _V                     val)
+void ic_set_value(input_control<_V, _F>& _ic,
+                  _V                     _val)
 {
-    if constexpr (has_icf(_F, icf_undoable))
-    {
-        ic.previous_value = ic.value;
-        ic.has_previous   = true;
-    }
-
-    ic.value = std::move(val);
+    set_value(_ic, std::move(_val));
 
     return;
 }
 
 // ic_commit
-//   invokes the commit callback with the current value.
-// Returns true if the callback was invoked.
 template <typename _V, unsigned _F>
-bool ic_commit(input_control<_V, _F>& ic)
+bool ic_commit(input_control<_V, _F>& _ic)
 {
-    if (!ic.is_enabled())
-    {
-        return false;
-    }
-
-    if (ic.on_commit)
-    {
-        ic.on_commit(ic.value);
-    }
-
-    return true;
+    return commit(_ic);
 }
 
 // ic_clear
-//   resets the control to its default value (requires icf_clearable).
 template <typename _V, unsigned _F>
-void ic_clear(input_control<_V, _F>& ic)
+void ic_clear(input_control<_V, _F>& _ic)
 {
     static_assert(has_icf(_F, icf_clearable),
                   "requires icf_clearable");
 
-    if constexpr (has_icf(_F, icf_undoable))
-    {
-        ic.previous_value = ic.value;
-        ic.has_previous   = true;
-    }
-
-    ic.value = ic.default_value;
+    clear(_ic);
 
     return;
 }
 
 // ic_undo
-//   restores the previous value (requires icf_undoable).
-// Returns true if undo was performed.
 template <typename _V, unsigned _F>
-bool ic_undo(input_control<_V, _F>& ic)
+bool ic_undo(input_control<_V, _F>& _ic)
 {
     static_assert(has_icf(_F, icf_undoable),
                   "requires icf_undoable");
 
-    if (!ic.has_previous)
-    {
-        return false;
-    }
-
-    ic.value        = ic.previous_value;
-    ic.has_previous = false;
-
-    return true;
+    return undo(_ic);
 }
 
 
 /*****************************************************************************/
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §5  TRAITS
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  4.  TRAITS
+// ===============================================================================
+//   Shared detectors delegate to component_traits.  Only the
+// input-specific composite traits (is_input_control, etc.) are
+// defined here.  The _v aliases are kept for backward
+// compatibility but now forward to the shared versions.
 
 namespace input_control_traits {
-namespace detail {
 
-    template <typename, typename = void>
-    struct has_value_member : std::false_type {};
-    template <typename _T>
-    struct has_value_member<_T, std::void_t<
-        decltype(std::declval<_T>().value)
-    >> : std::true_type {};
-
-    template <typename, typename = void>
-    struct has_enabled_member : std::false_type {};
-    template <typename _T>
-    struct has_enabled_member<_T, std::void_t<
-        decltype(std::declval<_T>().enabled)
-    >> : std::true_type {};
-
-    template <typename, typename = void>
-    struct has_read_only_member : std::false_type {};
-    template <typename _T>
-    struct has_read_only_member<_T, std::void_t<
-        decltype(std::declval<_T>().read_only)
-    >> : std::true_type {};
-
-    template <typename, typename = void>
-    struct has_focusable_flag : std::false_type {};
-    template <typename _T>
-    struct has_focusable_flag<_T,
-        std::enable_if_t<_T::focusable>
-    > : std::true_type {};
-
-    template <typename, typename = void>
-    struct has_on_commit_member : std::false_type {};
-    template <typename _T>
-    struct has_on_commit_member<_T, std::void_t<
-        decltype(std::declval<_T>().on_commit)
-    >> : std::true_type {};
-
-    template <typename, typename = void>
-    struct has_label_member : std::false_type {};
-    template <typename _T>
-    struct has_label_member<_T, std::void_t<
-        decltype(std::declval<_T>().label)
-    >> : std::true_type {};
-
-    template <typename, typename = void>
-    struct has_default_value_member : std::false_type {};
-    template <typename _T>
-    struct has_default_value_member<_T, std::void_t<
-        decltype(std::declval<_T>().default_value)
-    >> : std::true_type {};
-
-    template <typename, typename = void>
-    struct has_previous_value_member : std::false_type {};
-    template <typename _T>
-    struct has_previous_value_member<_T, std::void_t<
-        decltype(std::declval<_T>().previous_value)
-    >> : std::true_type {};
-
-}   // namespace detail
-
-template <typename _T>
+// -- value aliases (delegate to component_traits) -------------------------
+template <typename _Type>
 inline constexpr bool has_value_v =
-    detail::has_value_member<_T>::value;
-template <typename _T>
+    component_traits::has_value_v<_Type>;
+template <typename _Type>
 inline constexpr bool has_enabled_v =
-    detail::has_enabled_member<_T>::value;
-template <typename _T>
+    component_traits::has_enabled_v<_Type>;
+template <typename _Type>
 inline constexpr bool has_read_only_v =
-    detail::has_read_only_member<_T>::value;
-template <typename _T>
+    component_traits::has_read_only_v<_Type>;
+template <typename _Type>
 inline constexpr bool has_on_commit_v =
-    detail::has_on_commit_member<_T>::value;
-template <typename _T>
+    component_traits::has_on_commit_v<_Type>;
+template <typename _Type>
 inline constexpr bool has_label_v =
-    detail::has_label_member<_T>::value;
-template <typename _T>
+    component_traits::has_label_v<_Type>;
+template <typename _Type>
 inline constexpr bool has_default_value_v =
-    detail::has_default_value_member<_T>::value;
-template <typename _T>
+    component_traits::has_default_value_v<_Type>;
+template <typename _Type>
 inline constexpr bool has_previous_value_v =
-    detail::has_previous_value_member<_T>::value;
+    component_traits::has_previous_value_v<_Type>;
+
+// -- input-specific composite traits --------------------------------------
 
 // is_input_control
-//   type trait: has value + enabled + read_only + focusable.
+//   trait: has value + enabled + read_only + focusable(true).
 template <typename _Type>
-struct is_input_control : std::conjunction<
-    detail::has_value_member<_Type>,
-    detail::has_enabled_member<_Type>,
-    detail::has_read_only_member<_Type>,
-    detail::has_focusable_flag<_Type>
->
+struct is_input_control : component_traits::is_input_like<_Type>
 {};
 
-template <typename _T>
+template <typename _Type>
 inline constexpr bool is_input_control_v =
-    is_input_control<_T>::value;
+    is_input_control<_Type>::value;
 
 // is_labeled_input
 template <typename _Type>
 struct is_labeled_input : std::conjunction<
     is_input_control<_Type>,
-    detail::has_label_member<_Type>
+    component_traits::detail::has_label_member<_Type>
 >
 {};
 
-template <typename _T>
+template <typename _Type>
 inline constexpr bool is_labeled_input_v =
-    is_labeled_input<_T>::value;
+    is_labeled_input<_Type>::value;
 
 // is_clearable_input
 template <typename _Type>
 struct is_clearable_input : std::conjunction<
     is_input_control<_Type>,
-    detail::has_default_value_member<_Type>
+    component_traits::detail::has_default_value_member<_Type>
 >
 {};
 
-template <typename _T>
+template <typename _Type>
 inline constexpr bool is_clearable_input_v =
-    is_clearable_input<_T>::value;
+    is_clearable_input<_Type>::value;
 
 // is_undoable_input
 template <typename _Type>
 struct is_undoable_input : std::conjunction<
     is_input_control<_Type>,
-    detail::has_previous_value_member<_Type>
+    component_traits::detail::has_previous_value_member<_Type>
 >
 {};
 
-template <typename _T>
+template <typename _Type>
 inline constexpr bool is_undoable_input_v =
-    is_undoable_input<_T>::value;
+    is_undoable_input<_Type>::value;
+
 
 }   // namespace input_control_traits
 
