@@ -1,5 +1,5 @@
 /*******************************************************************************
-* uxoxo [component]                                          autocomplete.hpp
+* uxoxo [component]                                            autocomplete.hpp
 *
 * Autocomplete component:
 *   A framework-agnostic, presentation-neutral autocomplete template.
@@ -31,7 +31,7 @@
 *     - Nothing visible — programmatic completion only
 *
 *   The data flow is:
-*     user input → ac_update() → suggest_adapter::suggest() →
+*     user input → autocomplete_update() → suggest_adapter::suggest() →
 *     best match selected → completion suffix computed →
 *     framework reads & renders/applies
 *
@@ -42,38 +42,42 @@
 *     _Policy     framework-supplied presentation policy
 *
 * Contents:
-*   §1  Completion mode enum
-*   §2  Default policy
-*   §3  autocomplete struct
-*   §4  Free functions
-*   §5  Traits (SFINAE detection)
+*   1.  completion mode enum
+*   2.  default policy
+*   3.  autocomplete struct
+*   4.  free functions
+*   5.  traits (SFINAE detection)
 *
 *
-* path:      /inc/uxoxo/component/autocomplete.hpp
+* path:      /inc/uxoxo/templates/component/autocomplete.hpp
 * link(s):   TBA
-* author(s): Samuel 'teer' Neal-Blim                      date: 2026.04.09
+* author(s): Samuel 'teer' Neal-Blim                        created: 2026.04.09
 *******************************************************************************/
 
 #ifndef  UXOXO_COMPONENT_AUTOCOMPLETE_
 #define  UXOXO_COMPONENT_AUTOCOMPLETE_ 1
 
+// std
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
-
-#include <uxoxo>
+// djinterp
+#include <djinterp/core/djinterp.hpp>
+// uxoxo
+#include "../../uxoxo.hpp"
 
 
 NS_UXOXO
 NS_COMPONENT
 
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §1  COMPLETION MODE
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  1.  COMPLETION MODE
+// ===============================================================================
 //   Hints to the framework about how the completion is applied.
 
 enum class completion_mode : std::uint8_t
@@ -95,23 +99,22 @@ enum class completion_mode : std::uint8_t
     cycle,
 
     // no automatic application — the consumer calls
-    // ac_apply() explicitly.
+    // autocomplete_apply() explicitly.
     manual
 };
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §2  DEFAULT POLICY
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  2.  DEFAULT POLICY
+// ===============================================================================
 
+// autocomplete_default_policy
+//   struct: empty default policy placeholder.
 struct autocomplete_default_policy
 {};
 
-
-/*****************************************************************************/
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §3  AUTOCOMPLETE
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  3.  AUTOCOMPLETE
+// ===============================================================================
 //   _Matcher is a type-erased callable that extracts the completion
 // suffix from a suggestion given the current input.  Signature:
 //   _Input (_Input current_input, _Suggest selected_suggestion)
@@ -122,10 +125,12 @@ struct autocomplete_default_policy
 // implement prefix-aware completion (e.g. only appending the
 // suffix that extends beyond the user's current input).
 
-template <typename _Input     = std::string,
-          typename _Suggest   = std::string,
-          typename _Container = std::vector<_Suggest>,
-          typename _Policy    = autocomplete_default_policy>
+// autocomplete
+//   struct: framework-agnostic autocomplete state template.
+template<typename _Input     = std::string,
+         typename _Suggest   = std::string,
+         typename _Container = std::vector<_Suggest>,
+         typename _Policy    = autocomplete_default_policy>
 struct autocomplete
 {
     using input_type     = _Input;
@@ -139,32 +144,32 @@ struct autocomplete
                                _Input(const _Input&,
                                       const _Suggest&)>;
 
-    // ── adapter connection ───────────────────────────────────────────
+    // -- adapter connection -------------------------------------------
     suggest_fn  source;
 
-    // ── matcher ──────────────────────────────────────────────────────
-    //   Transforms (input, suggestion) → completed input.
+    // -- matcher ------------------------------------------------------
+    //   transforms (input, suggestion) → completed input.
     // If unset, the suggestion is used directly as the completed
     // value.
     matcher_fn  matcher;
 
-    // ── results ──────────────────────────────────────────────────────
+    // -- results ------------------------------------------------------
     _Container  candidates {};
     size_type   selected    = 0;
 
-    // ── completion state ─────────────────────────────────────────────
+    // -- completion state ---------------------------------------------
     //   completed_value holds the result of applying the matcher
     // to the current input and selected candidate.  The framework
     // reads this to know what to display / insert.
     _Input      completed_value {};
     bool        has_completion   = false;
 
-    // ── display ──────────────────────────────────────────────────────
+    // -- display ------------------------------------------------------
     completion_mode mode    = completion_mode::automatic;
     bool            active  = true;
     bool            visible = false;
 
-    // ── construction ─────────────────────────────────────────────────
+    // -- construction -------------------------------------------------
     autocomplete() = default;
 
     explicit autocomplete(
@@ -191,351 +196,410 @@ struct autocomplete
               mode(_mode)
         {}
 
-    // ── queries ──────────────────────────────────────────────────────
-    [[nodiscard]] bool
-    has_source() const noexcept
+    // -- queries ------------------------------------------------------
+    D_NODISCARD bool
+    has_source() const D_NOEXCEPT
     {
         return static_cast<bool>(source);
     }
 
-    [[nodiscard]] bool
-    has_candidates() const noexcept
+    D_NODISCARD bool
+    has_candidates() const D_NOEXCEPT
     {
         return !candidates.empty();
     }
 
-    [[nodiscard]] bool
-    has_matcher() const noexcept
+    D_NODISCARD bool
+    has_matcher() const D_NOEXCEPT
     {
         return static_cast<bool>(matcher);
     }
 };
 
 
-/*****************************************************************************/
+// ===============================================================================
+//  4.  FREE FUNCTIONS
+// ===============================================================================
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §4  FREE FUNCTIONS
-// ═══════════════════════════════════════════════════════════════════════════════
-
-// ac_set_source
-template <typename _I, typename _S,
-          typename _C, typename _P>
-void ac_set_source(
-    autocomplete<_I, _S, _C, _P>&                       ac,
-    typename autocomplete<_I, _S, _C, _P>::suggest_fn    fn)
+// autocomplete_set_source
+template<typename _I,
+         typename _S,
+         typename _C,
+         typename _P>
+void autocomplete_set_source(
+    autocomplete<_I, _S, _C, _P>&                     _ac,
+    typename autocomplete<_I, _S, _C, _P>::suggest_fn  _fn)
 {
-    ac.source = std::move(fn);
+    _ac.source = std::move(_fn);
 
     return;
 }
 
-// ac_set_matcher
-template <typename _I, typename _S,
-          typename _C, typename _P>
-void ac_set_matcher(
-    autocomplete<_I, _S, _C, _P>&                       ac,
-    typename autocomplete<_I, _S, _C, _P>::matcher_fn    fn)
+// autocomplete_set_matcher
+template<typename _I,
+         typename _S,
+         typename _C,
+         typename _P>
+void autocomplete_set_matcher(
+    autocomplete<_I, _S, _C, _P>&                      _ac,
+    typename autocomplete<_I, _S, _C, _P>::matcher_fn   _fn)
 {
-    ac.matcher = std::move(fn);
+    _ac.matcher = std::move(_fn);
 
     return;
 }
 
-// ac_update
+// autocomplete_update
 //   regenerates the candidate list from the given input and
 // computes the completion for the first/selected candidate.
-template <typename _I, typename _S,
-          typename _C, typename _P>
-void ac_update(autocomplete<_I, _S, _C, _P>& ac,
-               const _I&                     input)
+template<typename _I,
+         typename _S,
+         typename _C,
+         typename _P>
+void autocomplete_update(
+    autocomplete<_I, _S, _C, _P>& _ac,
+    const _I&                      _input)
 {
-    if (!ac.active || !ac.source)
+    if ( (!_ac.active) ||
+         (!_ac.source) )
     {
-        ac.candidates      = _C{};
-        ac.has_completion   = false;
-        ac.visible          = false;
+        _ac.candidates      = _C{};
+        _ac.has_completion   = false;
+        _ac.visible          = false;
 
         return;
     }
 
-    ac.candidates = ac.source(input);
-    ac.selected   = 0;
+    _ac.candidates = _ac.source(_input);
+    _ac.selected   = 0;
 
-    if (ac.candidates.empty())
+    if (_ac.candidates.empty())
     {
-        ac.has_completion = false;
-        ac.visible        = false;
+        _ac.has_completion = false;
+        _ac.visible        = false;
 
         return;
     }
 
     // apply matcher to produce the completed value.
-    if (ac.matcher)
+    if (_ac.matcher)
     {
-        ac.completed_value = ac.matcher(
-            input,
-            ac.candidates[ac.selected]);
+        _ac.completed_value = _ac.matcher(
+            _input,
+            _ac.candidates[_ac.selected]);
     }
     else
     {
         // default: the suggestion IS the completed value.
         // This requires _Suggest to be convertible to _Input.
-        ac.completed_value = static_cast<_I>(
-            ac.candidates[ac.selected]);
+        _ac.completed_value = static_cast<_I>(
+            _ac.candidates[_ac.selected]);
     }
 
-    ac.has_completion = true;
-    ac.visible        = true;
+    _ac.has_completion = true;
+    _ac.visible        = true;
 
     return;
 }
 
-// ac_cycle_next
+// autocomplete_cycle_next
 //   advances to the next candidate and recomputes the
 // completion.
-template <typename _I, typename _S,
-          typename _C, typename _P>
-bool ac_cycle_next(autocomplete<_I, _S, _C, _P>& ac,
-                   const _I&                     input)
+template<typename _I,
+         typename _S,
+         typename _C,
+         typename _P>
+bool autocomplete_cycle_next(
+    autocomplete<_I, _S, _C, _P>& _ac,
+    const _I&                      _input)
 {
-    if (ac.candidates.empty())
+    if (_ac.candidates.empty())
     {
         return false;
     }
 
-    ac.selected = (ac.selected + 1) % ac.candidates.size();
+    _ac.selected = (_ac.selected + 1) % _ac.candidates.size();
 
     // recompute completion for new selection.
-    if (ac.matcher)
+    if (_ac.matcher)
     {
-        ac.completed_value = ac.matcher(
-            input,
-            ac.candidates[ac.selected]);
+        _ac.completed_value = _ac.matcher(
+            _input,
+            _ac.candidates[_ac.selected]);
     }
     else
     {
-        ac.completed_value = static_cast<_I>(
-            ac.candidates[ac.selected]);
+        _ac.completed_value = static_cast<_I>(
+            _ac.candidates[_ac.selected]);
     }
 
-    ac.has_completion = true;
+    _ac.has_completion = true;
 
     return true;
 }
 
-// ac_cycle_prev
-template <typename _I, typename _S,
-          typename _C, typename _P>
-bool ac_cycle_prev(autocomplete<_I, _S, _C, _P>& ac,
-                   const _I&                     input)
+// autocomplete_cycle_prev
+template<typename _I,
+         typename _S,
+         typename _C,
+         typename _P>
+bool autocomplete_cycle_prev(
+    autocomplete<_I, _S, _C, _P>& _ac,
+    const _I&                      _input)
 {
-    if (ac.candidates.empty())
+    if (_ac.candidates.empty())
     {
         return false;
     }
 
-    ac.selected = (ac.selected + ac.candidates.size() - 1)
-                  % ac.candidates.size();
+    _ac.selected = (_ac.selected + _ac.candidates.size() - 1)
+                   % _ac.candidates.size();
 
-    if (ac.matcher)
+    if (_ac.matcher)
     {
-        ac.completed_value = ac.matcher(
-            input,
-            ac.candidates[ac.selected]);
+        _ac.completed_value = _ac.matcher(
+            _input,
+            _ac.candidates[_ac.selected]);
     }
     else
     {
-        ac.completed_value = static_cast<_I>(
-            ac.candidates[ac.selected]);
+        _ac.completed_value = static_cast<_I>(
+            _ac.candidates[_ac.selected]);
     }
 
-    ac.has_completion = true;
+    _ac.has_completion = true;
 
     return true;
 }
 
-// ac_accept
+// autocomplete_accept
 //   returns the completed value for the current selection.
 // The caller applies it to the input control.  Returns
 // nullptr if no completion is available.
-template <typename _I, typename _S,
-          typename _C, typename _P>
-const _I* ac_accept(
-    const autocomplete<_I, _S, _C, _P>& ac)
+template<typename _I,
+         typename _S,
+         typename _C,
+         typename _P>
+D_NODISCARD const _I*
+autocomplete_accept(
+    const autocomplete<_I, _S, _C, _P>& _ac)
 {
-    if (!ac.has_completion)
+    if (!_ac.has_completion)
     {
         return nullptr;
     }
 
-    return &(ac.completed_value);
+    return &(_ac.completed_value);
 }
 
-// ac_dismiss
-template <typename _I, typename _S,
-          typename _C, typename _P>
-void ac_dismiss(autocomplete<_I, _S, _C, _P>& ac)
+// autocomplete_dismiss
+template<typename _I,
+         typename _S,
+         typename _C,
+         typename _P>
+void autocomplete_dismiss(
+    autocomplete<_I, _S, _C, _P>& _ac)
 {
-    ac.visible        = false;
-    ac.has_completion = false;
+    _ac.visible        = false;
+    _ac.has_completion = false;
 
     return;
 }
 
-// ac_clear
-template <typename _I, typename _S,
-          typename _C, typename _P>
-void ac_clear(autocomplete<_I, _S, _C, _P>& ac)
+// autocomplete_clear
+template<typename _I,
+         typename _S,
+         typename _C,
+         typename _P>
+void autocomplete_clear(
+    autocomplete<_I, _S, _C, _P>& _ac)
 {
-    ac.candidates      = _C{};
-    ac.selected        = 0;
-    ac.completed_value = _I{};
-    ac.has_completion  = false;
-    ac.visible         = false;
+    _ac.candidates      = _C{};
+    _ac.selected        = 0;
+    _ac.completed_value = _I{};
+    _ac.has_completion  = false;
+    _ac.visible         = false;
 
     return;
 }
 
-// ac_activate / ac_deactivate
-template <typename _I, typename _S,
-          typename _C, typename _P>
-void ac_activate(autocomplete<_I, _S, _C, _P>& ac)
+// autocomplete_activate
+template<typename _I,
+         typename _S,
+         typename _C,
+         typename _P>
+void autocomplete_activate(
+    autocomplete<_I, _S, _C, _P>& _ac)
 {
-    ac.active = true;
+    _ac.active = true;
 
     return;
 }
 
-template <typename _I, typename _S,
-          typename _C, typename _P>
-void ac_deactivate(autocomplete<_I, _S, _C, _P>& ac)
+// autocomplete_deactivate
+template<typename _I,
+         typename _S,
+         typename _C,
+         typename _P>
+void autocomplete_deactivate(
+    autocomplete<_I, _S, _C, _P>& _ac)
 {
-    ac.active         = false;
-    ac.visible        = false;
-    ac.has_completion = false;
+    _ac.active         = false;
+    _ac.visible        = false;
+    _ac.has_completion = false;
 
     return;
 }
 
-
-/*****************************************************************************/
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §5  TRAITS
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  5.  TRAITS
+// ===============================================================================
 
 namespace autocomplete_traits {
-namespace detail {
+NS_INTERNAL
 
-    template <typename, typename = void>
+    // has_source_member
+    //   trait: detects presence of a `source` member.
+    template<typename,
+             typename = void>
     struct has_source_member : std::false_type {};
-    template <typename _T>
-    struct has_source_member<_T, std::void_t<
-        decltype(std::declval<_T>().source)
+    template<typename _Type>
+    struct has_source_member<_Type, std::void_t<
+        decltype(std::declval<_Type>().source)
     >> : std::true_type {};
 
-    template <typename, typename = void>
+    // has_candidates_member
+    //   trait: detects presence of a `candidates` member.
+    template<typename,
+             typename = void>
     struct has_candidates_member : std::false_type {};
-    template <typename _T>
-    struct has_candidates_member<_T, std::void_t<
-        decltype(std::declval<_T>().candidates)
+    template<typename _Type>
+    struct has_candidates_member<_Type, std::void_t<
+        decltype(std::declval<_Type>().candidates)
     >> : std::true_type {};
 
-    template <typename, typename = void>
+    // has_completed_value_member
+    //   trait: detects presence of a `completed_value` member.
+    template<typename,
+             typename = void>
     struct has_completed_value_member : std::false_type {};
-    template <typename _T>
-    struct has_completed_value_member<_T, std::void_t<
-        decltype(std::declval<_T>().completed_value)
+    template<typename _Type>
+    struct has_completed_value_member<_Type, std::void_t<
+        decltype(std::declval<_Type>().completed_value)
     >> : std::true_type {};
 
-    template <typename, typename = void>
+    // has_has_completion_member
+    //   trait: detects presence of a `has_completion` member.
+    template<typename,
+             typename = void>
     struct has_has_completion_member : std::false_type {};
-    template <typename _T>
-    struct has_has_completion_member<_T, std::void_t<
-        decltype(std::declval<_T>().has_completion)
+    template<typename _Type>
+    struct has_has_completion_member<_Type, std::void_t<
+        decltype(std::declval<_Type>().has_completion)
     >> : std::true_type {};
 
-    template <typename, typename = void>
+    // has_matcher_member
+    //   trait: detects presence of a `matcher` member.
+    template<typename,
+             typename = void>
     struct has_matcher_member : std::false_type {};
-    template <typename _T>
-    struct has_matcher_member<_T, std::void_t<
-        decltype(std::declval<_T>().matcher)
+    template<typename _Type>
+    struct has_matcher_member<_Type, std::void_t<
+        decltype(std::declval<_Type>().matcher)
     >> : std::true_type {};
 
-    template <typename, typename = void>
+    // has_mode_member
+    //   trait: detects presence of a `mode` member.
+    template<typename,
+             typename = void>
     struct has_mode_member : std::false_type {};
-    template <typename _T>
-    struct has_mode_member<_T, std::void_t<
-        decltype(std::declval<_T>().mode)
+    template<typename _Type>
+    struct has_mode_member<_Type, std::void_t<
+        decltype(std::declval<_Type>().mode)
     >> : std::true_type {};
 
-    template <typename, typename = void>
+    // has_active_member
+    //   trait: detects presence of an `active` member.
+    template<typename,
+             typename = void>
     struct has_active_member : std::false_type {};
-    template <typename _T>
-    struct has_active_member<_T, std::void_t<
-        decltype(std::declval<_T>().active)
+    template<typename _Type>
+    struct has_active_member<_Type, std::void_t<
+        decltype(std::declval<_Type>().active)
     >> : std::true_type {};
 
-    template <typename, typename = void>
+    // has_visible_member
+    //   trait: detects presence of a `visible` member.
+    template<typename,
+             typename = void>
     struct has_visible_member : std::false_type {};
-    template <typename _T>
-    struct has_visible_member<_T, std::void_t<
-        decltype(std::declval<_T>().visible)
+    template<typename _Type>
+    struct has_visible_member<_Type, std::void_t<
+        decltype(std::declval<_Type>().visible)
     >> : std::true_type {};
 
-}   // namespace detail
+NS_END  // internal
 
-template <typename _T>
-inline constexpr bool has_source_v =
-    detail::has_source_member<_T>::value;
-template <typename _T>
-inline constexpr bool has_candidates_v =
-    detail::has_candidates_member<_T>::value;
-template <typename _T>
-inline constexpr bool has_completed_value_v =
-    detail::has_completed_value_member<_T>::value;
-template <typename _T>
-inline constexpr bool has_matcher_v =
-    detail::has_matcher_member<_T>::value;
-template <typename _T>
-inline constexpr bool has_mode_v =
-    detail::has_mode_member<_T>::value;
+// has_source_v
+//   constant: true if _Type has a `source` member.
+template<typename _Type>
+D_INLINE constexpr bool has_source_v = internal::has_source_member<_Type>::value;
+
+// has_candidates_v
+//   constant: true if _Type has a `candidates` member.
+template<typename _Type>
+D_INLINE constexpr bool has_candidates_v = internal::has_candidates_member<_Type>::value;
+
+// has_completed_value_v
+//   constant: true if _Type has a `completed_value` member.
+template<typename _Type>
+D_INLINE constexpr bool has_completed_value_v = internal::has_completed_value_member<_Type>::value;
+
+// has_matcher_v
+//   constant: true if _Type has a `matcher` member.
+template<typename _Type>
+D_INLINE constexpr bool has_matcher_v = internal::has_matcher_member<_Type>::value;
+
+// has_mode_v
+//   constant: true if _Type has a `mode` member.
+template<typename _Type>
+D_INLINE constexpr bool has_mode_v = internal::has_mode_member<_Type>::value;
 
 // is_autocomplete
-//   type trait: has source + candidates + completed_value +
+//   trait: has source + candidates + completed_value +
 // has_completion + active + visible.
-template <typename _Type>
+template<typename _Type>
 struct is_autocomplete : std::conjunction<
-    detail::has_source_member<_Type>,
-    detail::has_candidates_member<_Type>,
-    detail::has_completed_value_member<_Type>,
-    detail::has_has_completion_member<_Type>,
-    detail::has_active_member<_Type>,
-    detail::has_visible_member<_Type>
+    internal::has_source_member<_Type>,
+    internal::has_candidates_member<_Type>,
+    internal::has_completed_value_member<_Type>,
+    internal::has_has_completion_member<_Type>,
+    internal::has_active_member<_Type>,
+    internal::has_visible_member<_Type>
 >
 {};
 
-template <typename _T>
-inline constexpr bool is_autocomplete_v =
-    is_autocomplete<_T>::value;
+// is_autocomplete_v
+//   constant: true if _Type satisfies the autocomplete interface.
+template<typename _Type>
+D_INLINE constexpr bool is_autocomplete_v = is_autocomplete<_Type>::value;
 
 // is_matcher_autocomplete
-//   type trait: autocomplete with a custom matcher.
-template <typename _Type>
+//   trait: autocomplete with a custom matcher.
+template<typename _Type>
 struct is_matcher_autocomplete : std::conjunction<
     is_autocomplete<_Type>,
-    detail::has_matcher_member<_Type>
+    internal::has_matcher_member<_Type>
 >
 {};
 
-template <typename _T>
-inline constexpr bool is_matcher_autocomplete_v =
-    is_matcher_autocomplete<_T>::value;
+// is_matcher_autocomplete_v
+//   constant: true if _Type is an autocomplete with a matcher.
+template<typename _Type>
+D_INLINE constexpr bool is_matcher_autocomplete_v = is_matcher_autocomplete<_Type>::value;
 
-}   // namespace autocomplete_traits
 
-
+NS_END  // namespace autocomplete_traits
 NS_END  // component
 NS_END  // uxoxo
 
