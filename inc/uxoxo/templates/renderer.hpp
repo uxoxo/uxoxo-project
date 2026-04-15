@@ -20,7 +20,7 @@
 *   REQUIRES: C++17 or later.
 *
 *
-* path:      /inc/uxoxo/component/renderer/renderer.hpp
+* path:      /inc/uxoxo/templates/renderer/renderer.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.10
 *******************************************************************************/
