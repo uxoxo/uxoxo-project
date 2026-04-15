@@ -19,13 +19,18 @@
 * A renderer discovers its capabilities via button_traits:: and
 * dispatches with if constexpr.
 *
+*   Shared operations (enable, disable, show, hide) are provided by
+* the ADL-dispatched free functions in component_common.hpp.  Legacy
+* btn_-prefixed wrappers are retained for backward compatibility.
+*
 * Contents:
 *   1  Feature flags (button_feat)
 *   2  Shape and state enums
 *   3  EBO mixins
 *   4  button struct
-*   5  Free functions
-*   6  Traits (SFINAE detection)
+*   5  Domain-specific free functions
+*   6  Legacy free functions (btn_-prefixed, thin wrappers)
+*   7  Traits (SFINAE detection)
 *
 *
 * path:      /inc/uxoxo/templates/component/button/button.hpp
@@ -43,6 +48,8 @@
 #include <type_traits>
 #include <utility>
 #include "../uxoxo.hpp"
+#include "component_traits.hpp"
+#include "component_common.hpp"
 
 
 NS_UXOXO
@@ -271,8 +278,10 @@ struct button
 /*****************************************************************************/
 
 // ===============================================================================
-//  5  FREE FUNCTIONS
+//  5  DOMAIN-SPECIFIC FREE FUNCTIONS
 // ===============================================================================
+//   These operations are unique to button and have no shared
+// equivalent in component_common.hpp.
 
 // btn_click
 //   function: simulates a click.  Sets pressed, handles toggle,
@@ -317,32 +326,6 @@ btn_reset_pressed(
 )
 {
     _btn.pressed = false;
-
-    return;
-}
-
-// btn_enable
-template <unsigned _F,
-          typename _I>
-void
-btn_enable(
-    button<_F, _I>& _btn
-)
-{
-    _btn.enabled = true;
-
-    return;
-}
-
-// btn_disable
-template <unsigned _F,
-          typename _I>
-void
-btn_disable(
-    button<_F, _I>& _btn
-)
-{
-    _btn.enabled = false;
 
     return;
 }
@@ -507,25 +490,57 @@ btn_is_toggled(
 /*****************************************************************************/
 
 // ===============================================================================
-//  6  TRAITS
+//  6  LEGACY FREE FUNCTIONS
 // ===============================================================================
+//   These btn_-prefixed functions are retained for backward
+// compatibility.  New code should prefer the ADL-dispatched
+// equivalents in component_common.hpp:
+//
+//     btn_enable(btn)   →  enable(btn)
+//     btn_disable(btn)  →  disable(btn)
+//                          show(btn)      (no legacy equivalent existed)
+//                          hide(btn)      (no legacy equivalent existed)
+
+// btn_enable
+template <unsigned _F,
+          typename _I>
+void
+btn_enable(
+    button<_F, _I>& _btn
+)
+{
+    enable(_btn);
+
+    return;
+}
+
+// btn_disable
+template <unsigned _F,
+          typename _I>
+void
+btn_disable(
+    button<_F, _I>& _btn
+)
+{
+    disable(_btn);
+
+    return;
+}
+
+
+/*****************************************************************************/
+
+// ===============================================================================
+//  7  TRAITS
+// ===============================================================================
+//   Shared detectors (has_enabled_member, has_label_member,
+// has_focusable_flag) delegate to component_traits.  Button-
+// specific detectors remain here.
 
 namespace button_traits {
 namespace detail {
 
-    template <typename, typename = void>
-    struct has_label_member : std::false_type {};
-    template <typename _Type>
-    struct has_label_member<_Type, std::void_t<
-        decltype(std::declval<_Type>().label)
-    >> : std::true_type {};
-
-    template <typename, typename = void>
-    struct has_enabled_member : std::false_type {};
-    template <typename _Type>
-    struct has_enabled_member<_Type, std::void_t<
-        decltype(std::declval<_Type>().enabled)
-    >> : std::true_type {};
+    // -- button-specific detectors ----------------------------------------
 
     template <typename, typename = void>
     struct has_on_click_member : std::false_type {};
@@ -583,21 +598,17 @@ namespace detail {
         decltype(std::declval<_Type>().shortcut_label)
     >> : std::true_type {};
 
-    template <typename, typename = void>
-    struct has_focusable_flag : std::false_type {};
-    template <typename _Type>
-    struct has_focusable_flag<_Type,
-                              std::enable_if_t<_Type::focusable>>
-        : std::true_type {};
-
 }   // namespace detail
 
+// -- shared aliases (delegate to component_traits) ------------------------
 template <typename _Type>
 inline constexpr bool has_label_v =
-    detail::has_label_member<_Type>::value;
+    component_traits::has_label_v<_Type>;
 template <typename _Type>
 inline constexpr bool has_enabled_v =
-    detail::has_enabled_member<_Type>::value;
+    component_traits::has_enabled_v<_Type>;
+
+// -- button-specific aliases ----------------------------------------------
 template <typename _Type>
 inline constexpr bool has_on_click_v =
     detail::has_on_click_member<_Type>::value;
@@ -623,15 +634,17 @@ template <typename _Type>
 inline constexpr bool has_shortcut_label_v =
     detail::has_shortcut_label_member<_Type>::value;
 
+// -- composite traits -----------------------------------------------------
+
 // is_button
-//   type trait: has label + enabled + on_click + pressed + focusable.
+//   trait: has label + enabled + on_click + pressed + focusable.
 template <typename _Type>
 struct is_button : std::conjunction<
-    detail::has_label_member<_Type>,
-    detail::has_enabled_member<_Type>,
+    component_traits::detail::has_label_member<_Type>,
+    component_traits::detail::has_enabled_member<_Type>,
     detail::has_on_click_member<_Type>,
     detail::has_pressed_member<_Type>,
-    detail::has_focusable_flag<_Type>
+    component_traits::detail::has_focusable_flag<_Type>
 >
 {};
 
