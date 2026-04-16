@@ -26,6 +26,7 @@
 #ifndef  UXOXO_COMPONENT_TREE_VIEW_
 #define  UXOXO_COMPONENT_TREE_VIEW_ 1
 
+// std
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -34,7 +35,12 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
-#include "../uxoxo.hpp"
+// imgui
+#include "imgui.h"
+// djinterp
+#include <djinterp/core/djinterp.hpp>
+// uxoxo
+#include "../../../uxoxo.hpp"
 #include "./tree_node.hpp"
 
 
@@ -42,70 +48,27 @@ NS_UXOXO
 NS_COMPONENT
 
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §1  ENUMERATIONS
-// ═══════════════════════════════════════════════════════════════════════════════
-
-enum class selection_mode : std::uint8_t
-{
-    none,           // cursor only, no selection tracking
-    single,         // at most one node selected (click to replace)
-    multi           // multi-select (Ctrl+click to toggle, Shift for range)
-};
+// ===============================================================================
+//  1.  ENUMERATIONS
+// ===============================================================================
+//   selection_mode is defined in view_common.hpp and reused here.
 
 
-/*****************************************************************************/
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §2  VIEW-LEVEL STATE MIXINS  (EBO)
-// ═══════════════════════════════════════════════════════════════════════════════
-
-namespace view_mixin {
-
-    // ── rename state ─────────────────────────────────────────────────────
-    template <bool _Enable>
-    struct rename_state {};
-
-    template <>
-    struct rename_state<true>
-    {
-        bool            editing        = false;
-        std::size_t     edit_index     = 0;      // flat index of node being edited
-        std::string     edit_buffer;
-        std::size_t     edit_cursor    = 0;
-    };
-
-    // ── context menu state ───────────────────────────────────────────────
-    template <bool _Enable>
-    struct context_state {};
-
-    template <>
-    struct context_state<true>
-    {
-        bool            context_open   = false;
-        std::size_t     context_index  = 0;      // flat index of target node
-        int             context_x      = 0;      // screen position hint
-        int             context_y      = 0;
-    };
-
-    // ── checkbox view state ──────────────────────────────────────────────
-    template <bool _Enable>
-    struct check_view_state {};
-
-    template <>
-    struct check_view_state<true>
-    {
-        check_policy    policy = check_policy::cascade_both;
-    };
-
-}   // namespace view_mixin
+// ===============================================================================
+//  2.  VIEW-LEVEL STATE MIXINS  (EBO)
+// ===============================================================================
+//   rename_state, context_state, and check_view_state are defined in
+// view_common.hpp under namespace view_mixin and reused here.
+//
+//   NOTE: the shared check_view_state defaults `policy` to
+// check_policy::independent.  Tree views that want the previous
+// cascade_both default should set it explicitly at construction
+// or via a tree_view factory.
 
 
-/*****************************************************************************/
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §3  TREE VIEW
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  3.  TREE VIEW
+// ===============================================================================
 
 template <typename _Data,
           unsigned _Feat = tf_none,
@@ -115,7 +78,7 @@ struct tree_view
     , view_mixin::context_state <has_feat(_Feat, tf_context)>
     , view_mixin::check_view_state<has_feat(_Feat, tf_checkable)>
 {
-    // ── type aliases ─────────────────────────────────────────────────────
+    // -- type aliases -----------------------------------------------------
     using node_type  = tree_node<_Data, _Feat, _Icon>;
     using data_type  = _Data;
     using icon_type  = _Icon;
@@ -134,7 +97,7 @@ struct tree_view
     static constexpr bool focusable  = true;
     static constexpr bool scrollable = true;
 
-    // ── data ─────────────────────────────────────────────────────────────
+    // -- data -------------------------------------------------------------
     std::vector<node_type>   roots;
 
     // navigation
@@ -150,7 +113,7 @@ struct tree_view
     std::string              search_query;
     bool                     search_active = false;
 
-    // ── visible entries cache ────────────────────────────────────────────
+    // -- visible entries cache --------------------------------------------
     //   Call rebuild_visible() after any structural mutation.
     //   Navigation methods call it automatically when needed.
 
@@ -163,11 +126,11 @@ struct tree_view
         visible_dirty = false;
 
         // clamp cursor
-        if (!visible.empty()
+        if ( (!visible.empty()) &&
+             (cursor >= visible.size()) )
         {
-            && cursor >= visible.size())
-        }
             cursor = visible.size() - 1;
+        }
     }
 
     const std::vector<entry_type>& entries()
@@ -179,7 +142,7 @@ struct tree_view
         return visible;
     }
 
-    // ── cursor queries ───────────────────────────────────────────────────
+    // -- cursor queries ---------------------------------------------------
 
     [[nodiscard]] node_type* cursor_node()
     {
@@ -222,7 +185,7 @@ struct tree_view
         return visible.size();
     }
 
-    // ── navigation ───────────────────────────────────────────────────────
+    // -- navigation -------------------------------------------------------
 
     bool cursor_up()
     {
@@ -390,11 +353,8 @@ struct tree_view
         }
 
         // already expanded: move to first child
-        if (cursor + 1 < visible.size()
-        {
-            && 
-        }
-            visible[cursor + 1].depth > visible[cursor].depth) 
+        if ( (cursor + 1 < visible.size()) &&
+             (visible[cursor + 1].depth > visible[cursor].depth) )
         {
             ++cursor;
             ensure_visible();
@@ -417,7 +377,7 @@ struct tree_view
         }
     }
 
-    // ── collapse operations (view-level) ─────────────────────────────────
+    // -- collapse operations (view-level) ---------------------------------
 
     void expand_all_nodes()
     {
@@ -454,7 +414,7 @@ struct tree_view
         }
     }
 
-    // ── checkbox operations (view-level) ─────────────────────────────────
+    // -- checkbox operations (view-level) ---------------------------------
 
     void toggle_check_at_cursor()
     {
@@ -483,7 +443,7 @@ struct tree_view
         }
     }
 
-    // ── selection ────────────────────────────────────────────────────────
+    // -- selection --------------------------------------------------------
 
     void select_at_cursor()
     {
@@ -564,8 +524,7 @@ struct tree_view
                != selected.end();
     }
 
-    // ── rename operations (view-level) ───────────────────────────────────
-
+    // -- rename operations (view-level) -----------------------------------
     bool begin_edit()
     {
         static_assert(is_renamable, "begin_edit requires tf_renamable");
@@ -573,6 +532,7 @@ struct tree_view
         {
             rebuild_visible();
         }
+
         if (cursor >= visible.size())
         {
             return false;
@@ -590,6 +550,7 @@ struct tree_view
         // (we don't know which member of _Data holds the name)
         this->edit_buffer.clear();
         this->edit_cursor = 0;
+
         return true;
     }
 
@@ -602,18 +563,22 @@ struct tree_view
         {
             return false;
         }
+
         this->edit_buffer = current_name;
         this->edit_cursor = current_name.size();
+
         return true;
     }
 
     bool commit_edit()
     {
         static_assert(is_renamable, "commit_edit requires tf_renamable");
+
         if (!this->editing)
         {
             return false;
         }
+
         this->editing = false;
         // the caller reads edit_buffer and applies it to the node's data
         return true;
@@ -626,7 +591,7 @@ struct tree_view
         this->edit_buffer.clear();
     }
 
-    // ── context menu operations (view-level) ─────────────────────────────
+    // -- context menu operations (view-level) -----------------------------
 
     bool open_context(int x = 0, int y = 0)
     {
@@ -635,6 +600,7 @@ struct tree_view
         {
             rebuild_visible();
         }
+
         if (cursor >= visible.size())
         {
             return false;
@@ -660,18 +626,21 @@ struct tree_view
         {
             return nullptr;
         }
+
         if (visible_dirty)
         {
             rebuild_visible();
         }
+
         if (this->context_index < visible.size())
         {
             return visible[this->context_index].node;
         }
+
         return nullptr;
     }
 
-    // ── search ───────────────────────────────────────────────────────────
+    // -- search -----------------------------------------------------------
     //   Moves cursor to next node matching the query.  The match predicate
     // is provided by the caller because we don't know _Data's shape.
 
@@ -726,7 +695,7 @@ struct tree_view
         return false;
     }
 
-    // ── bulk access ──────────────────────────────────────────────────────
+    // -- bulk access ------------------------------------------------------
 
     // selected_nodes
     //   Returns pointers to all selected nodes.
@@ -768,16 +737,14 @@ struct tree_view
 };
 
 
-/*****************************************************************************/
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §4  TREE TRAITS  (SFINAE detection)
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  4  TREE TRAITS  (SFINAE detection)
+// ===============================================================================
 
 namespace tree_traits {
 namespace detail 
 {
-    // ── node-level detectors ─────────────────────────────────────────────
+    // -- node-level detectors ---------------------------------------------
 
     // has_data_member
     template <typename,
@@ -824,9 +791,7 @@ namespace detail
         typename _Type::data_type
     >> : std::true_type {};
 
-    /***********************************************************************/
-
-    // ── feature detectors ────────────────────────────────────────────────
+    // -- feature detectors ------------------------------------------------
     //   These detect whether specific mixin data is present.
 
     // has_checked_member
@@ -885,7 +850,7 @@ namespace detail
 
     /***********************************************************************/
 
-    // ── view-level detectors ─────────────────────────────────────────────
+    // -- view-level detectors ---------------------------------------------
 
     // has_roots_member
     template <typename,
@@ -971,40 +936,40 @@ namespace detail
 
 /*****************************************************************************/
 
-// ── convenience aliases ──────────────────────────────────────────────────
+// -- convenience aliases --------------------------------------------------
 
 // node detectors
-template <typename _T> inline constexpr bool has_data_v            = detail::has_data_member<_T>::value;
-template <typename _T> inline constexpr bool has_children_v        = detail::has_children_member<_T>::value;
-template <typename _T> inline constexpr bool has_is_leaf_v         = detail::has_is_leaf_method<_T>::value;
-template <typename _T> inline constexpr bool has_features_v        = detail::has_features_constant<_T>::value;
-template <typename _T> inline constexpr bool has_data_type_v       = detail::has_data_type_alias<_T>::value;
+template <typename _Type> inline constexpr bool has_data_v            = detail::has_data_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_children_v        = detail::has_children_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_is_leaf_v         = detail::has_is_leaf_method<_Type>::value;
+template <typename _Type> inline constexpr bool has_features_v        = detail::has_features_constant<_Type>::value;
+template <typename _Type> inline constexpr bool has_data_type_v       = detail::has_data_type_alias<_Type>::value;
 
 // feature detectors
-template <typename _T> inline constexpr bool has_checked_v         = detail::has_checked_member<_T>::value;
-template <typename _T> inline constexpr bool has_icon_v            = detail::has_icon_member<_T>::value;
-template <typename _T> inline constexpr bool has_expanded_icon_v   = detail::has_expanded_icon_member<_T>::value;
-template <typename _T> inline constexpr bool has_expanded_v        = detail::has_expanded_member<_T>::value;
-template <typename _T> inline constexpr bool has_renamable_v       = detail::has_renamable_member<_T>::value;
-template <typename _T> inline constexpr bool has_context_actions_v = detail::has_context_actions_member<_T>::value;
+template <typename _Type> inline constexpr bool has_checked_v         = detail::has_checked_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_icon_v            = detail::has_icon_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_expanded_icon_v   = detail::has_expanded_icon_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_expanded_v        = detail::has_expanded_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_renamable_v       = detail::has_renamable_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_context_actions_v = detail::has_context_actions_member<_Type>::value;
 
 // view detectors
-template <typename _T> inline constexpr bool has_roots_v           = detail::has_roots_member<_T>::value;
-template <typename _T> inline constexpr bool has_cursor_v          = detail::has_cursor_member<_T>::value;
-template <typename _T> inline constexpr bool has_scroll_offset_v   = detail::has_scroll_offset_member<_T>::value;
-template <typename _T> inline constexpr bool has_selected_v        = detail::has_selected_member<_T>::value;
-template <typename _T> inline constexpr bool has_editing_v         = detail::has_editing_member<_T>::value;
-template <typename _T> inline constexpr bool has_context_open_v    = detail::has_context_open_member<_T>::value;
-template <typename _T> inline constexpr bool has_policy_v          = detail::has_policy_member<_T>::value;
-template <typename _T> inline constexpr bool is_focusable_v        = detail::has_focusable_flag<_T>::value;
-template <typename _T> inline constexpr bool is_scrollable_v       = detail::has_scrollable_flag<_T>::value;
+template <typename _Type> inline constexpr bool has_roots_v           = detail::has_roots_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_cursor_v          = detail::has_cursor_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_scroll_offset_v   = detail::has_scroll_offset_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_selected_v        = detail::has_selected_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_editing_v         = detail::has_editing_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_context_open_v    = detail::has_context_open_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_policy_v          = detail::has_policy_member<_Type>::value;
+template <typename _Type> inline constexpr bool is_focusable_v        = detail::has_focusable_flag<_Type>::value;
+template <typename _Type> inline constexpr bool is_scrollable_v       = detail::has_scrollable_flag<_Type>::value;
 
 
 /*****************************************************************************/
 
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
 //  COMPOSITE IDENTITY TRAITS
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
 
 // is_tree_node
 //   type trait: has data + children + is_leaf.  The structural minimum.
@@ -1134,9 +1099,7 @@ template <typename _Type>
 inline constexpr bool is_checkable_view_v = is_checkable_view<_Type>::value;
 
 
-/*****************************************************************************/
-
-// ── data type extraction ─────────────────────────────────────────────────
+// -- data type extraction -------------------------------------------------
 
 // tree_node_data
 //   Extracts the _Data type from a tree_node.
@@ -1159,5 +1122,6 @@ using tree_node_data_t = typename tree_node_data<_Type>::type;
 
 NS_END  // component
 NS_END  // uxoxo
+
 
 #endif  // UXOXO_COMPONENT_TREE_VIEW_

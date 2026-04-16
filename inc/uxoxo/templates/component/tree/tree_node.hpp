@@ -34,6 +34,7 @@
 #ifndef  UXOXO_COMPONENT_TREE_NODE_
 #define  UXOXO_COMPONENT_TREE_NODE_ 1
 
+// std
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -43,28 +44,26 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
-#include "../uxoxo.hpp"
+// imgui
+#include "imgui.h"
+// djinterp
+#include <djinterp/core/djinterp.hpp>
+// uxoxo
+#include "../../../uxoxo.hpp"
+#include "./view_common.hpp"
 
 
 NS_UXOXO
 NS_COMPONENT
 
 
-// type_identity
-//   Prevents template argument deduction on a parameter.  Allows
-// emplace_child(node, "hello") to work when _Data = std::string,
-// because _Data is deduced only from the node parameter, not from
-// the const char* literal.
-template <typename _T>
-struct type_identity { using type = _T; };
-
-template <typename _T>
-using non_deduced = typename type_identity<_T>::type;
-
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §1  FEATURE FLAGS
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  1  FEATURE FLAGS
+// ===============================================================================
+//   tree_node reuses type_identity, check_state, check_policy, and
+// context_action from view_common.hpp.  tree_feat extends view_feat
+// with the tree-specific feature bits (tf_*).
+//
 //   Combine with bitwise OR:
 //     tree_node<std::string, tf_collapsible | tf_checkable | tf_icons>
 
@@ -77,8 +76,11 @@ enum tree_feat : unsigned
     tf_renamable   = 1u << 3,     // per-node renamable flag
     tf_context     = 1u << 4,     // per-node context-action descriptor
 
-    tf_all         = tf_checkable | tf_icons | tf_collapsible 
-                   | tf_renamable | tf_context
+    tf_all         = tf_checkable   | 
+                     tf_icons       | 
+                     tf_collapsible | 
+                     tf_renamable   | 
+                     tf_context
 };
 
 constexpr tree_feat operator|(tree_feat a, tree_feat b) noexcept
@@ -91,6 +93,9 @@ constexpr tree_feat operator&(tree_feat a, tree_feat b) noexcept
     return static_cast<tree_feat>(static_cast<unsigned>(a) & static_cast<unsigned>(b));
 }
 
+// has_feat is defined in view_common.hpp and works on view_feat.
+// Overload it here for tree_feat so both feature sets can be tested
+// with the same name.
 constexpr bool has_feat(unsigned f, tree_feat bit) noexcept
 {
     return (f & static_cast<unsigned>(bit)) != 0;
@@ -99,59 +104,18 @@ constexpr bool has_feat(unsigned f, tree_feat bit) noexcept
 
 /*****************************************************************************/
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §2  FEATURE ENUMERATIONS
-// ═══════════════════════════════════════════════════════════════════════════════
-
-// check_state
-//   Tri-state for checkbox nodes.
-enum class check_state : std::uint8_t
-{
-    unchecked,
-    checked,
-    indeterminate       // some children checked, some not
-};
-
-// check_policy
-//   How checkbox changes propagate through the tree.
-enum class check_policy : std::uint8_t
-{
-    independent,        // no propagation
-    cascade_down,       // parent → all descendants
-    cascade_both        // parent ↔ children (full sync + indeterminate)
-};
-
-// context_action
-//   Bitfield of available context-menu actions for a node.
-// Application-specific actions start at ctx_user.
-enum context_action : unsigned
-{
-    ctx_none     = 0,
-    ctx_open     = 1u << 0,
-    ctx_rename   = 1u << 1,
-    ctx_delete   = 1u << 2,
-    ctx_copy     = 1u << 3,
-    ctx_cut      = 1u << 4,
-    ctx_paste    = 1u << 5,
-    ctx_new_child= 1u << 6,
-    ctx_properties=1u << 7,
-    ctx_user     = 1u << 16,    // user-defined actions start here
-
-    ctx_file_ops = ctx_open | ctx_rename | ctx_delete | ctx_copy | ctx_cut | ctx_paste,
-    ctx_all      = ctx_file_ops | ctx_new_child | ctx_properties
-};
-
-constexpr context_action operator|(context_action a, context_action b) noexcept
-{
-    return static_cast<context_action>(static_cast<unsigned>(a) | static_cast<unsigned>(b));
-}
+// ===============================================================================
+//  2  FEATURE ENUMERATIONS
+// ===============================================================================
+//   check_state, check_policy, and context_action are defined in
+// view_common.hpp and reused here.
 
 
 /*****************************************************************************/
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §3  FEATURE MIXIN BASES  (EBO — disabled = 0 bytes)
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  3  FEATURE MIXIN BASES  (EBO — disabled = 0 bytes)
+// ===============================================================================
 //   Each mixin is a struct template parameterised on a bool.  The `false`
 // specialisation is empty; the `true` specialisation holds the feature data.
 // When tree_node inherits from a disabled mixin, the Empty Base Optimisation
@@ -159,7 +123,7 @@ constexpr context_action operator|(context_action a, context_action b) noexcept
 
 namespace mixin {
 
-    // ── checkable ────────────────────────────────────────────────────────
+    // -- checkable --------------------------------------------------------
 
     template <bool _Enable>
     struct checkable_data {};
@@ -170,7 +134,7 @@ namespace mixin {
         check_state checked = check_state::unchecked;
     };
 
-    // ── icons ────────────────────────────────────────────────────────────
+    // -- icons ------------------------------------------------------------
 
     template <bool _Enable,
               typename _Icon = int>
@@ -184,7 +148,7 @@ namespace mixin {
         bool  use_expanded = false; // true → renderer shows expanded_icon when open
     };
 
-    // ── collapsible ──────────────────────────────────────────────────────
+    // -- collapsible ------------------------------------------------------
 
     template <bool _Enable>
     struct collapse_data {};
@@ -195,7 +159,7 @@ namespace mixin {
         bool expanded = true;       // true → children visible
     };
 
-    // ── renamable ────────────────────────────────────────────────────────
+    // -- renamable --------------------------------------------------------
 
     template <bool _Enable>
     struct rename_data {};
@@ -206,7 +170,7 @@ namespace mixin {
         bool renamable = true;      // per-node override (e.g. root not renamable)
     };
 
-    // ── context menu ─────────────────────────────────────────────────────
+    // -- context menu -----------------------------------------------------
 
     template <bool _Enable>
     struct context_data {};
@@ -222,9 +186,9 @@ namespace mixin {
 
 /*****************************************************************************/
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §4  TREE NODE
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  4  TREE NODE
+// ===============================================================================
 
 template <typename _Data,
           unsigned _Feat = tf_none,
@@ -236,7 +200,7 @@ struct tree_node
     , mixin::rename_data    <has_feat(_Feat, tf_renamable)>
     , mixin::context_data   <has_feat(_Feat, tf_context)>
 {
-    // ── type aliases ─────────────────────────────────────────────────────
+    // -- type aliases -----------------------------------------------------
     using data_type  = _Data;
     using icon_type  = _Icon;
     using self_type  = tree_node<_Data, _Feat, _Icon>;
@@ -244,18 +208,18 @@ struct tree_node
 
     static constexpr unsigned features = _Feat;
 
-    // ── compile-time feature queries ─────────────────────────────────────
+    // -- compile-time feature queries -------------------------------------
     static constexpr bool is_checkable   = has_feat(_Feat, tf_checkable);
     static constexpr bool has_icons      = has_feat(_Feat, tf_icons);
     static constexpr bool is_collapsible = has_feat(_Feat, tf_collapsible);
     static constexpr bool is_renamable   = has_feat(_Feat, tf_renamable);
     static constexpr bool has_context    = has_feat(_Feat, tf_context);
 
-    // ── data ─────────────────────────────────────────────────────────────
+    // -- data -------------------------------------------------------------
     _Data       data;
     child_list  children;
 
-    // ── construction ─────────────────────────────────────────────────────
+    // -- construction -----------------------------------------------------
     tree_node() = default;
 
     explicit tree_node(_Data d) 
@@ -267,11 +231,11 @@ struct tree_node
         , children(std::move(kids)) 
     {}
 
-    // ── basic queries ────────────────────────────────────────────────────
+    // -- basic queries ----------------------------------------------------
     [[nodiscard]] bool        is_leaf()     const noexcept { return children.empty(); }
     [[nodiscard]] std::size_t child_count() const noexcept { return children.size(); }
 
-    // ── is_visible (for flatten_visible) ─────────────────────────────────
+    // -- is_visible (for flatten_visible) ---------------------------------
     //   A node's children are visible if the node is expanded.
     //   If collapsible is disabled, children are always visible.
     [[nodiscard]] bool children_visible() const noexcept
@@ -288,9 +252,9 @@ struct tree_node
 
 /*****************************************************************************/
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §5  NODE MUTATION
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  5  NODE MUTATION
+// ===============================================================================
 //   Free functions.  Keep the node a pure aggregate.
 
 // add_child
@@ -356,9 +320,9 @@ std::size_t remove_child_if(
 
 /*****************************************************************************/
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §6  TRAVERSAL
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  6  TRAVERSAL
+// ===============================================================================
 
 // walk
 //   Depth-first pre-order traversal.  Calls fn(node, depth) for every node.
@@ -537,9 +501,9 @@ std::size_t max_depth(const tree_node<_Data, _F, _I>& root, std::size_t d = 0)
 
 /*****************************************************************************/
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §7  FLATTEN
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  7  FLATTEN
+// ===============================================================================
 //   Produces a flat list of node references suitable for indexed rendering.
 //   Each entry records the node pointer, its depth, and tree-line hints.
 
@@ -549,7 +513,7 @@ struct flat_entry
     _Node*      node;
     std::size_t depth;
     std::size_t flat_index;
-    bool        is_last_child;  // for drawing └── vs ├──
+    bool        is_last_child;  // for drawing └-- vs ├--
     bool        has_children;
 };
 
@@ -600,9 +564,11 @@ std::vector<flat_entry<tree_node<_Data, _F, _I>>> flatten_visible(
             {
                 for (std::size_t i = 0; i < n.children.size(); ++i)
                 {
-                    go(n.children[i], depth + 1, 
+                    go(n.children[i],
+                       depth + 1,
+                       i == n.children.size() - 1,
+                       out);
                 }
-                       i == n.children.size() - 1, out);
             }
         }
     };
@@ -631,9 +597,11 @@ std::vector<flat_entry<tree_node<_Data, _F, _I>>> flatten_roots_visible(
             {
                 for (std::size_t i = 0; i < n.children.size(); ++i)
                 {
-                    go(n.children[i], depth + 1, 
+                    go(n.children[i],
+                       depth + 1,
+                       i == n.children.size() - 1,
+                       out);
                 }
-                       i == n.children.size() - 1, out);
             }
         }
     };
@@ -648,9 +616,9 @@ std::vector<flat_entry<tree_node<_Data, _F, _I>>> flatten_roots_visible(
 
 /*****************************************************************************/
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §8  PATH-BASED ACCESS
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  8  PATH-BASED ACCESS
+// ===============================================================================
 //   A tree_path is a sequence of child indices from root to target.
 //     e.g. {2, 0, 1} → root.children[2].children[0].children[1]
 
@@ -748,9 +716,9 @@ std::optional<tree_path> path_to_ptr(
 
 /*****************************************************************************/
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §9  CHECKBOX OPERATIONS  (tf_checkable)
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  9  CHECKBOX OPERATIONS  (tf_checkable)
+// ===============================================================================
 
 // set_check
 //   Sets a single node's check state.  No propagation.
@@ -907,9 +875,9 @@ check_counts<_Data, _F, _I> count_checked(
 
 /*****************************************************************************/
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §10  COLLAPSE OPERATIONS  (tf_collapsible)
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  10  COLLAPSE OPERATIONS  (tf_collapsible)
+// ===============================================================================
 
 // set_expanded
 template <typename _Data,
@@ -1003,9 +971,9 @@ std::size_t count_visible(const tree_node<_Data, _F, _I>& root)
 
 /*****************************************************************************/
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §11  ICON HELPERS  (tf_icons)
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  11  ICON HELPERS  (tf_icons)
+// ===============================================================================
 
 // set_icon
 template <typename _Data,
@@ -1059,9 +1027,9 @@ const _I& effective_icon(const tree_node<_Data, _F, _I>& node)
 
 /*****************************************************************************/
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §12  CONTEXT HELPERS  (tf_context)
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  12  CONTEXT HELPERS  (tf_context)
+// ===============================================================================
 
 // has_action
 //   Tests whether a node has a specific context action available.
@@ -1093,9 +1061,9 @@ void set_actions(
 
 /*****************************************************************************/
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §13  SORT / PARTITION
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  13  SORT / PARTITION
+// ===============================================================================
 
 // sort_children
 //   Sorts immediate children by comparator.  Does not recurse.
@@ -1143,5 +1111,6 @@ void partition_directories_first(tree_node<_Data, _F, _I>& node)
 
 NS_END  // component
 NS_END  // uxoxo
+
 
 #endif  // UXOXO_COMPONENT_TREE_NODE_

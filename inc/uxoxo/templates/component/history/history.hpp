@@ -52,18 +52,24 @@
 #ifndef UXOXO_TEMPLATES_HISTORY_
 #define UXOXO_TEMPLATES_HISTORY_ 1
 
+// std
 #include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <type_traits>
-#include <djinterp/util/sequence.hpp>
+// djinterp
+#include <djinterp/core/djinterp.hpp>
+#include <djinterp/core/paradigm/sequence/sequence.hpp>
+// uxoxo
 #include "../../../uxoxo.hpp"
+#include "../view_common.hpp"
 #include "./history_traits.hpp"
 
 
 NS_UXOXO
-NS_TEMPLATES
+NS_COMPONENT
 
+using djinterp::sequence;
 
 // ================================================================
 //  history

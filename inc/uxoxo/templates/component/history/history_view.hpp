@@ -25,7 +25,7 @@
 *     - Layout: no position, size, or coordinate system.
 *
 *   A framework adapter reads the history_view state and maps it to
-* concrete widgets.  The trait system in §5 detects conforming types
+* concrete widgets.  The trait system in 5 detects conforming types
 * structurally, so any type exposing the right members qualifies.
 *
 *   The _Policy template parameter is a tag type or struct that the
@@ -40,12 +40,12 @@
 *   - maximum visible entries
 *
 * Contents:
-*   §1  Display mode enum
-*   §2  Default policy
-*   §3  EBO mixins
-*   §4  history_view struct
-*   §5  Free functions
-*   §6  Traits (SFINAE detection)
+*   1  Display mode enum
+*   2  Default policy
+*   3  EBO mixins
+*   4  history_view struct
+*   5  Free functions
+*   6  Traits (SFINAE detection)
 *
 *
 * path:      /inc/uxoxo/component/history_view.hpp
@@ -56,6 +56,7 @@
 #ifndef  UXOXO_COMPONENT_HISTORY_VIEW_
 #define  UXOXO_COMPONENT_HISTORY_VIEW_ 1
 
+// std
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -63,18 +64,20 @@
 #include <string>
 #include <type_traits>
 #include <utility>
-
-#include <uxoxo>
-#include <templates/util/history/history.hpp>
+// djinterp
+#include <djinterp/core/djinterp.hpp>
+// uxoxo
+#include "../../../uxoxo.hpp"
+#include "../view_common.hpp"
+#include "./history.hpp"
 
 
 NS_UXOXO
 NS_COMPONENT
 
-
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §1  DISPLAY MODE
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  1  DISPLAY MODE
+// ===============================================================================
 //   Hints to the framework about how the history should be presented.
 // The framework may ignore these entirely if the modality doesn't
 // support them.
@@ -102,9 +105,9 @@ enum class history_display_mode : std::uint8_t
 
 /*****************************************************************************/
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §2  DEFAULT POLICY
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  2  DEFAULT POLICY
+// ===============================================================================
 //   An empty policy — the framework gets no hints.  Framework-
 // specific policies can define any combination of:
 //   static constexpr history_display_mode display_mode;
@@ -121,13 +124,13 @@ struct history_view_default_policy
 
 /*****************************************************************************/
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §3  EBO MIXINS
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  3  EBO MIXINS
+// ===============================================================================
 
 namespace history_view_mixin {
 
-    // ── policy carrier ───────────────────────────────────────────────
+    // -- policy carrier -----------------------------------------------
     //   Inherits from _Policy for EBO when the policy is empty.
     template <typename _Policy,
               bool _Empty = std::is_empty<_Policy>::value>
@@ -145,9 +148,9 @@ namespace history_view_mixin {
 
 /*****************************************************************************/
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §4  HISTORY VIEW
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  4  HISTORY VIEW
+// ===============================================================================
 //   _Type        element type stored in the history
 //   _Container   backing sequential container (default: sequence<_Type>)
 //   _SizeType    size type (default: std::size_t)
@@ -158,8 +161,7 @@ namespace history_view_mixin {
 // navigation state on top.
 
 template <typename  _Type,
-          typename  _Container = uxoxo::templates::
-              history<_Type>::container_type,
+          typename  _Container = history<_Type>::container_type,
           typename  _SizeType  = std::size_t,
           _SizeType _MaxSize   = std::numeric_limits<
                                      _SizeType>::max(),
@@ -170,9 +172,7 @@ struct history_view
     using value_type     = _Type;
     using container_type = _Container;
     using size_type      = _SizeType;
-    using history_type   = uxoxo::templates::history<
-                               _Type, _Container,
-                               _SizeType, _MaxSize>;
+    using history_type   = history<_Type, _Container, _SizeType, _MaxSize>;
     using policy_type    = _Policy;
     using filter_fn      = std::function<
                                bool(const _Type&)>;
@@ -180,47 +180,47 @@ struct history_view
     static constexpr size_type max_capacity = _MaxSize;
     static constexpr bool focusable         = false;
 
-    // ── data ─────────────────────────────────────────────────────────
+    // -- data ---------------------------------------------------------
     history_type          data;
 
-    // ── navigation ───────────────────────────────────────────────────
+    // -- navigation ---------------------------------------------------
     //   cursor_pos tracks the browse position within the history.
     // A value of data.size() means "no selection / past the end"
     // (i.e. the user has navigated back to live input).
     size_type             cursor_pos    = 0;
 
-    // ── display ──────────────────────────────────────────────────────
+    // -- display ------------------------------------------------------
     history_display_mode  display_mode  = history_display_mode::automatic;
     bool                  active        = true;
     bool                  visible       = true;
 
-    // ── optional filter ──────────────────────────────────────────────
+    // -- optional filter ----------------------------------------------
     //   When set, only entries satisfying the predicate are
     // considered "visible" to the framework.
     filter_fn             filter;
 
-    // ── scroll ───────────────────────────────────────────────────────
+    // -- scroll -------------------------------------------------------
     size_type             scroll_offset = 0;
     size_type             page_size     = 0;
 
-    // ── construction ─────────────────────────────────────────────────
+    // -- construction -------------------------------------------------
     history_view() = default;
 
     explicit history_view(
-            size_type _max
-        )
-            : data(_max)
-        {}
+        size_type _max
+    )
+        : data(_max)
+    {}
 
     history_view(
-            size_type            _max,
-            history_display_mode _mode
-        )
-            : data(_max),
-              display_mode(_mode)
-        {}
+        size_type            _max,
+        history_display_mode _mode
+    )
+        : data(_max),
+            display_mode(_mode)
+    {}
 
-    // ── queries ──────────────────────────────────────────────────────
+    // -- queries ------------------------------------------------------
     [[nodiscard]] bool
     empty() const noexcept
     {
@@ -249,17 +249,17 @@ struct history_view
 
 /*****************************************************************************/
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §5  FREE FUNCTIONS
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  5  FREE FUNCTIONS
+// ===============================================================================
 
 // hv_record
 //   appends an entry to the history and resets the cursor
 // to the live position.
-template <typename _T, typename _C,
+template <typename _Type, typename _C,
           typename _S, _S _M, typename _P>
-void hv_record(history_view<_T, _C, _S, _M, _P>& hv,
-               const _T&                          value)
+void hv_record(history_view<_Type, _C, _S, _M, _P>& hv,
+               const _Type&                          value)
 {
     hv.data.record(value);
     hv.cursor_pos = hv.data.size();
@@ -268,12 +268,12 @@ void hv_record(history_view<_T, _C, _S, _M, _P>& hv,
 }
 
 // hv_record (move)
-template <typename _T, typename _C,
+template <typename _Type, typename _C,
           typename _S, _S _M, typename _P>
-void hv_record(history_view<_T, _C, _S, _M, _P>& hv,
-               _T&&                               value)
+void hv_record(history_view<_Type, _C, _S, _M, _P>& hv,
+               _Type&&                               value)
 {
-    hv.data.record(static_cast<_T&&>(value));
+    hv.data.record(static_cast<_Type&&>(value));
     hv.cursor_pos = hv.data.size();
 
     return;
@@ -282,9 +282,9 @@ void hv_record(history_view<_T, _C, _S, _M, _P>& hv,
 // hv_prev
 //   navigates to the previous (older) entry.
 // Returns true if the cursor moved.
-template <typename _T, typename _C,
+template <typename _Type, typename _C,
           typename _S, _S _M, typename _P>
-bool hv_prev(history_view<_T, _C, _S, _M, _P>& hv)
+bool hv_prev(history_view<_Type, _C, _S, _M, _P>& hv)
 {
     if (hv.data.empty() || hv.cursor_pos == 0)
     {
@@ -299,9 +299,9 @@ bool hv_prev(history_view<_T, _C, _S, _M, _P>& hv)
 // hv_next
 //   navigates to the next (newer) entry, or back to the
 // live position.  Returns true if the cursor moved.
-template <typename _T, typename _C,
+template <typename _Type, typename _C,
           typename _S, _S _M, typename _P>
-bool hv_next(history_view<_T, _C, _S, _M, _P>& hv)
+bool hv_next(history_view<_Type, _C, _S, _M, _P>& hv)
 {
     if (hv.cursor_pos >= hv.data.size())
     {
@@ -315,10 +315,10 @@ bool hv_next(history_view<_T, _C, _S, _M, _P>& hv)
 
 // hv_go_to_live
 //   resets the cursor to the live (past-end) position.
-template <typename _T, typename _C,
+template <typename _Type, typename _C,
           typename _S, _S _M, typename _P>
 void hv_go_to_live(
-    history_view<_T, _C, _S, _M, _P>& hv)
+    history_view<_Type, _C, _S, _M, _P>& hv)
 {
     hv.cursor_pos = hv.data.size();
 
@@ -328,10 +328,10 @@ void hv_go_to_live(
 // hv_current
 //   returns a pointer to the entry at the current cursor
 // position, or nullptr if at the live position.
-template <typename _T, typename _C,
+template <typename _Type, typename _C,
           typename _S, _S _M, typename _P>
-const _T* hv_current(
-    const history_view<_T, _C, _S, _M, _P>& hv)
+const _Type* hv_current(
+    const history_view<_Type, _C, _S, _M, _P>& hv)
 {
     if (hv.at_live_position())
     {
@@ -343,9 +343,9 @@ const _T* hv_current(
 
 // hv_clear
 //   clears all history entries and resets navigation.
-template <typename _T, typename _C,
+template <typename _Type, typename _C,
           typename _S, _S _M, typename _P>
-void hv_clear(history_view<_T, _C, _S, _M, _P>& hv)
+void hv_clear(history_view<_Type, _C, _S, _M, _P>& hv)
 {
     hv.data.clear();
     hv.cursor_pos    = 0;
@@ -355,10 +355,10 @@ void hv_clear(history_view<_T, _C, _S, _M, _P>& hv)
 }
 
 // hv_set_display_mode
-template <typename _T, typename _C,
+template <typename _Type, typename _C,
           typename _S, _S _M, typename _P>
 void hv_set_display_mode(
-    history_view<_T, _C, _S, _M, _P>& hv,
+    history_view<_Type, _C, _S, _M, _P>& hv,
     history_display_mode               mode)
 {
     hv.display_mode = mode;
@@ -367,27 +367,27 @@ void hv_set_display_mode(
 }
 
 // hv_show / hv_hide / hv_toggle
-template <typename _T, typename _C,
+template <typename _Type, typename _C,
           typename _S, _S _M, typename _P>
-void hv_show(history_view<_T, _C, _S, _M, _P>& hv)
+void hv_show(history_view<_Type, _C, _S, _M, _P>& hv)
 {
     hv.visible = true;
 
     return;
 }
 
-template <typename _T, typename _C,
+template <typename _Type, typename _C,
           typename _S, _S _M, typename _P>
-void hv_hide(history_view<_T, _C, _S, _M, _P>& hv)
+void hv_hide(history_view<_Type, _C, _S, _M, _P>& hv)
 {
     hv.visible = false;
 
     return;
 }
 
-template <typename _T, typename _C,
+template <typename _Type, typename _C,
           typename _S, _S _M, typename _P>
-void hv_toggle(history_view<_T, _C, _S, _M, _P>& hv)
+void hv_toggle(history_view<_Type, _C, _S, _M, _P>& hv)
 {
     hv.visible = !hv.visible;
 
@@ -395,11 +395,11 @@ void hv_toggle(history_view<_T, _C, _S, _M, _P>& hv)
 }
 
 // hv_set_filter
-template <typename _T, typename _C,
+template <typename _Type, typename _C,
           typename _S, _S _M, typename _P>
 void hv_set_filter(
-    history_view<_T, _C, _S, _M, _P>&                hv,
-    typename history_view<_T, _C, _S, _M, _P>::filter_fn fn)
+    history_view<_Type, _C, _S, _M, _P>&                hv,
+    typename history_view<_Type, _C, _S, _M, _P>::filter_fn fn)
 {
     hv.filter = std::move(fn);
 
@@ -407,10 +407,10 @@ void hv_set_filter(
 }
 
 // hv_clear_filter
-template <typename _T, typename _C,
+template <typename _Type, typename _C,
           typename _S, _S _M, typename _P>
 void hv_clear_filter(
-    history_view<_T, _C, _S, _M, _P>& hv)
+    history_view<_Type, _C, _S, _M, _P>& hv)
 {
     hv.filter = nullptr;
 
@@ -420,11 +420,11 @@ void hv_clear_filter(
 // hv_search
 //   searches backward from cursor_pos for an entry matching
 // the predicate.  Returns true and updates cursor_pos if found.
-template <typename _T, typename _C,
+template <typename _Type, typename _C,
           typename _S, _S _M, typename _P,
           typename _Pred>
 bool hv_search(
-    history_view<_T, _C, _S, _M, _P>& hv,
+    history_view<_Type, _C, _S, _M, _P>& hv,
     _Pred                              pred)
 {
     if (hv.data.empty())
@@ -455,75 +455,75 @@ bool hv_search(
 
 /*****************************************************************************/
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §6  TRAITS
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  6  TRAITS
+// ===============================================================================
 
 namespace history_view_traits {
 namespace detail {
 
     template <typename, typename = void>
     struct has_data_member : std::false_type {};
-    template <typename _T>
-    struct has_data_member<_T, std::void_t<
-        decltype(std::declval<_T>().data)
+    template <typename _Type>
+    struct has_data_member<_Type, std::void_t<
+        decltype(std::declval<_Type>().data)
     >> : std::true_type {};
 
     template <typename, typename = void>
     struct has_cursor_pos_member : std::false_type {};
-    template <typename _T>
-    struct has_cursor_pos_member<_T, std::void_t<
-        decltype(std::declval<_T>().cursor_pos)
+    template <typename _Type>
+    struct has_cursor_pos_member<_Type, std::void_t<
+        decltype(std::declval<_Type>().cursor_pos)
     >> : std::true_type {};
 
     template <typename, typename = void>
     struct has_display_mode_member : std::false_type {};
-    template <typename _T>
-    struct has_display_mode_member<_T, std::void_t<
-        decltype(std::declval<_T>().display_mode)
+    template <typename _Type>
+    struct has_display_mode_member<_Type, std::void_t<
+        decltype(std::declval<_Type>().display_mode)
     >> : std::true_type {};
 
     template <typename, typename = void>
     struct has_active_member : std::false_type {};
-    template <typename _T>
-    struct has_active_member<_T, std::void_t<
-        decltype(std::declval<_T>().active)
+    template <typename _Type>
+    struct has_active_member<_Type, std::void_t<
+        decltype(std::declval<_Type>().active)
     >> : std::true_type {};
 
     template <typename, typename = void>
     struct has_visible_member : std::false_type {};
-    template <typename _T>
-    struct has_visible_member<_T, std::void_t<
-        decltype(std::declval<_T>().visible)
+    template <typename _Type>
+    struct has_visible_member<_Type, std::void_t<
+        decltype(std::declval<_Type>().visible)
     >> : std::true_type {};
 
     template <typename, typename = void>
     struct has_filter_member : std::false_type {};
-    template <typename _T>
-    struct has_filter_member<_T, std::void_t<
-        decltype(std::declval<_T>().filter)
+    template <typename _Type>
+    struct has_filter_member<_Type, std::void_t<
+        decltype(std::declval<_Type>().filter)
     >> : std::true_type {};
 
 }   // namespace detail
 
-template <typename _T>
+template <typename _Type>
 inline constexpr bool has_data_v =
-    detail::has_data_member<_T>::value;
-template <typename _T>
+    detail::has_data_member<_Type>::value;
+template <typename _Type>
 inline constexpr bool has_cursor_pos_v =
-    detail::has_cursor_pos_member<_T>::value;
-template <typename _T>
+    detail::has_cursor_pos_member<_Type>::value;
+template <typename _Type>
 inline constexpr bool has_display_mode_v =
-    detail::has_display_mode_member<_T>::value;
-template <typename _T>
+    detail::has_display_mode_member<_Type>::value;
+template <typename _Type>
 inline constexpr bool has_active_v =
-    detail::has_active_member<_T>::value;
-template <typename _T>
+    detail::has_active_member<_Type>::value;
+template <typename _Type>
 inline constexpr bool has_visible_v =
-    detail::has_visible_member<_T>::value;
-template <typename _T>
+    detail::has_visible_member<_Type>::value;
+template <typename _Type>
 inline constexpr bool has_filter_v =
-    detail::has_filter_member<_T>::value;
+    detail::has_filter_member<_Type>::value;
 
 // is_history_view
 //   type trait: has data + cursor_pos + display_mode +
@@ -538,9 +538,9 @@ struct is_history_view : std::conjunction<
 >
 {};
 
-template <typename _T>
+template <typename _Type>
 inline constexpr bool is_history_view_v =
-    is_history_view<_T>::value;
+    is_history_view<_Type>::value;
 
 // is_filterable_history_view
 template <typename _Type>
@@ -550,9 +550,9 @@ struct is_filterable_history_view : std::conjunction<
 >
 {};
 
-template <typename _T>
+template <typename _Type>
 inline constexpr bool is_filterable_history_view_v =
-    is_filterable_history_view<_T>::value;
+    is_filterable_history_view<_Type>::value;
 
 }   // namespace history_view_traits
 

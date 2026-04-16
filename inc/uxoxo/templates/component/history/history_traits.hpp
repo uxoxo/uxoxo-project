@@ -54,7 +54,7 @@
 
 
 NS_UXOXO
-NS_TEMPLATES
+NS_COMPONENT
 
 
 // ================================================================
@@ -77,7 +77,7 @@ NS_INTERNAL
     template<typename _Container>
     struct has_push_back<
         _Container,
-        uxoxo::void_t<
+        std::void_t<
             decltype(std::declval<_Container&>().push_back(
                 std::declval<const typename _Container::value_type&>()))
         >
@@ -98,7 +98,7 @@ NS_INTERNAL
     template<typename _Container>
     struct has_pop_front<
         _Container,
-        uxoxo::void_t<
+        std::void_t<
             decltype(std::declval<_Container&>().pop_front())
         >
     > : std::true_type
@@ -118,7 +118,7 @@ NS_INTERNAL
     template<typename _Container>
     struct has_erase_iterator<
         _Container,
-        uxoxo::void_t<
+        std::void_t<
             decltype(std::declval<_Container&>().erase(
                 std::declval<_Container&>().begin()))
         >
@@ -138,7 +138,7 @@ NS_INTERNAL
     template<typename _Container>
     struct has_size<
         _Container,
-        uxoxo::void_t<
+        std::void_t<
             decltype(std::declval<const _Container&>().size())
         >
     > : std::true_type
@@ -158,7 +158,7 @@ NS_INTERNAL
     template<typename _Container>
     struct has_front<
         _Container,
-        uxoxo::void_t<
+        std::void_t<
             decltype(std::declval<const _Container&>().front())
         >
     > : std::true_type
@@ -177,7 +177,7 @@ NS_INTERNAL
     template<typename _Container>
     struct has_back<
         _Container,
-        uxoxo::void_t<
+        std::void_t<
             decltype(std::declval<const _Container&>().back())
         >
     > : std::true_type
@@ -197,7 +197,7 @@ NS_INTERNAL
     template<typename _Container>
     struct has_begin_end<
         _Container,
-        uxoxo::void_t<
+        std::void_t<
             decltype(std::declval<const _Container&>().begin()),
             decltype(std::declval<const _Container&>().end())
         >
@@ -218,7 +218,7 @@ NS_INTERNAL
     template<typename _Container>
     struct has_clear<
         _Container,
-        uxoxo::void_t<
+        std::void_t<
             decltype(std::declval<_Container&>().clear())
         >
     > : std::true_type
@@ -238,7 +238,7 @@ NS_INTERNAL
     template<typename _Container>
     struct has_reserve<
         _Container,
-        uxoxo::void_t<
+        std::void_t<
             decltype(std::declval<_Container&>().reserve(
                 std::declval<std::size_t>()))
         >
@@ -367,7 +367,7 @@ struct is_history_compatible
 #endif  // D_ENV_CPP_FEATURE_LANG_VARIABLE_TEMPLATES
 
 
-NS_END  // templates
+NS_END  // component
 NS_END  // uxoxo
 
 
