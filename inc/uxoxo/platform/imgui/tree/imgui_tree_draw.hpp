@@ -777,7 +777,10 @@ imgui_draw_tree_view(
             }
 
             // -- invisible button for whole-row interaction ---------------
+            //   AllowOverlap lets the arrow and checkbox buttons drawn
+            // later in this same row steal the click when appropriate.
             ImGui::SetCursorScreenPos(row_min);
+            ImGui::SetNextItemAllowOverlap();
             ImGui::InvisibleButton("##row", ImVec2(avail_w, row_h));
 
             bool row_hovered = ImGui::IsItemHovered();

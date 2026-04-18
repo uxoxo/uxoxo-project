@@ -38,16 +38,23 @@
 #ifndef UXOXO_COMPONENT_IMGUI_DEV_CONSOLE_DRAW_
 #define UXOXO_COMPONENT_IMGUI_DEV_CONSOLE_DRAW_ 1
 
+// std
 #include <algorithm>
 #include <cstddef>
 #include <cstring>
 #include <string>
 #include <type_traits>
-#include "../../../uxoxo.hpp"
-#include "../../dev_console.hpp"
-#include "../../text_output.hpp"
-#include "../../button.hpp"
-#include "../render_context.hpp"
+// imgui
+#include "imgui.h"
+// djinterp
+#include <djinterp/core/djinterp.hpp>
+// uxoxo
+#include "../../uxoxo.hpp"
+#include "../../templates/render_context.hpp"
+#include "../../templates/component/input/console/dev_console.hpp"
+#include "../../templates/component/output/text_output.hpp"
+#include "../../templates/component/button/button.hpp"
+
 
 // Dear ImGui — caller must have included imgui.h before this header.
 #ifndef IMGUI_VERSION
@@ -290,7 +297,7 @@ imgui_draw_console_output(
             // color per line
             ImVec4 color = imgui_console_style::color_normal;
 
-            if constexpr (decltype(output)::has_color)
+            if constexpr (std::remove_reference_t<decltype(output)>::has_color)
             {
                 if (line.color_tag == output_color_tag::custom)
                 {

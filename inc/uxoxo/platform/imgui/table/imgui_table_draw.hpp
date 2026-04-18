@@ -60,12 +60,12 @@ NS_UXOXO
 NS_PLATFORM
 NS_IMGUI
 
+using djinterp::sort_order;
+using djinterp::text_alignment;
 using uxoxo::component::cell_region;
 using uxoxo::component::cell_role;
 using uxoxo::component::render_context;
-using uxoxo::component::sort_order;
 using uxoxo::component::table_view;
-using uxoxo::component::text_alignment;
 
 // =============================================================================
 //  1.  STYLE CONSTANTS

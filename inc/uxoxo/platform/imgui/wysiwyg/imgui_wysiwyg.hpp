@@ -7,7 +7,7 @@
 * ImGui-based applications.
 *
 *   imgui_hit_provider
-*     Maintains a per-frame map of node_id → screen rect.  During each
+*     Maintains a per-frame map of node_id -> screen rect.  During each
 *     frame the materializer's draw handlers call register_rect() to
 *     record where each node was drawn.  The editor then queries this
 *     map for hit testing and bounding-box lookups.  The map is cleared
