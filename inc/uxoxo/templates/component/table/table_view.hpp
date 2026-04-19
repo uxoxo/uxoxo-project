@@ -29,6 +29,7 @@
 #ifndef UXOXO_COMPONENT_TABLE_VIEW_
 #define UXOXO_COMPONENT_TABLE_VIEW_ 1
 
+// std
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
@@ -37,11 +38,20 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
-#include "../../uxoxo.hpp"
+// djinterp
+#include <djinterp/core/djinterp.hpp>
+#include <djinterp/core/text/text_align.hpp>
+#include <djinterp/core/util/sort/sort.hpp>
+// uxoxo
+#include "../../../uxoxo.hpp"
 
 
 NS_UXOXO
 NS_COMPONENT
+
+using djinterp::sort_order;
+using djinterp::text_alignment;
+
 
 // cell_region
 //   enum: structural region classification for a cell.
@@ -63,26 +73,6 @@ enum class cell_role : std::uint8_t
     blank,
     covered
 };
-
-#ifndef UXOXO_COMPONENT_VIEW_COMMON_
-    // sort_order
-    //   enum: sort direction state for a column.
-    enum class sort_order : std::uint8_t
-    {
-        none,
-        ascending,
-        descending
-    };
-
-    // text_alignment
-    //   enum: horizontal text alignment for a column.
-    enum class text_alignment : std::uint8_t
-    {
-        left,
-        center,
-        right
-    };
-#endif  // UXOXO_COMPONENT_VIEW_COMMON_
 
 // table_column
 //   struct: runtime descriptor for a visible table column.
@@ -202,14 +192,14 @@ struct table_view
     static D_CONSTEXPR bool focusable  = true;
     static D_CONSTEXPR bool scrollable = true;
 
-    std::size_t num_rows    = 0;
-    std::size_t num_cols    = 0;
-    std::size_t header_rows = 0;
-    std::size_t header_cols = 0;
-    std::size_t footer_rows = 0;
-    std::size_t footer_cols = 0;
-    std::size_t total_rows  = 0;
-    std::size_t total_cols  = 0;
+    std::size_t num_rows       = 0;
+    std::size_t num_columns    = 0;
+    std::size_t header_rows    = 0;
+    std::size_t header_columns = 0;
+    std::size_t footer_rows    = 0;
+    std::size_t footer_columns = 0;
+    std::size_t total_rows     = 0;
+    std::size_t total_columns  = 0;
 
     std::vector<table_column> columns;
     std::vector<cell_span>    spans;
@@ -221,20 +211,20 @@ struct table_view
     cell_range            selection     = { { 0, 0 }, { 0, 0 } };
     bool                  has_selection = false;
 
-    bool        editing     = false;
-    cell_pos    edit_cell   = { 0, 0 };
-    std::string edit_buffer;
-    std::size_t edit_cursor = 0;
+    bool        editing       = false;
+    cell_pos    edit_cell     = { 0, 0 };
+    std::string edit_buffer;  
+    std::size_t edit_cursor   = 0;
 
     cell_writer set_cell;
 
-    std::size_t scroll_row = 0;
-    std::size_t scroll_col = 0;
-    std::size_t page_rows  = 20;
-    std::size_t page_cols  = 10;
+    std::size_t scroll_row    = 0;
+    std::size_t scroll_column = 0;
+    std::size_t page_rows     = 20;
+    std::size_t page_columns  = 10;
 
-    std::size_t sort_column = 0;
-    sort_order  sort_dir    = sort_order::none;
+    std::size_t sort_column   = 0;
+    sort_order  sort_dir      = sort_order::none;
 
     sort_callback on_sort;
 
@@ -242,12 +232,14 @@ struct table_view
     bool show_grid   = true;
 };
 
-// tv_cell_text
+// table_view_cell_text
 //   function: returns the display string for a cell.
 D_INLINE std::string
-tv_cell_text(const table_view& _table_view,
-             std::size_t       _row,
-             std::size_t       _column)
+table_view_cell_text(
+    const table_view& _table_view,
+    std::size_t       _row,
+    std::size_t       _column
+)
 {
     if (_table_view.get_cell)
     {
@@ -258,10 +250,10 @@ tv_cell_text(const table_view& _table_view,
     return {};
 }
 
-// tv_cell_region
+// table_view_cell_region
 //   function: classifies a cell's structural region.
 D_INLINE cell_region
-tv_cell_region(
+table_view_cell_region(
     const table_view& _table_view,
     std::size_t       _row,
     std::size_t       _column
@@ -291,24 +283,24 @@ tv_cell_region(
     }
 
     // check header column region
-    if (_column < _table_view.header_cols)
+    if (_column < _table_view.header_columns)
     {
         return cell_region::header;
     }
 
     // check footer column region
-    if ( (_table_view.footer_cols > 0) &&
-         (_column >= _table_view.num_cols - _table_view.footer_cols) )
+    if ( (_table_view.footer_columns > 0) &&
+         (_column >= _table_view.num_columns - _table_view.footer_columns) )
     {
         return cell_region::footer;
     }
 
     // check total column region
-    if ( (_table_view.total_cols > 0) &&
-         (_column >= _table_view.num_cols -
-                  _table_view.footer_cols -
-                  _table_view.total_cols) &&
-         (_column < _table_view.num_cols - _table_view.footer_cols) )
+    if ( (_table_view.total_columns > 0) &&
+         (_column >= _table_view.num_columns -
+                  _table_view.footer_columns -
+                  _table_view.total_columns) &&
+         (_column < _table_view.num_columns - _table_view.footer_columns) )
     {
         return cell_region::total;
     }
@@ -316,10 +308,10 @@ tv_cell_region(
     return cell_region::data;
 }
 
-// tv_cell_role
+// table_view_cell_role
 //   function: determines the semantic role of a cell.
 D_INLINE cell_role
-tv_cell_role(
+table_view_cell_role(
     const table_view& _table_view,
     std::size_t       _row,
     std::size_t       _column
@@ -343,13 +335,13 @@ tv_cell_role(
         }
     }
 
-    const auto region = tv_cell_region(_table_view,
+    const auto region = table_view_cell_region(_table_view,
                                        _row,
                                        _column);
 
     // header-row/header-col intersection is blank
     if ( (_row < _table_view.header_rows) &&
-         (_column < _table_view.header_cols) )
+         (_column < _table_view.header_columns) )
     {
         return cell_role::blank;
     }
@@ -369,10 +361,10 @@ tv_cell_role(
     return cell_role::value;
 }
 
-// tv_is_span_origin
+// table_view_is_span_origin
 //   function: returns true if a cell is the origin of a span.
 D_INLINE bool
-tv_is_span_origin(
+table_view_is_span_origin(
     const table_view& _table_view,
     std::size_t       _row,
     std::size_t       _column
@@ -389,10 +381,10 @@ tv_is_span_origin(
     return false;
 }
 
-// tv_get_span
+// table_view_get_span
 //   function: returns the span containing a cell, or nullptr.
 D_INLINE const cell_span*
-tv_get_span(
+table_view_get_span(
     const table_view& _table_view,
     std::size_t       _row,
     std::size_t       _column
@@ -412,20 +404,20 @@ tv_get_span(
     return nullptr;
 }
 
-// tv_data_row_start
+// table_view_data_row_start
 //   function: returns the first data-row index.
 D_INLINE std::size_t
-tv_data_row_start(
+table_view_data_row_start(
     const table_view& _table_view
 )
 {
     return _table_view.header_rows;
 }
 
-// tv_data_row_end
+// table_view_data_row_end
 //   function: returns the data-row end index, exclusive.
 D_INLINE std::size_t
-tv_data_row_end(
+table_view_data_row_end(
     const table_view& _table_view
 )
 {
@@ -434,54 +426,54 @@ tv_data_row_end(
            _table_view.total_rows;
 }
 
-// tv_data_col_start
+// table_view_data_col_start
 //   function: returns the first data-column index.
 D_INLINE std::size_t
-tv_data_col_start(
+table_view_data_col_start(
     const table_view& _table_view
 )
 {
-    return _table_view.header_cols;
+    return _table_view.header_columns;
 }
 
-// tv_data_col_end
+// table_view_data_col_end
 //   function: returns the data-column end index, exclusive.
 D_INLINE std::size_t
-tv_data_col_end(
+table_view_data_col_end(
     const table_view& _table_view
 )
 {
-    return _table_view.num_cols -
-           _table_view.footer_cols -
-           _table_view.total_cols;
+    return _table_view.num_columns -
+           _table_view.footer_columns -
+           _table_view.total_columns;
 }
 
-// tv_data_row_count
+// table_view_data_row_count
 //   function: returns the number of data rows.
 D_INLINE std::size_t
-tv_data_row_count(
+table_view_data_row_count(
     const table_view& _table_view
 )
 {
-    return tv_data_row_end(_table_view) -
-           tv_data_row_start(_table_view);
+    return table_view_data_row_end(_table_view) -
+           table_view_data_row_start(_table_view);
 }
 
-// tv_data_col_count
+// table_view_data_col_count
 //   function: returns the number of data columns.
 D_INLINE std::size_t
-tv_data_col_count(
+table_view_data_col_count(
     const table_view& _table_view
 )
 {
-    return tv_data_col_end(_table_view) -
-           tv_data_col_start(_table_view);
+    return table_view_data_col_end(_table_view) -
+           table_view_data_col_start(_table_view);
 }
 
-// tv_move_up
+// table_view_move_up
 //   function: moves the cursor up by one row.
 D_INLINE bool
-tv_move_up(
+table_view_move_up(
     table_view& _table_view
 )
 {
@@ -502,10 +494,10 @@ tv_move_up(
     return true;
 }
 
-// tv_move_down
+// table_view_move_down
 //   function: moves the cursor down by one row.
 D_INLINE bool
-tv_move_down(
+table_view_move_down(
     table_view& _table_view
 )
 {
@@ -528,10 +520,10 @@ tv_move_down(
     return true;
 }
 
-// tv_move_left
+// table_view_move_left
 //   function: moves the cursor left by one column.
 D_INLINE bool
-tv_move_left(
+table_view_move_left(
     table_view& _table_view
 )
 {
@@ -544,23 +536,23 @@ tv_move_left(
     --_table_view.cursor.col;
 
     // adjust scroll if cursor moved left of visible area
-    if (_table_view.cursor.col < _table_view.scroll_col)
+    if (_table_view.cursor.col < _table_view.scroll_column)
     {
-        _table_view.scroll_col = _table_view.cursor.col;
+        _table_view.scroll_column = _table_view.cursor.col;
     }
 
     return true;
 }
 
-// tv_move_right
+// table_view_move_right
 //   function: moves the cursor right by one column.
 D_INLINE bool
-tv_move_right(
+table_view_move_right(
     table_view& _table_view
 )
 {
     // boundary check
-    if (_table_view.cursor.col + 1 >= _table_view.num_cols)
+    if (_table_view.cursor.col + 1 >= _table_view.num_columns)
     {
         return false;
     }
@@ -568,59 +560,59 @@ tv_move_right(
     ++_table_view.cursor.col;
 
     // adjust scroll if cursor moved right of visible area
-    if (_table_view.cursor.col >= _table_view.scroll_col +
-                                  _table_view.page_cols)
+    if (_table_view.cursor.col >= _table_view.scroll_column +
+                                  _table_view.page_columns)
     {
-        _table_view.scroll_col = _table_view.cursor.col -
-                                 _table_view.page_cols + 1;
+        _table_view.scroll_column = _table_view.cursor.col -
+                                 _table_view.page_columns + 1;
     }
 
     return true;
 }
 
-// tv_move_home
+// table_view_move_home
 //   function: moves the cursor to the first visible column.
 D_INLINE bool
-tv_move_home(
+table_view_move_home(
     table_view& _table_view
 )
 {
     _table_view.cursor.col = 0;
-    _table_view.scroll_col = 0;
+    _table_view.scroll_column = 0;
 
     return true;
 }
 
-// tv_move_end
+// table_view_move_end
 //   function: moves the cursor to the last column.
 D_INLINE bool
-tv_move_end(
+table_view_move_end(
     table_view& _table_view
 )
 {
     // empty table check
-    if (_table_view.num_cols == 0)
+    if (_table_view.num_columns == 0)
     {
         return false;
     }
 
-    _table_view.cursor.col = _table_view.num_cols - 1;
+    _table_view.cursor.col = _table_view.num_columns - 1;
 
     // adjust scroll if cursor moved right of visible area
-    if (_table_view.cursor.col >= _table_view.scroll_col +
-                                  _table_view.page_cols)
+    if (_table_view.cursor.col >= _table_view.scroll_column +
+                                  _table_view.page_columns)
     {
-        _table_view.scroll_col = _table_view.cursor.col -
-                                 _table_view.page_cols + 1;
+        _table_view.scroll_column = _table_view.cursor.col -
+                                 _table_view.page_columns + 1;
     }
 
     return true;
 }
 
-// tv_move_top
+// table_view_move_top
 //   function: moves the cursor to the first row.
 D_INLINE bool
-tv_move_top(
+table_view_move_top(
     table_view& _table_view
 )
 {
@@ -630,10 +622,10 @@ tv_move_top(
     return true;
 }
 
-// tv_move_bottom
+// table_view_move_bottom
 //   function: moves the cursor to the last row.
 D_INLINE bool
-tv_move_bottom(
+table_view_move_bottom(
     table_view& _table_view
 )
 {
@@ -656,10 +648,10 @@ tv_move_bottom(
     return true;
 }
 
-// tv_page_up
+// table_view_page_up
 //   function: moves the cursor up by one page.
 D_INLINE void
-tv_page_up(
+table_view_page_up(
     table_view& _table_view
 )
 {
@@ -677,10 +669,10 @@ tv_page_up(
     return;
 }
 
-// tv_page_down
+// table_view_page_down
 //   function: moves the cursor down by one page.
 D_INLINE void
-tv_page_down(
+table_view_page_down(
     table_view& _table_view
 )
 {
@@ -702,10 +694,10 @@ tv_page_down(
     return;
 }
 
-// tv_select_cell
+// table_view_select_cell
 //   function: selects a single cell.
 D_INLINE void
-tv_select_cell(
+table_view_select_cell(
     table_view& _table_view,
     std::size_t _row,
     std::size_t _column
@@ -718,10 +710,10 @@ tv_select_cell(
     return;
 }
 
-// tv_select_row
+// table_view_select_row
 //   function: selects an entire row.
 D_INLINE void
-tv_select_row(
+table_view_select_row(
     table_view& _table_view,
     std::size_t _row
 )
@@ -729,8 +721,8 @@ tv_select_row(
     _table_view.selection = {
         { _row, 0 },
         { _row,
-          (_table_view.num_cols > 0)
-              ? (_table_view.num_cols - 1)
+          (_table_view.num_columns > 0)
+              ? (_table_view.num_columns - 1)
               : 0 }
     };
     _table_view.has_selection = true;
@@ -738,10 +730,10 @@ tv_select_row(
     return;
 }
 
-// tv_select_column
+// table_view_select_column
 //   function: selects an entire column.
 D_INLINE void
-tv_select_column(
+table_view_select_column(
     table_view& _table_view,
     std::size_t _column
 )
@@ -758,10 +750,10 @@ tv_select_column(
     return;
 }
 
-// tv_select_range
+// table_view_select_range
 //   function: selects an inclusive rectangular range.
 D_INLINE void
-tv_select_range(
+table_view_select_range(
     table_view& _table_view,
     cell_pos    _start,
     cell_pos    _end
@@ -773,10 +765,10 @@ tv_select_range(
     return;
 }
 
-// tv_select_all
+// table_view_select_all
 //   function: selects the entire table.
 D_INLINE void
-tv_select_all(
+table_view_select_all(
     table_view& _table_view
 )
 {
@@ -786,8 +778,8 @@ tv_select_all(
             (_table_view.num_rows > 0)
                 ? (_table_view.num_rows - 1)
                 : 0,
-            (_table_view.num_cols > 0)
-                ? (_table_view.num_cols - 1)
+            (_table_view.num_columns > 0)
+                ? (_table_view.num_columns - 1)
                 : 0
         }
     };
@@ -796,10 +788,10 @@ tv_select_all(
     return;
 }
 
-// tv_clear_selection
+// table_view_clear_selection
 //   function: clears the current selection.
 D_INLINE void
-tv_clear_selection(
+table_view_clear_selection(
     table_view& _table_view
 )
 {
@@ -808,10 +800,10 @@ tv_clear_selection(
     return;
 }
 
-// tv_is_selected
+// table_view_is_selected
 //   function: returns true if a cell lies within the active selection.
 D_INLINE bool
-tv_is_selected(
+table_view_is_selected(
     const table_view& _table_view,
     std::size_t       _row,
     std::size_t       _column
@@ -826,29 +818,29 @@ tv_is_selected(
                                           _column);
 }
 
-// tv_select_at_cursor
+// table_view_select_at_cursor
 //   function: selects using the current selection style at the cursor.
 D_INLINE void
-tv_select_at_cursor(
+table_view_select_at_cursor(
     table_view& _table_view
 )
 {
     switch (_table_view.sel_style)
     {
-        case table_selection_style::cell:
-            tv_select_cell(_table_view,
-                           _table_view.cursor.row,
-                           _table_view.cursor.col);
+        case table_selection_style::cell:table_view_select_cell(
+                 _table_view,
+                 _table_view.cursor.row,
+                 _table_view.cursor.col);
             break;
 
         case table_selection_style::row:
-            tv_select_row(_table_view,
-                          _table_view.cursor.row);
+            table_view_select_row(_table_view,
+                                  _table_view.cursor.row);
             break;
 
         case table_selection_style::column:
-            tv_select_column(_table_view,
-                             _table_view.cursor.col);
+            table_view_select_column(_table_view,
+                                     _table_view.cursor.col);
             break;
 
         case table_selection_style::range:
@@ -863,10 +855,10 @@ tv_select_at_cursor(
     return;
 }
 
-// tv_selected_cells
+// table_view_selected_cells
 //   function: returns every cell position within the active selection.
 D_INLINE std::vector<cell_pos>
-tv_selected_cells(
+table_view_selected_cells(
     const table_view& _table_view
 )
 {
@@ -897,17 +889,17 @@ tv_selected_cells(
     return result;
 }
 
-// tv_begin_edit
+// table_view_begin_edit
 //   function: begins inline editing for a cell.
 D_INLINE bool
-tv_begin_edit(
+table_view_begin_edit(
     table_view& _table_view,
     std::size_t _row,
     std::size_t _column
 )
 {
     // reject editing of covered (spanned) cells
-    if (tv_cell_role(_table_view,
+    if (table_view_cell_role(_table_view,
                      _row,
                      _column) == cell_role::covered)
     {
@@ -916,7 +908,7 @@ tv_begin_edit(
 
     _table_view.editing     = true;
     _table_view.edit_cell   = { _row, _column };
-    _table_view.edit_buffer = tv_cell_text(_table_view,
+    _table_view.edit_buffer = table_view_cell_text(_table_view,
                                            _row,
                                            _column);
     _table_view.edit_cursor = _table_view.edit_buffer.size();
@@ -924,22 +916,22 @@ tv_begin_edit(
     return true;
 }
 
-// tv_begin_edit_at_cursor
+// table_view_begin_edit_at_cursor
 //   function: begins inline editing at the current cursor.
 D_INLINE bool
-tv_begin_edit_at_cursor(
+table_view_begin_edit_at_cursor(
     table_view& _table_view
 )
 {
-    return tv_begin_edit(_table_view,
+    return table_view_begin_edit(_table_view,
                          _table_view.cursor.row,
                          _table_view.cursor.col);
 }
 
-// tv_commit_edit
+// table_view_commit_edit
 //   function: commits the current edit buffer to the bound writer.
 D_INLINE bool
-tv_commit_edit(
+table_view_commit_edit(
     table_view& _table_view
 )
 {
@@ -962,10 +954,10 @@ tv_commit_edit(
     return false;
 }
 
-// tv_cancel_edit
+// table_view_cancel_edit
 //   function: cancels the current edit operation.
 D_INLINE void
-tv_cancel_edit(
+table_view_cancel_edit(
     table_view& _table_view
 )
 {
@@ -975,10 +967,10 @@ tv_cancel_edit(
     return;
 }
 
-// tv_sort_by_column
+// table_view_sort_by_column
 //   function: updates sort state and invokes the bound sort callback.
 D_INLINE void
-tv_sort_by_column(
+table_view_sort_by_column(
     table_view& _table_view,
     std::size_t _column,
     sort_order  _dir
@@ -1014,10 +1006,10 @@ tv_sort_by_column(
     return;
 }
 
-// tv_toggle_sort
+// table_view_toggle_sort
 //   function: cycles a column's sort state.
 D_INLINE void
-tv_toggle_sort(
+table_view_toggle_sort(
 	table_view& _table_view,
 	std::size_t _column
 )
@@ -1044,7 +1036,7 @@ tv_toggle_sort(
         }
     }
 
-    tv_sort_by_column(_table_view,
+    table_view_sort_by_column(_table_view,
                       _column,
                       next);
 
@@ -1067,7 +1059,7 @@ namespace detail_tv
     {};
 
     // has_header_cols
-    //   trait: detects a static header_cols member.
+    //   trait: detects a static header_columns member.
     template<typename _Type,
              typename = void>
     struct has_header_cols : std::false_type
@@ -1075,7 +1067,7 @@ namespace detail_tv
 
     template<typename _Type>
     struct has_header_cols<_Type,
-                           std::void_t<decltype(_Type::header_cols)>>
+                           std::void_t<decltype(_Type::header_columns)>>
         : std::true_type
     {};
 
@@ -1093,7 +1085,7 @@ namespace detail_tv
     {};
 
     // has_footer_cols
-    //   trait: detects a static footer_cols member.
+    //   trait: detects a static footer_columns member.
     template<typename _Type,
              typename = void>
     struct has_footer_cols : std::false_type
@@ -1101,7 +1093,7 @@ namespace detail_tv
 
     template<typename _Type>
     struct has_footer_cols<_Type,
-                           std::void_t<decltype(_Type::footer_cols)>>
+                           std::void_t<decltype(_Type::footer_columns)>>
         : std::true_type
     {};
 
@@ -1119,7 +1111,7 @@ namespace detail_tv
     {};
 
     // has_total_cols
-    //   trait: detects a static total_cols member.
+    //   trait: detects a static total_columns member.
     template<typename _Type,
              typename = void>
     struct has_total_cols : std::false_type
@@ -1127,7 +1119,7 @@ namespace detail_tv
 
     template<typename _Type>
     struct has_total_cols<_Type,
-                          std::void_t<decltype(_Type::total_cols)>>
+                          std::void_t<decltype(_Type::total_columns)>>
         : std::true_type
     {};
 
@@ -1145,19 +1137,19 @@ namespace detail_tv
     {};
 }
 
-// tv_bind
+// table_view_bind
 //   function: binds a table-like object to a table_view.
 template<typename _Table,
          typename _ToString>
 void
-tv_bind(
+table_view_bind(
 	table_view& _table_view,
 	_Table&     _table,
 	_ToString   _to_string
 )
 {
     _table_view.num_rows = _Table::num_rows;
-    _table_view.num_cols = _Table::num_cols;
+    _table_view.num_columns = _Table::num_columns;
 
     _table_view.get_cell =
         [&_table, _to_string](std::size_t _row,
@@ -1169,16 +1161,16 @@ tv_bind(
 
     _table_view.set_cell    = nullptr;
     _table_view.header_rows = 0;
-    _table_view.header_cols = 0;
+    _table_view.header_columns = 0;
     _table_view.footer_rows = 0;
-    _table_view.footer_cols = 0;
+    _table_view.footer_columns = 0;
     _table_view.total_rows  = 0;
-    _table_view.total_cols  = 0;
+    _table_view.total_columns  = 0;
 
     _table_view.columns.clear();
-    _table_view.columns.resize(_table_view.num_cols);
+    _table_view.columns.resize(_table_view.num_columns);
 
-    for (std::size_t index = 0; index < _table_view.num_cols; ++index)
+    for (std::size_t index = 0; index < _table_view.num_columns; ++index)
     {
         // use header row text as column name if available
         if ( (_table_view.header_rows > 0) && _table_view.get_cell )
@@ -1197,11 +1189,11 @@ tv_bind(
     return;
 }
 
-// tv_bind_config
+// table_view_bind_config
 //   function: applies compile-time config values to a table_view.
 template<typename _Config>
 void
-tv_bind_config(
+table_view_bind_config(
 	table_view& _table_view
 )
 {
@@ -1212,7 +1204,7 @@ tv_bind_config(
 
     if D_CONSTEXPR (detail_tv::has_header_cols<_Config>::value)
     {
-        _table_view.header_cols = _Config::header_cols;
+        _table_view.header_columns = _Config::header_columns;
     }
 
     if D_CONSTEXPR (detail_tv::has_footer_rows<_Config>::value)
@@ -1222,7 +1214,7 @@ tv_bind_config(
 
     if D_CONSTEXPR (detail_tv::has_footer_cols<_Config>::value)
     {
-        _table_view.footer_cols = _Config::footer_cols;
+        _table_view.footer_columns = _Config::footer_columns;
     }
 
     if D_CONSTEXPR (detail_tv::has_total_rows<_Config>::value)
@@ -1232,16 +1224,16 @@ tv_bind_config(
 
     if D_CONSTEXPR (detail_tv::has_total_cols<_Config>::value)
     {
-        _table_view.total_cols = _Config::total_cols;
+        _table_view.total_columns = _Config::total_columns;
     }
 
     return;
 }
 
-// tv_add_span
+// table_view_add_span
 //   function: registers a merged-cell span.
 D_INLINE void
-tv_add_span(
+table_view_add_span(
 	table_view& _table_view,
 	std::size_t _row,
 	std::size_t _column,
@@ -1257,11 +1249,11 @@ tv_add_span(
     return;
 }
 
-// tv_visible_rows
+// table_view_visible_rows
 //   function: returns the visible row range as [start, end).
 D_INLINE std::pair<std::size_t,
                    std::size_t>
-tv_visible_rows(
+table_view_visible_rows(
     const table_view& _table_view
 )
 {
@@ -1273,37 +1265,37 @@ tv_visible_rows(
     return { start, end };
 }
 
-// tv_visible_cols
+// table_view_visible_cols
 //   function: returns the visible column range as [start, end).
 D_INLINE std::pair<std::size_t, 
                    std::size_t>
-tv_visible_cols(
+table_view_visible_cols(
     const table_view& _table_view
 )
 {
-    const auto start = _table_view.scroll_col;
-    const auto end   = std::min(_table_view.scroll_col +
-                                    _table_view.page_cols,
-                                _table_view.num_cols);
+    const auto start = _table_view.scroll_column;
+    const auto end   = std::min(_table_view.scroll_column +
+                                    _table_view.page_columns,
+                                _table_view.num_columns);
 
     return { start, end };
 }
 
-// tv_for_each_visible_cell
+// table_view_for_each_visible_cell
 //   function: visits each visible, non-covered cell.
 template<typename _Fn>
 void
-tv_for_each_visible_cell(const table_view& _table_view,
+table_view_for_each_visible_cell(const table_view& _table_view,
                          _Fn&&             _fn)
 {
-    const auto [row_start, row_end] = tv_visible_rows(_table_view);
-    const auto [col_start, col_end] = tv_visible_cols(_table_view);
+    const auto [row_start, row_end] = table_view_visible_rows(_table_view);
+    const auto [col_start, col_end] = table_view_visible_cols(_table_view);
 
     for (std::size_t row = row_start; row < row_end; ++row)
     {
         for (std::size_t col = col_start; col < col_end; ++col)
         {
-            const auto role = tv_cell_role(_table_view,
+            const auto role = table_view_cell_role(_table_view,
                                            row,
                                            col);
 
@@ -1313,10 +1305,10 @@ tv_for_each_visible_cell(const table_view& _table_view,
                 continue;
             }
 
-            const auto region = tv_cell_region(_table_view,
+            const auto region = table_view_cell_region(_table_view,
                                                row,
                                                col);
-            const auto text   = tv_cell_text(_table_view,
+            const auto text   = table_view_cell_text(_table_view,
                                              row,
                                              col);
             _fn(row,
@@ -1349,7 +1341,7 @@ namespace table_view_traits
         {};
 
         // has_num_cols_member
-        //   trait: detects a num_cols member.
+        //   trait: detects a num_columns member.
         template<typename _Type,
                  typename = void>
         struct has_num_cols_member : std::false_type
@@ -1358,7 +1350,7 @@ namespace table_view_traits
         template<typename _Type>
         struct has_num_cols_member<
             _Type,
-            std::void_t<decltype(std::declval<_Type>().num_cols)>>
+            std::void_t<decltype(std::declval<_Type>().num_columns)>>
             : std::true_type
         {};
 
@@ -1496,8 +1488,8 @@ namespace table_view_traits
 }
 
 
-NS_END
-NS_END
+NS_END  // component
+NS_END  // uxoxo
 
 
 #endif  // UXOXO_COMPONENT_TABLE_VIEW_

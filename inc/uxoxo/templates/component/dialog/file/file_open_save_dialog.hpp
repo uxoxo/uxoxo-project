@@ -638,8 +638,7 @@ struct is_file_open_save_dialog : std::conjunction<
     detail::has_mode_member<_Type>,
     std::disjunction<
         detail::has_on_save_accepted_member<_Type>,
-        detail::has_on_open_accepted_member<_Type>
-    >
+        detail::has_on_open_accepted_member<_Type>>
 >
 {};
 

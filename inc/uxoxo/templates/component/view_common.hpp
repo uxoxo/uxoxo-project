@@ -33,6 +33,8 @@
 #include <vector>
 // djinterp
 #include <djinterp/core/djinterp.hpp>
+#include <djinterp/core/text/text_align.hpp>
+#include <djinterp/core/util/sort/sort.hpp>
 // uxoxo
 #include "../../uxoxo.hpp"
 
@@ -152,22 +154,6 @@ enum class selection_mode : std::uint8_t
     none,           // cursor only, no selection tracking
     single,         // at most one entry selected (click to replace)
     multi           // multi-select (Ctrl+click to toggle, Shift for range)
-};
-
-// sort_order
-enum class sort_order : std::uint8_t
-{
-    none,
-    ascending,
-    descending
-};
-
-// text_alignment
-enum class text_alignment : std::uint8_t
-{
-    left,
-    center,
-    right
 };
 
 // ===============================================================================

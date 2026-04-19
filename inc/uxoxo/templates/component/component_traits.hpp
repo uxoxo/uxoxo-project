@@ -37,7 +37,7 @@
 // djinterp
 #include <djinterp/core/djinterp.hpp>
 // uxoxo
-#include "../uxoxo.hpp"
+#include "../../uxoxo.hpp"
 
 
 NS_UXOXO

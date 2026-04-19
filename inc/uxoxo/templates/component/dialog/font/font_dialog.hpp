@@ -7,11 +7,13 @@
 * preview, and filtering — without prescribing HOW fonts are rendered,
 * enumerated, or matched.
 *
-*   The underlying font descriptor is parameterised (_FontDesc).  A
-* default `font_descriptor` POD is provided for callers who want a
-* ready-made symbolic identity; callers who already have a native
-* representation (LOGFONT, FcPattern*, NSFont*, FT_Face+index, or a
-* project-specific type) may substitute it directly.
+*   The font descriptor itself is supplied by `font.hpp`: the default
+* `_FontDesc` is `font::font<font::ff_gui_standard>`, but callers may
+* substitute any font-like type — the uxoxo `font<_Feat>` at a
+* different feature level, or a backend-specific struct (LOGFONT,
+* FcPattern wrapper, NSFont ref, FT_Face + index, game-engine ref).
+* Structural detection via `font::traits` determines which dialog
+* panes can edit the selection at all.
 *
 *   The dialog holds BOTH a catalogue of available font families and a
 * current selection.  The catalogue is populated by the adapter via
@@ -20,8 +22,11 @@
 * rendering is likewise delegated — the dialog just carries a sample
 * string and a flag indicating whether the preview is stale.
 *
-*   Feature flags gate optional panes (effects, color, script picker,
-* numeric weight slider, size list, recent selections) via EBO mixins.
+*   Feature flags gate optional dialog panes (preview, sample editor,
+* search, recent, favourites, filter controls) via EBO mixins.  Font
+* attribute panes (effects, color, background, script hint) are gated
+* by two conditions at the adapter layer: the corresponding `ftdf_*`
+* UI-visibility flag AND `font::traits::has_font_*_v<_FontDesc>`.
 *
 *   Because the accept lifecycle is role-driven by the inherited
 * dialog layer, this module slots naturally into dlg_activate_button:
@@ -31,23 +36,21 @@
 *
 * Contents:
 *   1.  Feature flags (font_dialog_feat)
-*   2.  Enums (font_weight, font_slant, font_stretch, font_spacing,
-*              font_size_unit, font_filter_scalable)
-*   3.  Support structs (font_descriptor, font_family_info,
-*                         font_effects, font_script_filter)
+*   2.  Dialog-local enums (font_filter_scalable)
+*   3.  Dialog-local support structs (font_script_filter)
 *   4.  EBO mixins
 *   5.  font_dialog struct
 *   6.  Free functions
 *   7.  Traits (SFINAE detection)
 *
 *
-* path:      /inc/uxoxo/templates/component/dialog/font/font_dialog.hpp
+* path:      /inc/uxoxo/templates/component/dialog/font_dialog.hpp
 * link(s):   TBA
-* author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.18
+* author(s): Samuel 'teer' Neal-Blim                      date: 2026.04.18
 *******************************************************************************/
 
-#ifndef  UXOXO_COMPONENT_DIALOG_FONT_
-#define  UXOXO_COMPONENT_DIALOG_FONT_ 1
+#ifndef  UXOXO_COMPONENT_FONT_DIALOG_
+#define  UXOXO_COMPONENT_FONT_DIALOG_ 1
 
 // std
 #include <cstddef>
@@ -61,6 +64,8 @@
 #include <djinterp/core/djinterp.hpp>
 // uxoxo
 #include "../../../uxoxo.hpp"
+#include "../../font/font.hpp"
+#include "../../font/font_traits.hpp"
 #include "./dialog.hpp"
 
 
@@ -71,6 +76,11 @@ NS_COMPONENT
 // ===============================================================================
 //  1.  FONT DIALOG FEATURE FLAGS
 // ===============================================================================
+//   These flags gate DIALOG panes, not font attributes.  A pane flag
+// only means "expose this UI in the dialog"; whether the underlying
+// selection can actually carry the corresponding attribute is a
+// separate question answered by `font::traits::has_font_*_v<_FontDesc>`
+// at the adapter layer.
 
 enum font_dialog_feat : unsigned
 {
@@ -79,9 +89,9 @@ enum font_dialog_feat : unsigned
     ftdf_size_slider     = 1u << 1,   // continuous size slider
     ftdf_style_list      = 1u << 2,   // style / weight picker pane
     ftdf_weight_numeric  = 1u << 3,   // numeric weight (100-1000) field
-    ftdf_effects_pane    = 1u << 4,   // underline / strike / etc.
-    ftdf_color_pane      = 1u << 5,   // foreground color
-    ftdf_background      = 1u << 6,   // background color
+    ftdf_effects_pane    = 1u << 4,   // underline / strike / etc. pane visibility
+    ftdf_color_pane      = 1u << 5,   // foreground color pane visibility
+    ftdf_background      = 1u << 6,   // background color pane visibility
     ftdf_preview         = 1u << 7,   // live preview pane
     ftdf_sample_edit     = 1u << 8,   // user-editable sample text
     ftdf_script_filter   = 1u << 9,   // writing-system / script filter
@@ -90,32 +100,21 @@ enum font_dialog_feat : unsigned
     ftdf_search          = 1u << 12,  // search-by-name box
     ftdf_recent          = 1u << 13,  // recently-chosen fonts list
     ftdf_favourites      = 1u << 14,  // user-starred fonts
-    ftdf_standard        = ftdf_size_list       |
-                           ftdf_style_list      |
-                           ftdf_preview,
-    ftdf_rich            = ftdf_size_list       | 
-                           ftdf_style_list      |
-                           ftdf_weight_numeric  | 
-                           ftdf_effects_pane    |
-                           ftdf_color_pane      | 
-                           ftdf_preview         |
-                           ftdf_sample_edit     | 
-                           ftdf_search,
-    ftdf_all             = ftdf_size_list       | 
-                           ftdf_size_slider     |
-                           ftdf_style_list      | 
-                           ftdf_weight_numeric  |
-                           ftdf_effects_pane    |  
-                           ftdf_color_pane      |
-                           ftdf_background      | 
-                           ftdf_preview         |
-                           ftdf_sample_edit     | 
-                           ftdf_script_filter   |
-                           ftdf_monospace_only  | 
-                           ftdf_scalable_only   |
-                           ftdf_search          | 
-                           ftdf_recent          |
-                           ftdf_favourites
+
+    ftdf_standard        = ftdf_size_list    | ftdf_style_list
+                         | ftdf_preview,
+    ftdf_rich            = ftdf_size_list    | ftdf_style_list
+                         | ftdf_weight_numeric | ftdf_effects_pane
+                         | ftdf_color_pane   | ftdf_preview
+                         | ftdf_sample_edit  | ftdf_search,
+    ftdf_all             = ftdf_size_list    | ftdf_size_slider
+                         | ftdf_style_list   | ftdf_weight_numeric
+                         | ftdf_effects_pane | ftdf_color_pane
+                         | ftdf_background   | ftdf_preview
+                         | ftdf_sample_edit  | ftdf_script_filter
+                         | ftdf_monospace_only | ftdf_scalable_only
+                         | ftdf_search       | ftdf_recent
+                         | ftdf_favourites
 };
 
 constexpr unsigned operator|(font_dialog_feat _a,
@@ -132,81 +131,15 @@ constexpr bool has_ftdf(unsigned          _f,
 
 
 // ===============================================================================
-//  2.  ENUMS
+//  2.  DIALOG-LOCAL ENUMS
 // ===============================================================================
-
-// font_weight
-//   enum: symbolic weight names with numeric values matching the OS/2
-// uweightclass scale and the CSS font-weight keywords.  A custom
-// numeric weight is carried in font_descriptor::weight_numeric, which
-// adapters should prefer when it is nonzero.
-enum class font_weight : std::uint16_t
-{
-    thin        = 100,
-    extra_light = 200,
-    light       = 300,
-    normal      = 400,
-    medium      = 500,
-    semi_bold   = 600,
-    bold        = 700,
-    extra_bold  = 800,
-    black       = 900,
-    extra_black = 950
-};
-
-// font_slant
-//   enum: italic / oblique axis.  `oblique` is algorithmically slanted
-// while `italic` is typographically designed — adapters that cannot
-// distinguish may treat them as equivalent.
-enum class font_slant : std::uint8_t
-{
-    upright,
-    italic,
-    oblique
-};
-
-// font_stretch
-//   enum: horizontal-scale axis, matching the OS/2 usWidthClass range.
-enum class font_stretch : std::uint8_t
-{
-    ultra_condensed = 1,
-    extra_condensed = 2,
-    condensed       = 3,
-    semi_condensed  = 4,
-    normal          = 5,
-    semi_expanded   = 6,
-    expanded        = 7,
-    extra_expanded  = 8,
-    ultra_expanded  = 9
-};
-
-// font_spacing
-//   enum: how glyph advance widths are distributed.
-enum class font_spacing : std::uint8_t
-{
-    any,               // adapter should not filter
-    proportional,
-    monospace,
-    dual_width,        // CJK half/full-width
-    charcell           // terminal-grid cells only
-};
-
-// font_size_unit
-//   enum: unit the numeric `size` field is expressed in.  Adapters are
-// responsible for converting to device-native units.
-enum class font_size_unit : std::uint8_t
-{
-    points,            // 1/72 inch — most common UI font specification
-    pixels,
-    em,
-    percent,
-    device_units       // raw, let the adapter decide
-};
 
 // font_filter_scalable
 //   enum: three-state outline/bitmap filter.  Distinct from the hard
-// ftdf_scalable_only feature flag: that flag toggles whether the pane
-// is exposed at all; this enum carries the user's choice when it is.
+// ftdf_scalable_only feature flag: that flag toggles whether the
+// filter UI is exposed at all; this enum carries the user's choice
+// when it is.  Dialog-local because it's a catalogue filter, not a
+// property of a selected font.
 enum class font_filter_scalable : std::uint8_t
 {
     any,
@@ -216,98 +149,19 @@ enum class font_filter_scalable : std::uint8_t
 
 
 // ===============================================================================
-//  3.  SUPPORT STRUCTS
+//  3.  DIALOG-LOCAL SUPPORT STRUCTS
 // ===============================================================================
 
-// font_descriptor
-//   struct: default symbolic font identity.  Carries every axis that
-// a platform adapter might need to resolve to a concrete font handle.
-// A descriptor is `empty()` when `family` is blank — the default-
-// constructed descriptor indicates "no selection".
-//
-//   Numeric fields (weight_numeric, size, etc.) take precedence over
-// their enum counterparts when nonzero, per the CSS convention.
-struct font_descriptor
-{
-    std::string       family;                   // family display name
-    std::string       style_name;               // e.g. "Bold Italic", "DemiBold Oblique"
-    font_weight       weight          = font_weight::normal;
-    std::uint16_t     weight_numeric  = 0;      // nonzero wins over `weight`
-    font_slant        slant           = font_slant::upright;
-    font_stretch      stretch         = font_stretch::normal;
-    font_spacing      spacing         = font_spacing::any;
-
-    float             size            = 10.0f;
-    font_size_unit    size_unit       = font_size_unit::points;
-
-    // backend-resolution hints (any may be empty / unused)
-    std::string       postscript_name;          // unique across a foundry
-    std::string       full_name;                // e.g. "Inter Regular"
-    std::string       file_path;                // on-disk font file
-    int               face_index      = 0;      // TTC / OTC face index
-    void*             native_handle   = nullptr;
-
-    [[nodiscard]] bool
-    empty() const noexcept
-    {
-        return family.empty();
-    }
-};
-
-// font_family_info
-//   struct: one entry in the enumerated family list.  The adapter
-// populates `styles` and `fixed_sizes` during enumeration; styles
-// available per family vary widely (Helvetica has 14, most fonts
-// have 4-6, some have 1).
-struct font_family_info
-{
-    std::string               family;           // display name
-    std::vector<std::string>  styles;           // "Regular", "Bold", ...
-    std::vector<float>        fixed_sizes;      // empty => scalable
-    bool                      is_scalable   = true;
-    bool                      is_monospace  = false;
-    bool                      is_symbol     = false;
-    bool                      is_variable   = false;    // OpenType variable
-    std::vector<std::string>  writing_systems;  // "Latin", "Cyrillic", "CJK", ...
-    std::string               foundry;
-    std::uint32_t             coverage_bits = 0;        // Unicode block bits
-};
-
-// font_color
-//   struct: 8-bit RGBA color used by the effects pane.  Deliberately
-// independent of djinterp::color to keep this header self-contained;
-// callers bridging to the color module can convert externally.
-struct font_color
-{
-    std::uint8_t  r = 0;
-    std::uint8_t  g = 0;
-    std::uint8_t  b = 0;
-    std::uint8_t  a = 255;
-};
-
-// font_effects
-//   struct: optional typographic decorations layered on top of the
-// selected font.  Carried only when ftdf_effects_pane is enabled.
-struct font_effects
-{
-    bool  underline      = false;
-    bool  strikethrough  = false;
-    bool  overline       = false;
-    bool  small_caps     = false;
-    bool  all_caps       = false;
-    bool  subscript      = false;
-    bool  superscript    = false;
-    float letter_spacing = 0.0f;   // em-units
-    float line_height    = 0.0f;   // multiplier; 0 => adapter default
-};
-
 // font_script_filter
-//   struct: carried when ftdf_script_filter is enabled; constrains the
-// enumerated family list to those covering a given script/language.
+//   struct: carried when ftdf_script_filter is enabled; constrains
+// the enumerated family list to those covering a given script/
+// language.  Dialog-local because it's a catalogue filter — the
+// per-font script hint (when a font type carries it) lives on the
+// font itself via font::traits::has_font_script_hint.
 struct font_script_filter
 {
-    std::string   script_tag;      // OpenType tag: "latn", "cyrl", "hani", ...
-    std::string   language_tag;    // BCP-47: "en", "zh-Hans", ...
+    std::string   script_tag;         // OpenType tag: "latn", "cyrl", ...
+    std::string   language_tag;       // BCP-47: "en", "zh-Hans", ...
     std::string   sample_codepoints;  // UTF-8 glyphs that must render
 };
 
@@ -315,6 +169,10 @@ struct font_script_filter
 // ===============================================================================
 //  4.  EBO MIXINS
 // ===============================================================================
+//   Only panes whose STATE is dialog-local need a mixin.  Font
+// attributes (underline, color, background, script hint) are edited
+// directly on `selection`; their ftdf_* flags govern pane visibility
+// but carry no storage.
 
 namespace font_dialog_mixin {
 
@@ -367,40 +225,6 @@ namespace font_dialog_mixin {
         std::uint16_t  weight_min  = 100;
         std::uint16_t  weight_max  = 1000;
         std::uint16_t  weight_step = 100;
-    };
-
-    // -- effects ------------------------------------------------------
-    template <bool _Enable>
-    struct effects_data
-    {};
-
-    template <>
-    struct effects_data<true>
-    {
-        font_effects  effects;
-    };
-
-    // -- color --------------------------------------------------------
-    template <bool _Enable>
-    struct color_data
-    {};
-
-    template <>
-    struct color_data<true>
-    {
-        font_color  foreground { 0,   0,   0,   255 };
-    };
-
-    // -- background ---------------------------------------------------
-    template <bool _Enable>
-    struct background_data
-    {};
-
-    template <>
-    struct background_data<true>
-    {
-        font_color  background { 255, 255, 255, 255 };
-        bool        background_enabled = false;
     };
 
     // -- preview ------------------------------------------------------
@@ -506,11 +330,13 @@ namespace font_dialog_mixin {
 // result state, and geometry of dialog<_DlgFeat>, and adds typography
 // selection state gated by _FontFeat.
 //
-//   _FontDesc   font descriptor type (default: font_descriptor).
+//   _FontDesc   font descriptor type.  Defaults to a fully-featured
+//               `font::font<font::ff_gui_standard>`.  Must at minimum
+//               satisfy `font::traits::is_font_like_v`.
 //   _DlgFeat    dialog-layer feature bitfield.
 //   _FontFeat   font-dialog-layer feature bitfield.
 
-template <typename _FontDesc = font_descriptor,
+template <typename _FontDesc = font::font<font::ff_gui_standard>,
           unsigned _DlgFeat  = df_titled | df_closable | df_resizable
                              | df_movable | df_sized,
           unsigned _FontFeat = ftdf_standard>
@@ -520,9 +346,6 @@ struct font_dialog
     , font_dialog_mixin::size_slider_data      <has_ftdf(_FontFeat, ftdf_size_slider)>
     , font_dialog_mixin::style_list_data       <has_ftdf(_FontFeat, ftdf_style_list)>
     , font_dialog_mixin::weight_numeric_data   <has_ftdf(_FontFeat, ftdf_weight_numeric)>
-    , font_dialog_mixin::effects_data          <has_ftdf(_FontFeat, ftdf_effects_pane)>
-    , font_dialog_mixin::color_data            <has_ftdf(_FontFeat, ftdf_color_pane)>
-    , font_dialog_mixin::background_data       <has_ftdf(_FontFeat, ftdf_background)>
     , font_dialog_mixin::preview_data          <has_ftdf(_FontFeat, ftdf_preview)>
     , font_dialog_mixin::sample_edit_data      <has_ftdf(_FontFeat, ftdf_sample_edit)>
     , font_dialog_mixin::script_filter_data    <has_ftdf(_FontFeat, ftdf_script_filter)>
@@ -532,11 +355,17 @@ struct font_dialog
     , font_dialog_mixin::recent_data           <has_ftdf(_FontFeat, ftdf_recent), _FontDesc>
     , font_dialog_mixin::favourites_data       <has_ftdf(_FontFeat, ftdf_favourites), _FontDesc>
 {
+    // _FontDesc must satisfy the minimum font-like interface.
+    static_assert(font::traits::is_font_like_v<_FontDesc>,
+                  "font_dialog: _FontDesc must satisfy "
+                  "font::traits::is_font_like "
+                  "(expose family, size, weight, slant).");
+
     using descriptor_type   = _FontDesc;
-    using family_list       = std::vector<font_family_info>;
+    using family_list       = std::vector<font::font_family_info>;
     using family_index_list = std::vector<std::size_t>;
     using enumerate_fn      = std::function<void(family_list&)>;
-    using family_change_fn  = std::function<void(const font_family_info&)>;
+    using family_change_fn  = std::function<void(const font::font_family_info&)>;
     using select_change_fn  = std::function<void(const _FontDesc&)>;
     using accept_fn         = std::function<void(const _FontDesc&)>;
 
@@ -549,7 +378,7 @@ struct font_dialog
     static constexpr bool has_weight_numeric  = has_ftdf(_FontFeat, ftdf_weight_numeric);
     static constexpr bool has_effects_pane    = has_ftdf(_FontFeat, ftdf_effects_pane);
     static constexpr bool has_color_pane      = has_ftdf(_FontFeat, ftdf_color_pane);
-    static constexpr bool has_background      = has_ftdf(_FontFeat, ftdf_background);
+    static constexpr bool has_background_pane = has_ftdf(_FontFeat, ftdf_background);
     static constexpr bool has_preview         = has_ftdf(_FontFeat, ftdf_preview);
     static constexpr bool has_sample_edit     = has_ftdf(_FontFeat, ftdf_sample_edit);
     static constexpr bool has_script_filter   = has_ftdf(_FontFeat, ftdf_script_filter);
@@ -558,6 +387,22 @@ struct font_dialog
     static constexpr bool has_search          = has_ftdf(_FontFeat, ftdf_search);
     static constexpr bool has_recent          = has_ftdf(_FontFeat, ftdf_recent);
     static constexpr bool has_favourites      = has_ftdf(_FontFeat, ftdf_favourites);
+
+    // Font-attribute editability — composes pane-visibility flag with
+    // a structural check on the descriptor type.  Adapters can use
+    // these directly to decide whether to render a pane's controls.
+    static constexpr bool can_edit_underline =
+        has_effects_pane && font::traits::has_font_underline_v<_FontDesc>;
+    static constexpr bool can_edit_strikethrough =
+        has_effects_pane && font::traits::has_font_strikethrough_v<_FontDesc>;
+    static constexpr bool can_edit_overline =
+        has_effects_pane && font::traits::has_font_overline_v<_FontDesc>;
+    static constexpr bool can_edit_small_caps =
+        has_effects_pane && font::traits::has_font_small_caps_v<_FontDesc>;
+    static constexpr bool can_edit_color =
+        has_color_pane && font::traits::has_font_color_v<_FontDesc>;
+    static constexpr bool can_edit_background =
+        has_background_pane && font::traits::has_font_background_v<_FontDesc>;
 
     // -- catalogue ----------------------------------------------------
     family_list        families;
@@ -587,6 +432,32 @@ struct font_dialog
 // ===============================================================================
 //  6.  FREE FUNCTIONS
 // ===============================================================================
+
+// ---------------------------------------------------------------------
+// internal helpers
+// ---------------------------------------------------------------------
+namespace font_dialog_detail {
+
+    // mark_preview_stale
+    //   helper: sets the preview_stale flag when the preview mixin is
+    // enabled.  No-op otherwise.  Consolidates a pattern that the
+    // setters used to repeat inline.
+    template <typename _FD>
+    void
+    mark_preview_stale(
+        _FD& _fd
+    ) noexcept
+    {
+        if constexpr (std::remove_reference_t<decltype(_fd)>::has_preview)
+        {
+            _fd.preview_stale = true;
+        }
+
+        return;
+    }
+
+}   // namespace font_dialog_detail
+
 
 // ftd_refresh
 //   asks the adapter to repopulate `families` via on_enumerate.
@@ -667,10 +538,7 @@ ftd_reconcile_selection(
         }
     }
 
-    if constexpr (has_ftdf(_FF, ftdf_preview))
-    {
-        _fd.preview_stale = true;
-    }
+    font_dialog_detail::mark_preview_stale(_fd);
 
     return;
 }
@@ -734,10 +602,7 @@ ftd_set_family(
         }
     }
 
-    if constexpr (has_ftdf(_FF, ftdf_preview))
-    {
-        _fd.preview_stale = true;
-    }
+    font_dialog_detail::mark_preview_stale(_fd);
 
     if (_fd.on_select_change)
     {
@@ -771,10 +636,7 @@ ftd_set_style(
         }
     }
 
-    if constexpr (has_ftdf(_FF, ftdf_preview))
-    {
-        _fd.preview_stale = true;
-    }
+    font_dialog_detail::mark_preview_stale(_fd);
 
     if (_fd.on_select_change)
     {
@@ -785,8 +647,9 @@ ftd_set_style(
 }
 
 // ftd_set_size
-//   sets the size in the selection's current unit.  Clamps to the
-// slider bounds when ftdf_size_slider is enabled.
+//   sets the size.  Clamps to the slider bounds when ftdf_size_slider
+// is enabled.  The unit is whatever the descriptor's size_unit
+// already is; to change unit, set it on the descriptor directly.
 template <typename _D, unsigned _DF, unsigned _FF>
 void
 ftd_set_size(
@@ -809,10 +672,7 @@ ftd_set_size(
 
     _fd.selection.size = _size;
 
-    if constexpr (has_ftdf(_FF, ftdf_preview))
-    {
-        _fd.preview_stale = true;
-    }
+    font_dialog_detail::mark_preview_stale(_fd);
 
     if (_fd.on_select_change)
     {
@@ -829,16 +689,13 @@ template <typename _D, unsigned _DF, unsigned _FF>
 void
 ftd_set_weight(
     font_dialog<_D, _DF, _FF>&  _fd,
-    font_weight                 _w
+    font::font_weight           _w
 )
 {
     _fd.selection.weight         = _w;
     _fd.selection.weight_numeric = 0;
 
-    if constexpr (has_ftdf(_FF, ftdf_preview))
-    {
-        _fd.preview_stale = true;
-    }
+    font_dialog_detail::mark_preview_stale(_fd);
 
     if (_fd.on_select_change)
     {
@@ -877,10 +734,7 @@ ftd_set_weight_numeric(
 
     _fd.selection.weight_numeric = _w;
 
-    if constexpr (has_ftdf(_FF, ftdf_preview))
-    {
-        _fd.preview_stale = true;
-    }
+    font_dialog_detail::mark_preview_stale(_fd);
 
     if (_fd.on_select_change)
     {
@@ -895,15 +749,12 @@ template <typename _D, unsigned _DF, unsigned _FF>
 void
 ftd_set_slant(
     font_dialog<_D, _DF, _FF>&  _fd,
-    font_slant                  _s
+    font::font_slant            _s
 )
 {
     _fd.selection.slant = _s;
 
-    if constexpr (has_ftdf(_FF, ftdf_preview))
-    {
-        _fd.preview_stale = true;
-    }
+    font_dialog_detail::mark_preview_stale(_fd);
 
     if (_fd.on_select_change)
     {
@@ -951,10 +802,7 @@ ftd_clear_selection(
         _fd.selected_style_index = 0;
     }
 
-    if constexpr (has_ftdf(_FF, ftdf_preview))
-    {
-        _fd.preview_stale = true;
-    }
+    font_dialog_detail::mark_preview_stale(_fd);
 
     if (_fd.on_select_change)
     {
@@ -963,6 +811,207 @@ ftd_clear_selection(
 
     return;
 }
+
+
+// ---------------------------------------------------------------------
+// effect setters (routed directly to `selection`)
+// ---------------------------------------------------------------------
+//   Each setter is static_assert-guarded: it requires BOTH the
+// ftdf_effects_pane dialog flag AND that the descriptor type itself
+// exposes the attribute (via font::traits).  Callers who want to
+// edit effects on a descriptor that doesn't support them must
+// substitute a richer _FontDesc.
+
+// ftd_set_underline
+template <typename _D, unsigned _DF, unsigned _FF>
+void
+ftd_set_underline(
+    font_dialog<_D, _DF, _FF>&  _fd,
+    bool                        _on
+)
+{
+    static_assert(has_ftdf(_FF, ftdf_effects_pane),
+                  "requires ftdf_effects_pane");
+    static_assert(font::traits::has_font_underline_v<_D>,
+                  "_FontDesc does not expose an `underline` member "
+                  "(enable font::ff_underline or supply a descriptor "
+                  "type that carries it).");
+
+    _fd.selection.underline = _on;
+
+    font_dialog_detail::mark_preview_stale(_fd);
+
+    if (_fd.on_select_change)
+    {
+        _fd.on_select_change(_fd.selection);
+    }
+
+    return;
+}
+
+// ftd_set_strikethrough
+template <typename _D, unsigned _DF, unsigned _FF>
+void
+ftd_set_strikethrough(
+    font_dialog<_D, _DF, _FF>&  _fd,
+    bool                        _on
+)
+{
+    static_assert(has_ftdf(_FF, ftdf_effects_pane),
+                  "requires ftdf_effects_pane");
+    static_assert(font::traits::has_font_strikethrough_v<_D>,
+                  "_FontDesc does not expose a `strikethrough` member.");
+
+    _fd.selection.strikethrough = _on;
+
+    font_dialog_detail::mark_preview_stale(_fd);
+
+    if (_fd.on_select_change)
+    {
+        _fd.on_select_change(_fd.selection);
+    }
+
+    return;
+}
+
+// ftd_set_overline
+template <typename _D, unsigned _DF, unsigned _FF>
+void
+ftd_set_overline(
+    font_dialog<_D, _DF, _FF>&  _fd,
+    bool                        _on
+)
+{
+    static_assert(has_ftdf(_FF, ftdf_effects_pane),
+                  "requires ftdf_effects_pane");
+    static_assert(font::traits::has_font_overline_v<_D>,
+                  "_FontDesc does not expose an `overline` member.");
+
+    _fd.selection.overline = _on;
+
+    font_dialog_detail::mark_preview_stale(_fd);
+
+    if (_fd.on_select_change)
+    {
+        _fd.on_select_change(_fd.selection);
+    }
+
+    return;
+}
+
+// ftd_set_small_caps
+template <typename _D, unsigned _DF, unsigned _FF>
+void
+ftd_set_small_caps(
+    font_dialog<_D, _DF, _FF>&  _fd,
+    bool                        _on
+)
+{
+    static_assert(has_ftdf(_FF, ftdf_effects_pane),
+                  "requires ftdf_effects_pane");
+    static_assert(font::traits::has_font_small_caps_v<_D>,
+                  "_FontDesc does not expose a `small_caps` member.");
+
+    _fd.selection.small_caps = _on;
+
+    font_dialog_detail::mark_preview_stale(_fd);
+
+    if (_fd.on_select_change)
+    {
+        _fd.on_select_change(_fd.selection);
+    }
+
+    return;
+}
+
+
+// ---------------------------------------------------------------------
+// color setters (routed directly to `selection`)
+// ---------------------------------------------------------------------
+
+// ftd_set_foreground
+//   sets the foreground color on the descriptor.  The color type
+// `_Color` must be assignable to the descriptor's foreground slot;
+// typically the descriptor's `color_type` alias.
+template <typename _D, unsigned _DF, unsigned _FF, typename _Color>
+void
+ftd_set_foreground(
+    font_dialog<_D, _DF, _FF>&  _fd,
+    _Color                      _c
+)
+{
+    static_assert(has_ftdf(_FF, ftdf_color_pane),
+                  "requires ftdf_color_pane");
+    static_assert(font::traits::has_font_color_v<_D>,
+                  "_FontDesc does not expose a `foreground` member.");
+
+    _fd.selection.foreground = std::move(_c);
+
+    font_dialog_detail::mark_preview_stale(_fd);
+
+    if (_fd.on_select_change)
+    {
+        _fd.on_select_change(_fd.selection);
+    }
+
+    return;
+}
+
+// ftd_set_background
+template <typename _D, unsigned _DF, unsigned _FF, typename _Color>
+void
+ftd_set_background(
+    font_dialog<_D, _DF, _FF>&  _fd,
+    _Color                      _c
+)
+{
+    static_assert(has_ftdf(_FF, ftdf_background),
+                  "requires ftdf_background");
+    static_assert(font::traits::has_font_background_v<_D>,
+                  "_FontDesc does not expose `background` "
+                  "and `background_enabled` members.");
+
+    _fd.selection.background         = std::move(_c);
+    _fd.selection.background_enabled = true;
+
+    font_dialog_detail::mark_preview_stale(_fd);
+
+    if (_fd.on_select_change)
+    {
+        _fd.on_select_change(_fd.selection);
+    }
+
+    return;
+}
+
+// ftd_clear_background
+template <typename _D, unsigned _DF, unsigned _FF>
+void
+ftd_clear_background(
+    font_dialog<_D, _DF, _FF>&  _fd
+)
+{
+    static_assert(has_ftdf(_FF, ftdf_background),
+                  "requires ftdf_background");
+    static_assert(font::traits::has_font_background_v<_D>,
+                  "_FontDesc does not expose `background_enabled`.");
+
+    _fd.selection.background_enabled = false;
+
+    font_dialog_detail::mark_preview_stale(_fd);
+
+    if (_fd.on_select_change)
+    {
+        _fd.on_select_change(_fd.selection);
+    }
+
+    return;
+}
+
+
+// ---------------------------------------------------------------------
+// preview / sample
+// ---------------------------------------------------------------------
 
 // ftd_set_sample_text
 template <typename _D, unsigned _DF, unsigned _FF>
@@ -977,10 +1026,7 @@ ftd_set_sample_text(
 
     _fd.sample_text = std::move(_text);
 
-    if constexpr (has_ftdf(_FF, ftdf_preview))
-    {
-        _fd.preview_stale = true;
-    }
+    font_dialog_detail::mark_preview_stale(_fd);
 
     return;
 }
@@ -994,10 +1040,7 @@ ftd_invalidate_preview(
     font_dialog<_D, _DF, _FF>& _fd
 )
 {
-    if constexpr (has_ftdf(_FF, ftdf_preview))
-    {
-        _fd.preview_stale = true;
-    }
+    font_dialog_detail::mark_preview_stale(_fd);
 
     return;
 }
@@ -1017,6 +1060,11 @@ ftd_mark_preview_fresh(
 
     return;
 }
+
+
+// ---------------------------------------------------------------------
+// filters
+// ---------------------------------------------------------------------
 
 // ftd_toggle_monospace_only
 template <typename _D, unsigned _DF, unsigned _FF>
@@ -1054,6 +1102,11 @@ ftd_set_scalable_filter(
 
     return;
 }
+
+
+// ---------------------------------------------------------------------
+// recent / favourites
+// ---------------------------------------------------------------------
 
 // ftd_push_recent
 //   pushes a descriptor onto the recent list, deduping by family +
@@ -1118,11 +1171,15 @@ ftd_add_favourite(
     return true;
 }
 
+
+// ---------------------------------------------------------------------
+// effective size / accept flow
+// ---------------------------------------------------------------------
+
 // ftd_effective_size
-//   returns the numeric size to be committed on accept, clamped (or
-// not) depending on which size mixins are enabled.  Purely an
-// introspection helper — the selection is already kept consistent
-// by the setters above.
+//   returns the selection's size.  Preserved for API compatibility;
+// a thin wrapper so call sites don't reach into the descriptor
+// directly.
 template <typename _D, unsigned _DF, unsigned _FF>
 float
 ftd_effective_size(
@@ -1145,7 +1202,7 @@ ftd_try_accept(
 {
     _fd.last_error.clear();
 
-    if (_fd.selection.empty())
+    if (_fd.selection.family.empty())
     {
         _fd.last_error = "No font family selected.";
 
@@ -1208,10 +1265,7 @@ ftd_reopen(
 {
     _fd.last_error.clear();
 
-    if constexpr (has_ftdf(_FF, ftdf_preview))
-    {
-        _fd.preview_stale = true;
-    }
+    font_dialog_detail::mark_preview_stale(_fd);
 
     dlg_open(static_cast<dialog<_DF>&>(_fd));
 
@@ -1265,20 +1319,6 @@ namespace detail {
     >> : std::true_type {};
 
     template <typename, typename = void>
-    struct has_effects_member : std::false_type {};
-    template <typename _Type>
-    struct has_effects_member<_Type, std::void_t<
-        decltype(std::declval<_Type>().effects)
-    >> : std::true_type {};
-
-    template <typename, typename = void>
-    struct has_foreground_member : std::false_type {};
-    template <typename _Type>
-    struct has_foreground_member<_Type, std::void_t<
-        decltype(std::declval<_Type>().foreground)
-    >> : std::true_type {};
-
-    template <typename, typename = void>
     struct has_preview_stale_member : std::false_type {};
     template <typename _Type>
     struct has_preview_stale_member<_Type, std::void_t<
@@ -1321,12 +1361,6 @@ template <typename _Type>
 inline constexpr bool has_style_options_v =
     detail::has_style_options_member<_Type>::value;
 template <typename _Type>
-inline constexpr bool has_effects_v =
-    detail::has_effects_member<_Type>::value;
-template <typename _Type>
-inline constexpr bool has_color_v =
-    detail::has_foreground_member<_Type>::value;
-template <typename _Type>
 inline constexpr bool has_preview_v =
     detail::has_preview_stale_member<_Type>::value;
 template <typename _Type>
@@ -1368,20 +1402,6 @@ template <typename _Type>
 inline constexpr bool is_previewing_font_dialog_v =
     is_previewing_font_dialog<_Type>::value;
 
-// is_rich_font_dialog
-//   has effects + color in addition to core font selection.
-template <typename _Type>
-struct is_rich_font_dialog : std::conjunction<
-    is_font_dialog<_Type>,
-    detail::has_effects_member<_Type>,
-    detail::has_foreground_member<_Type>
->
-{};
-
-template <typename _Type>
-inline constexpr bool is_rich_font_dialog_v =
-    is_rich_font_dialog<_Type>::value;
-
 }   // namespace font_dialog_traits
 
 
@@ -1389,4 +1409,4 @@ NS_END  // component
 NS_END  // uxoxo
 
 
-#endif  // UXOXO_COMPONENT_DIALOG_FONT_
+#endif  // UXOXO_COMPONENT_FONT_DIALOG_

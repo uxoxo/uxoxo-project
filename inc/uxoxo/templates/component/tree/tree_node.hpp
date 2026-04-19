@@ -50,7 +50,7 @@
 #include <djinterp/core/djinterp.hpp>
 // uxoxo
 #include "../../../uxoxo.hpp"
-#include "./view_common.hpp"
+#include "../view_common.hpp"
 
 
 NS_UXOXO
@@ -145,7 +145,7 @@ namespace mixin {
     {
         _Icon icon{};
         _Icon expanded_icon{};      // shown when node is expanded (e.g. open folder)
-        bool  use_expanded = false; // true → renderer shows expanded_icon when open
+        bool  use_expanded = false; // true -> renderer shows expanded_icon when open
     };
 
     // -- collapsible ------------------------------------------------------
@@ -156,7 +156,7 @@ namespace mixin {
     template <>
     struct collapse_data<true>
     {
-        bool expanded = true;       // true → children visible
+        bool expanded = true;       // true -> children visible
     };
 
     // -- renamable --------------------------------------------------------
@@ -620,7 +620,7 @@ std::vector<flat_entry<tree_node<_Data, _F, _I>>> flatten_roots_visible(
 //  8  PATH-BASED ACCESS
 // ===============================================================================
 //   A tree_path is a sequence of child indices from root to target.
-//     e.g. {2, 0, 1} → root.children[2].children[0].children[1]
+//     e.g. {2, 0, 1} -> root.children[2].children[0].children[1]
 
 using tree_path = std::vector<std::size_t>;
 
@@ -798,7 +798,7 @@ void propagate_check_up(tree_node<_Data, _F, _I>& node)
 
 // toggle_check
 //   Toggles a node according to a policy.
-//   unchecked/indeterminate → checked,  checked → unchecked.
+//   unchecked/indeterminate -> checked,  checked -> unchecked.
 template <typename _Data,
           unsigned _F,
           typename _I>

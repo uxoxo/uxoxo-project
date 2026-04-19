@@ -31,8 +31,8 @@
 *     - Nothing visible — programmatic completion only
 *
 *   The data flow is:
-*     user input → autocomplete_update() → suggest_adapter::suggest() →
-*     best match selected → completion suffix computed →
+*     user input -> autocomplete_update() -> suggest_adapter::suggest() ->
+*     best match selected -> completion suffix computed ->
 *     framework reads & renders/applies
 *
 *   Type parameters:
@@ -118,7 +118,7 @@ struct autocomplete_default_policy
 //   _Matcher is a type-erased callable that extracts the completion
 // suffix from a suggestion given the current input.  Signature:
 //   _Input (_Input current_input, _Suggest selected_suggestion)
-//           → completed input (the full replacement value)
+//           -> completed input (the full replacement value)
 //
 //   If no matcher is set, the default behavior is identity — the
 // suggestion IS the completed value.  Frameworks override this to
@@ -148,7 +148,7 @@ struct autocomplete
     suggest_fn  source;
 
     // -- matcher ------------------------------------------------------
-    //   transforms (input, suggestion) → completed input.
+    //   transforms (input, suggestion) -> completed input.
     // If unset, the suggestion is used directly as the completed
     // value.
     matcher_fn  matcher;
@@ -173,44 +173,44 @@ struct autocomplete
     autocomplete() = default;
 
     explicit autocomplete(
-            suggest_fn _source
-        )
-            : source(std::move(_source))
-        {}
+        suggest_fn _source
+    )
+        : source(std::move(_source))
+    {}
 
     autocomplete(
-            suggest_fn      _source,
-            matcher_fn      _matcher
-        )
-            : source(std::move(_source)),
-              matcher(std::move(_matcher))
-        {}
+        suggest_fn      _source,
+        matcher_fn      _matcher
+    )
+        : source(std::move(_source)),
+            matcher(std::move(_matcher))
+    {}
 
     autocomplete(
-            suggest_fn      _source,
-            matcher_fn      _matcher,
-            completion_mode _mode
-        )
-            : source(std::move(_source)),
-              matcher(std::move(_matcher)),
-              mode(_mode)
-        {}
+        suggest_fn      _source,
+        matcher_fn      _matcher,
+        completion_mode _mode
+    )
+        : source(std::move(_source)),
+            matcher(std::move(_matcher)),
+            mode(_mode)
+    {}
 
     // -- queries ------------------------------------------------------
     D_NODISCARD bool
-    has_source() const D_NOEXCEPT
+    has_source() const noexcept
     {
         return static_cast<bool>(source);
     }
 
     D_NODISCARD bool
-    has_candidates() const D_NOEXCEPT
+    has_candidates() const noexcept
     {
         return !candidates.empty();
     }
 
     D_NODISCARD bool
-    has_matcher() const D_NOEXCEPT
+    has_matcher() const noexcept
     {
         return static_cast<bool>(matcher);
     }
@@ -228,7 +228,7 @@ template<typename _I,
          typename _P>
 void autocomplete_set_source(
     autocomplete<_I, _S, _C, _P>&                     _ac,
-    typename autocomplete<_I, _S, _C, _P>::suggest_fn  _fn)
+    typename autocomplete<_I, _S, _C, _P>::suggest_fn _fn)
 {
     _ac.source = std::move(_fn);
 

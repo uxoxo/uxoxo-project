@@ -21,16 +21,12 @@
 *   Feature composition follows the same EBO-mixin bitfield pattern used
 * throughout the uxoxo component layer.
 *
-*   Shared operations (enable, disable, show, hide, set_value, clear,
-* request_copy) are provided by the ADL-dispatched free functions in
-* component_common.hpp.  Legacy oc_-prefixed wrappers are retained
-* for backward compatibility.
-*
 * Contents:
 *   1.  Feature flags (output_control_feat)
-*   2.  output_control struct
-*   3.  Legacy free functions (oc_-prefixed, thin wrappers)
-*   4.  Traits (SFINAE detection, delegates to component_traits)
+*   2.  EBO mixins
+*   3.  output_control struct
+*   4.  Free functions
+*   5.  Traits (SFINAE detection)
 *
 *
 * path:      /inc/uxoxo/templates/component/output/output_control.hpp
@@ -53,9 +49,6 @@
 // uxoxo
 #include "../../../uxoxo.hpp"
 #include "../view_common.hpp"
-#include "../../component_mixin.hpp"
-#include "../../component_traits.hpp"
-#include "../../component_common.hpp"
 
 
 NS_UXOXO
@@ -91,25 +84,61 @@ constexpr bool has_ocf(unsigned            _f,
 }
 
 // ===============================================================================
-//  2.  OUTPUT CONTROL
+//  2.  EBO MIXINS
+// ===============================================================================
+
+namespace output_mixin {
+
+    // -- label --------------------------------------------------------
+    template <bool _Enable>
+    struct label_data
+    {};
+
+    template <>
+    struct label_data<true>
+    {
+        std::string label;
+    };
+
+    // -- clearable ----------------------------------------------------
+    template <bool _Enable, typename _Value>
+    struct clearable_data
+    {};
+
+    template <typename _Value>
+    struct clearable_data<true, _Value>
+    {
+        _Value default_value {};
+    };
+
+    // -- copyable -----------------------------------------------------
+    template <bool _Enable>
+    struct copyable_data
+    {};
+
+    template <>
+    struct copyable_data<true>
+    {
+        bool copy_requested = false;
+    };
+
+}   // namespace output_mixin
+
+// ===============================================================================
+//  3.  OUTPUT CONTROL
 // ===============================================================================
 //   _Value     the type of the control's displayed payload.
 //   _Feat      bitwise OR of output_control_feat flags.
 //
-//   The on_change callback is invoked whenever set_value()
+//   The on_change callback is invoked whenever oc_set_value()
 // modifies the value.  The callback is optional.
-//
-//   EBO mixins are sourced from the shared component_mixin
-// namespace.  This eliminates the output_mixin duplication — the
-// same mixin definitions are shared with input_control and any
-// future component.
 
 template <typename _Value,
           unsigned _Feat = ocf_none>
 struct output_control
-    : component_mixin::label_data     <has_ocf(_Feat, ocf_labeled)>
-    , component_mixin::clearable_data <has_ocf(_Feat, ocf_clearable), _Value>
-    , component_mixin::copyable_data  <has_ocf(_Feat, ocf_copyable)>
+    : output_mixin::label_data     <has_ocf(_Feat, ocf_labeled)>
+    , output_mixin::clearable_data <has_ocf(_Feat, ocf_clearable), _Value>
+    , output_mixin::copyable_data  <has_ocf(_Feat, ocf_copyable)>
 {
     using value_type   = _Value;
     using change_fn    = std::function<void(const _Value&)>;
@@ -139,136 +168,181 @@ struct output_control
         {}
 };
 
-
-/*****************************************************************************/
-
 // ===============================================================================
-//  3.  LEGACY FREE FUNCTIONS
+//  4.  FREE FUNCTIONS
 // ===============================================================================
-//   These oc_-prefixed functions are retained for backward
-// compatibility.  New code should prefer the ADL-dispatched
-// equivalents in component_common.hpp:
-//
-//     oc_set_value()     →  set_value(oc, val)
-//     oc_clear()         →  clear(oc)
-//     oc_request_copy()  →  request_copy(oc)
-//     oc_enable()        →  enable(oc)
-//     oc_disable()       →  disable(oc)
-//     oc_show()          →  show(oc)
-//     oc_hide()          →  hide(oc)
 
 // oc_set_value
+//   replaces the control's value and notifies the change callback.
 template <typename _V, unsigned _F>
 void oc_set_value(output_control<_V, _F>& _oc,
                   _V                      _val)
 {
-    set_value(_oc, std::move(_val));
+    _oc.value = std::move(_val);
+
+    if (_oc.on_change)
+    {
+        _oc.on_change(_oc.value);
+    }
 
     return;
 }
 
 // oc_clear
+//   resets the control to its default value (requires ocf_clearable).
 template <typename _V, unsigned _F>
 void oc_clear(output_control<_V, _F>& _oc)
 {
     static_assert(has_ocf(_F, ocf_clearable),
                   "requires ocf_clearable");
 
-    clear(_oc);
+    _oc.value = _oc.default_value;
+
+    if (_oc.on_change)
+    {
+        _oc.on_change(_oc.value);
+    }
 
     return;
 }
 
 // oc_request_copy
+//   signals the renderer to copy the value to the clipboard
+// (requires ocf_copyable).
 template <typename _V, unsigned _F>
 void oc_request_copy(output_control<_V, _F>& _oc)
 {
     static_assert(has_ocf(_F, ocf_copyable),
                   "requires ocf_copyable");
 
-    request_copy(_oc);
+    _oc.copy_requested = true;
 
     return;
 }
 
-// oc_enable
+// oc_enable / oc_disable
 template <typename _V, unsigned _F>
 void oc_enable(output_control<_V, _F>& _oc)
 {
-    enable(_oc);
+    _oc.enabled = true;
 
     return;
 }
 
-// oc_disable
 template <typename _V, unsigned _F>
 void oc_disable(output_control<_V, _F>& _oc)
 {
-    disable(_oc);
+    _oc.enabled = false;
 
     return;
 }
 
-// oc_show
+// oc_show / oc_hide
 template <typename _V, unsigned _F>
 void oc_show(output_control<_V, _F>& _oc)
 {
-    show(_oc);
+    _oc.visible = true;
 
     return;
 }
 
-// oc_hide
 template <typename _V, unsigned _F>
 void oc_hide(output_control<_V, _F>& _oc)
 {
-    hide(_oc);
+    _oc.visible = false;
 
     return;
 }
 
-
-/*****************************************************************************/
-
 // ===============================================================================
-//  4.  TRAITS
+//  5.  TRAITS
 // ===============================================================================
-//   Shared detectors delegate to component_traits.  Only the
-// output-specific composite traits (is_output_control, etc.) are
-// defined here.  The _v aliases are kept for backward
-// compatibility but now forward to the shared versions.
 
 namespace output_control_traits {
+namespace detail {
 
-// -- value aliases (delegate to component_traits) -------------------------
+    template <typename, typename = void>
+    struct has_value_member : std::false_type {};
+    template <typename _Type>
+    struct has_value_member<_Type, std::void_t<
+        decltype(std::declval<_Type>().value)
+    >> : std::true_type {};
+
+    template <typename, typename = void>
+    struct has_enabled_member : std::false_type {};
+    template <typename _Type>
+    struct has_enabled_member<_Type, std::void_t<
+        decltype(std::declval<_Type>().enabled)
+    >> : std::true_type {};
+
+    template <typename, typename = void>
+    struct has_visible_member : std::false_type {};
+    template <typename _Type>
+    struct has_visible_member<_Type, std::void_t<
+        decltype(std::declval<_Type>().visible)
+    >> : std::true_type {};
+
+    template <typename, typename = void>
+    struct has_on_change_member : std::false_type {};
+    template <typename _Type>
+    struct has_on_change_member<_Type, std::void_t<
+        decltype(std::declval<_Type>().on_change)
+    >> : std::true_type {};
+
+    template <typename, typename = void>
+    struct has_label_member : std::false_type {};
+    template <typename _Type>
+    struct has_label_member<_Type, std::void_t<
+        decltype(std::declval<_Type>().label)
+    >> : std::true_type {};
+
+    template <typename, typename = void>
+    struct has_default_value_member : std::false_type {};
+    template <typename _Type>
+    struct has_default_value_member<_Type, std::void_t<
+        decltype(std::declval<_Type>().default_value)
+    >> : std::true_type {};
+
+    template <typename, typename = void>
+    struct has_copy_requested_member : std::false_type {};
+    template <typename _Type>
+    struct has_copy_requested_member<_Type, std::void_t<
+        decltype(std::declval<_Type>().copy_requested)
+    >> : std::true_type {};
+
+}   // namespace detail
+
 template <typename _Type>
 inline constexpr bool has_value_v =
-    component_traits::has_value_v<_Type>;
+    detail::has_value_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_enabled_v =
-    component_traits::has_enabled_v<_Type>;
+    detail::has_enabled_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_visible_v =
-    component_traits::has_visible_v<_Type>;
+    detail::has_visible_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_on_change_v =
-    component_traits::has_on_change_v<_Type>;
+    detail::has_on_change_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_label_v =
-    component_traits::has_label_v<_Type>;
+    detail::has_label_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_default_value_v =
-    component_traits::has_default_value_v<_Type>;
+    detail::has_default_value_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_copy_requested_v =
-    component_traits::has_copy_requested_v<_Type>;
-
-// -- output-specific composite traits -------------------------------------
+    detail::has_copy_requested_member<_Type>::value;
 
 // is_output_control
-//   trait: has value + enabled + visible + on_change.
+//   type trait: has value + enabled + visible + on_change.
 template <typename _Type>
-struct is_output_control : component_traits::is_output_like<_Type>
+struct is_output_control : std::conjunction<
+    detail::has_value_member<_Type>,
+    detail::has_enabled_member<_Type>,
+    detail::has_visible_member<_Type>,
+    detail::has_on_change_member<_Type>
+>
 {};
 
 template <typename _Type>
@@ -279,7 +353,7 @@ inline constexpr bool is_output_control_v =
 template <typename _Type>
 struct is_labeled_output : std::conjunction<
     is_output_control<_Type>,
-    component_traits::detail::has_label_member<_Type>
+    detail::has_label_member<_Type>
 >
 {};
 
@@ -291,7 +365,7 @@ inline constexpr bool is_labeled_output_v =
 template <typename _Type>
 struct is_clearable_output : std::conjunction<
     is_output_control<_Type>,
-    component_traits::detail::has_default_value_member<_Type>
+    detail::has_default_value_member<_Type>
 >
 {};
 
@@ -303,7 +377,7 @@ inline constexpr bool is_clearable_output_v =
 template <typename _Type>
 struct is_copyable_output : std::conjunction<
     is_output_control<_Type>,
-    component_traits::detail::has_copy_requested_member<_Type>
+    detail::has_copy_requested_member<_Type>
 >
 {};
 
@@ -312,9 +386,7 @@ inline constexpr bool is_copyable_output_v =
     is_copyable_output<_Type>::value;
 
 
-}   // namespace output_control_traits
-
-
+NS_END  // namespace output_control_traits
 NS_END  // component
 NS_END  // uxoxo
 

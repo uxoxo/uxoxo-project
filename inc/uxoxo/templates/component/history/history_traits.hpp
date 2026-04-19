@@ -42,7 +42,7 @@
 *
 * path:      /inc/uxoxo/templates/util/history/history_traits.hpp
 * link(s):   TBA
-* author(s): Sam 'teer' Neal-Blim                             date: 2026.04.09
+* author(s): Sam 'teer' Neal-Blim                          created: 2026.04.09
 ******************************************************************************/
 
 #ifndef UXOXO_TEMPLATES_HISTORY_TRAITS_
@@ -287,7 +287,7 @@ struct history_can_pop_front
 
 // history_eviction
 //   trait: resolves the eviction strategy for a given container.
-// Priority: pop_front → erase(begin()) → unsupported.
+// Priority: pop_front -> erase(begin()) -> unsupported.
 template<typename _Container>
 struct history_eviction
 {
@@ -329,7 +329,7 @@ template<typename _Container>
 struct is_history_compatible
 {
     static constexpr bool value =
-        ( internal::has_push_back<_Container>::value      &&
+        ( internal::has_push_back<_Container>::value       &&
           internal::has_size<_Container>::value            &&
           internal::has_begin_end<_Container>::value       &&
           internal::has_clear<_Container>::value           &&

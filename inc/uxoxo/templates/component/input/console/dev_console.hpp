@@ -77,12 +77,13 @@
 #include <djinterp/core/djinterp.hpp>
 // uxoxo
 #include "../../../../uxoxo.hpp"
-#include "../../../component_traits.hpp"
-#include "../../../component_common.hpp"
-#include "../../output/text_output.hpp"
+#include "../../component_traits.hpp"
+#include "../../component_common.hpp"
 #include "../../autosuggest.hpp"
 #include "../../autocomplete.hpp"
-#include "../../history_view.hpp"
+#include "../../button/button.hpp"
+#include "../../history/history_view.hpp"
+#include "../../output/text_output.hpp"
 #include "../text_input.hpp"
 
 
@@ -718,9 +719,9 @@ dc_set_log_level(dev_console<_IF, _F>& _dc,
 // compatibility.  New code should prefer the ADL-dispatched
 // equivalents in component_common.hpp:
 //
-//     dc_show(dc)    →  show(dc)
-//     dc_hide(dc)    →  hide(dc)
-//     dc_toggle(dc)  →  toggle_visible(dc)
+//     dc_show(dc)    ->  show(dc)
+//     dc_hide(dc)    ->  hide(dc)
+//     dc_toggle(dc)  ->  toggle_visible(dc)
 
 template<unsigned _IF, unsigned _F>
 void dc_show(dev_console<_IF, _F>& _dc)

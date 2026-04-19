@@ -23,8 +23,8 @@
 *     - A display mode hint (enum)
 *
 *   The data flow is:
-*     user input → as_update() → suggest_adapter::suggest() →
-*     results stored in autosuggest → framework reads & renders
+*     user input -> as_update() -> suggest_adapter::suggest() ->
+*     results stored in autosuggest -> framework reads & renders
 *
 *   The suggest_adapter is NOT owned by autosuggest.  The adapter
 * is a separate object (often shared between autosuggest and
@@ -37,12 +37,18 @@
 *     _Container  result container (e.g. std::vector<_Suggest>)
 *     _Policy     framework-supplied presentation policy (default: empty)
 *
+*   Shared operations (show, hide, toggle_visible, activate,
+* deactivate) are provided by the ADL-dispatched free functions
+* in component_common.hpp.  Legacy as_-prefixed wrappers are
+* retained for backward compatibility.
+*
 * Contents:
-*   §1  Display mode enum
-*   §2  Default policy
-*   §3  autosuggest struct
-*   §4  Free functions
-*   §5  Traits (SFINAE detection)
+*   1  Display mode enum
+*   2  Default policy
+*   3  autosuggest struct
+*   4  Domain-specific free functions
+*   5  Legacy free functions (as_-prefixed, thin wrappers)
+*   6  Traits (SFINAE detection)
 *
 *
 * path:      /inc/uxoxo/component/autosuggest.hpp
@@ -53,23 +59,28 @@
 #ifndef  UXOXO_COMPONENT_AUTOSUGGEST_
 #define  UXOXO_COMPONENT_AUTOSUGGEST_ 1
 
+// std
 #include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <type_traits>
 #include <utility>
 #include <vector>
-
-#include <uxoxo>
+// djinterp
+#include <djinterp/core/djinterp.hpp>
+// uxoxo
+#include "../../uxoxo.hpp"
+#include "component_traits.hpp"
+#include "component_common.hpp"
 
 
 NS_UXOXO
 NS_COMPONENT
 
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §1  DISPLAY MODE
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  1  DISPLAY MODE
+// ===============================================================================
 
 enum class suggest_display_mode : std::uint8_t
 {
@@ -94,9 +105,9 @@ enum class suggest_display_mode : std::uint8_t
 
 /*****************************************************************************/
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §2  DEFAULT POLICY
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  2  DEFAULT POLICY
+// ===============================================================================
 
 struct autosuggest_default_policy
 {};
@@ -104,9 +115,9 @@ struct autosuggest_default_policy
 
 /*****************************************************************************/
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §3  AUTOSUGGEST
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  3  AUTOSUGGEST
+// ===============================================================================
 //   The suggest_fn type-erases the adapter connection.  The user
 // sets it to a lambda or std::function that calls their concrete
 // suggest_adapter derivative.  This keeps autosuggest decoupled
@@ -127,23 +138,23 @@ struct autosuggest
     using suggest_fn     = std::function<
                                _Container(const _Input&)>;
 
-    // ── adapter connection ───────────────────────────────────────────
-    //   The user provides a callable that maps input → suggestions.
+    // -- adapter connection -------------------------------------------
+    //   The user provides a callable that maps input -> suggestions.
     // Typically wraps a suggest_adapter::suggest() call.
     suggest_fn  source;
 
-    // ── results ──────────────────────────────────────────────────────
+    // -- results ------------------------------------------------------
     _Container  suggestions {};
     size_type   selected     = 0;
 
-    // ── display ──────────────────────────────────────────────────────
+    // -- display ------------------------------------------------------
     suggest_display_mode display_mode =
         suggest_display_mode::automatic;
     bool        active       = true;
     bool        visible      = false;
     size_type   max_visible  = 10;
 
-    // ── construction ─────────────────────────────────────────────────
+    // -- construction -------------------------------------------------
     autosuggest() = default;
 
     explicit autosuggest(
@@ -160,7 +171,7 @@ struct autosuggest
               display_mode(_mode)
         {}
 
-    // ── queries ──────────────────────────────────────────────────────
+    // -- queries ------------------------------------------------------
     [[nodiscard]] bool
     has_source() const noexcept
     {
@@ -177,19 +188,21 @@ struct autosuggest
 
 /*****************************************************************************/
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §4  FREE FUNCTIONS
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  4  DOMAIN-SPECIFIC FREE FUNCTIONS
+// ===============================================================================
+//   These operations are unique to autosuggest and have no
+// shared equivalent in component_common.hpp.
 
 // as_set_source
 //   connects the autosuggest to a suggest_adapter via a callable.
 template <typename _I, typename _S,
           typename _C, typename _P>
 void as_set_source(
-    autosuggest<_I, _S, _C, _P>&                       as,
-    typename autosuggest<_I, _S, _C, _P>::suggest_fn    fn)
+    autosuggest<_I, _S, _C, _P>&                       _as,
+    typename autosuggest<_I, _S, _C, _P>::suggest_fn    _fn)
 {
-    as.source = std::move(fn);
+    _as.source = std::move(_fn);
 
     return;
 }
@@ -199,20 +212,20 @@ void as_set_source(
 // Call after every input change.
 template <typename _I, typename _S,
           typename _C, typename _P>
-void as_update(autosuggest<_I, _S, _C, _P>& as,
-               const _I&                    input)
+void as_update(autosuggest<_I, _S, _C, _P>& _as,
+               const _I&                    _input)
 {
-    if (!as.active || !as.source)
+    if (!_as.active || !_as.source)
     {
-        as.suggestions = _C{};
-        as.visible     = false;
+        _as.suggestions = _C{};
+        _as.visible     = false;
 
         return;
     }
 
-    as.suggestions = as.source(input);
-    as.selected    = 0;
-    as.visible     = !as.suggestions.empty();
+    _as.suggestions = _as.source(_input);
+    _as.selected    = 0;
+    _as.visible     = !_as.suggestions.empty();
 
     return;
 }
@@ -221,14 +234,14 @@ void as_update(autosuggest<_I, _S, _C, _P>& as,
 //   moves the selection cursor to the next suggestion.
 template <typename _I, typename _S,
           typename _C, typename _P>
-bool as_next(autosuggest<_I, _S, _C, _P>& as)
+bool as_next(autosuggest<_I, _S, _C, _P>& _as)
 {
-    if (as.suggestions.empty())
+    if (_as.suggestions.empty())
     {
         return false;
     }
 
-    as.selected = (as.selected + 1) % as.suggestions.size();
+    _as.selected = (_as.selected + 1) % _as.suggestions.size();
 
     return true;
 }
@@ -237,15 +250,15 @@ bool as_next(autosuggest<_I, _S, _C, _P>& as)
 //   moves the selection cursor to the previous suggestion.
 template <typename _I, typename _S,
           typename _C, typename _P>
-bool as_prev(autosuggest<_I, _S, _C, _P>& as)
+bool as_prev(autosuggest<_I, _S, _C, _P>& _as)
 {
-    if (as.suggestions.empty())
+    if (_as.suggestions.empty())
     {
         return false;
     }
 
-    as.selected = (as.selected + as.suggestions.size() - 1)
-                  % as.suggestions.size();
+    _as.selected = (_as.selected + _as.suggestions.size() - 1)
+                   % _as.suggestions.size();
 
     return true;
 }
@@ -256,85 +269,44 @@ bool as_prev(autosuggest<_I, _S, _C, _P>& as)
 template <typename _I, typename _S,
           typename _C, typename _P>
 const _S* as_selected_value(
-    const autosuggest<_I, _S, _C, _P>& as)
+    const autosuggest<_I, _S, _C, _P>& _as)
 {
-    if ( as.suggestions.empty()           ||
-         as.selected >= as.suggestions.size() )
+    if ( _as.suggestions.empty()           ||
+         _as.selected >= _as.suggestions.size() )
     {
         return nullptr;
     }
 
-    return &(as.suggestions[as.selected]);
+    return &(_as.suggestions[_as.selected]);
 }
 
 // as_dismiss
 //   hides the suggestion list without clearing results.
+// Semantically distinct from hide() — "dismiss" conveys user
+// intent (pressed Escape, clicked away), where hide() is a
+// generic visibility toggle.  Retained as a named operation
+// for framework code that distinguishes the two.
 template <typename _I, typename _S,
           typename _C, typename _P>
-void as_dismiss(autosuggest<_I, _S, _C, _P>& as)
+void as_dismiss(autosuggest<_I, _S, _C, _P>& _as)
 {
-    as.visible = false;
+    _as.visible = false;
 
     return;
 }
 
 // as_clear
 //   clears all suggestions and resets the cursor.
+// NOTE: this is NOT the shared clear() from component_common.hpp,
+// which resets a component's value to its default_value.  This
+// clears the suggestions container — a domain-specific operation.
 template <typename _I, typename _S,
           typename _C, typename _P>
-void as_clear(autosuggest<_I, _S, _C, _P>& as)
+void as_clear(autosuggest<_I, _S, _C, _P>& _as)
 {
-    as.suggestions = _C{};
-    as.selected    = 0;
-    as.visible     = false;
-
-    return;
-}
-
-// as_show / as_hide / as_toggle
-template <typename _I, typename _S,
-          typename _C, typename _P>
-void as_show(autosuggest<_I, _S, _C, _P>& as)
-{
-    as.visible = true;
-
-    return;
-}
-
-template <typename _I, typename _S,
-          typename _C, typename _P>
-void as_hide(autosuggest<_I, _S, _C, _P>& as)
-{
-    as.visible = false;
-
-    return;
-}
-
-template <typename _I, typename _S,
-          typename _C, typename _P>
-void as_toggle(autosuggest<_I, _S, _C, _P>& as)
-{
-    as.visible = !as.visible;
-
-    return;
-}
-
-// as_activate / as_deactivate
-template <typename _I, typename _S,
-          typename _C, typename _P>
-void as_activate(autosuggest<_I, _S, _C, _P>& as)
-{
-    as.active = true;
-
-    return;
-}
-
-template <typename _I, typename _S,
-          typename _C, typename _P>
-void as_deactivate(autosuggest<_I, _S, _C, _P>& as)
-{
-    as.active = false;
-    as.visible = false;
+    _as.suggestions = _C{};
+    _as.selected    = 0;
+    _as.visible     = false;
 
     return;
 }
@@ -342,99 +314,159 @@ void as_deactivate(autosuggest<_I, _S, _C, _P>& as)
 
 /*****************************************************************************/
 
-// ═══════════════════════════════════════════════════════════════════════════════
-//  §5  TRAITS
-// ═══════════════════════════════════════════════════════════════════════════════
+// ===============================================================================
+//  5  LEGACY FREE FUNCTIONS
+// ===============================================================================
+//   These as_-prefixed functions are retained for backward
+// compatibility.  New code should prefer the ADL-dispatched
+// equivalents in component_common.hpp:
+//
+//     as_show(as)        ->  show(as)
+//     as_hide(as)        ->  hide(as)
+//     as_toggle(as)      ->  toggle_visible(as)
+//     as_activate(as)    ->  activate(as)
+//     as_deactivate(as)  ->  deactivate(as)
+
+// as_show
+template <typename _I, typename _S,
+          typename _C, typename _P>
+void as_show(autosuggest<_I, _S, _C, _P>& _as)
+{
+    show(_as);
+
+    return;
+}
+
+// as_hide
+template <typename _I, typename _S,
+          typename _C, typename _P>
+void as_hide(autosuggest<_I, _S, _C, _P>& _as)
+{
+    hide(_as);
+
+    return;
+}
+
+// as_toggle
+template <typename _I, typename _S,
+          typename _C, typename _P>
+void as_toggle(autosuggest<_I, _S, _C, _P>& _as)
+{
+    toggle_visible(_as);
+
+    return;
+}
+
+// as_activate
+template <typename _I, typename _S,
+          typename _C, typename _P>
+void as_activate(autosuggest<_I, _S, _C, _P>& _as)
+{
+    activate(_as);
+
+    return;
+}
+
+// as_deactivate
+template <typename _I, typename _S,
+          typename _C, typename _P>
+void as_deactivate(autosuggest<_I, _S, _C, _P>& _as)
+{
+    deactivate(_as);
+
+    return;
+}
+
+
+/*****************************************************************************/
+
+// ===============================================================================
+//  6  TRAITS
+// ===============================================================================
+//   Shared detectors (has_visible, has_active) delegate to
+// component_traits.  Autosuggest-specific detectors remain here.
 
 namespace autosuggest_traits {
 namespace detail {
 
+    // -- autosuggest-specific detectors -------------------------------
+
     template <typename, typename = void>
     struct has_source_member : std::false_type {};
-    template <typename _T>
-    struct has_source_member<_T, std::void_t<
-        decltype(std::declval<_T>().source)
+    template <typename _Type>
+    struct has_source_member<_Type, std::void_t<
+        decltype(std::declval<_Type>().source)
     >> : std::true_type {};
 
     template <typename, typename = void>
     struct has_suggestions_member : std::false_type {};
-    template <typename _T>
-    struct has_suggestions_member<_T, std::void_t<
-        decltype(std::declval<_T>().suggestions)
+    template <typename _Type>
+    struct has_suggestions_member<_Type, std::void_t<
+        decltype(std::declval<_Type>().suggestions)
     >> : std::true_type {};
 
     template <typename, typename = void>
     struct has_selected_member : std::false_type {};
-    template <typename _T>
-    struct has_selected_member<_T, std::void_t<
-        decltype(std::declval<_T>().selected)
-    >> : std::true_type {};
-
-    template <typename, typename = void>
-    struct has_visible_member : std::false_type {};
-    template <typename _T>
-    struct has_visible_member<_T, std::void_t<
-        decltype(std::declval<_T>().visible)
-    >> : std::true_type {};
-
-    template <typename, typename = void>
-    struct has_active_member : std::false_type {};
-    template <typename _T>
-    struct has_active_member<_T, std::void_t<
-        decltype(std::declval<_T>().active)
+    template <typename _Type>
+    struct has_selected_member<_Type, std::void_t<
+        decltype(std::declval<_Type>().selected)
     >> : std::true_type {};
 
     template <typename, typename = void>
     struct has_display_mode_member : std::false_type {};
-    template <typename _T>
-    struct has_display_mode_member<_T, std::void_t<
-        decltype(std::declval<_T>().display_mode)
+    template <typename _Type>
+    struct has_display_mode_member<_Type, std::void_t<
+        decltype(std::declval<_Type>().display_mode)
     >> : std::true_type {};
 
     template <typename, typename = void>
     struct has_max_visible_member : std::false_type {};
-    template <typename _T>
-    struct has_max_visible_member<_T, std::void_t<
-        decltype(std::declval<_T>().max_visible)
+    template <typename _Type>
+    struct has_max_visible_member<_Type, std::void_t<
+        decltype(std::declval<_Type>().max_visible)
     >> : std::true_type {};
 
 }   // namespace detail
 
-template <typename _T>
+// -- autosuggest-specific aliases -----------------------------------------
+template <typename _Type>
 inline constexpr bool has_source_v =
-    detail::has_source_member<_T>::value;
-template <typename _T>
+    detail::has_source_member<_Type>::value;
+template <typename _Type>
 inline constexpr bool has_suggestions_v =
-    detail::has_suggestions_member<_T>::value;
-template <typename _T>
+    detail::has_suggestions_member<_Type>::value;
+template <typename _Type>
 inline constexpr bool has_selected_v =
-    detail::has_selected_member<_T>::value;
-template <typename _T>
-inline constexpr bool has_visible_v =
-    detail::has_visible_member<_T>::value;
-template <typename _T>
-inline constexpr bool has_active_v =
-    detail::has_active_member<_T>::value;
-template <typename _T>
+    detail::has_selected_member<_Type>::value;
+template <typename _Type>
 inline constexpr bool has_max_visible_v =
-    detail::has_max_visible_member<_T>::value;
+    detail::has_max_visible_member<_Type>::value;
+
+// -- shared aliases (delegate to component_traits) ------------------------
+template <typename _Type>
+inline constexpr bool has_visible_v =
+    component_traits::has_visible_v<_Type>;
+template <typename _Type>
+inline constexpr bool has_active_v =
+    component_traits::has_active_v<_Type>;
+
+// -- composite traits -----------------------------------------------------
 
 // is_autosuggest
-//   type trait: has source + suggestions + selected +
-// visible + active.
+//   trait: has source + suggestions + selected + visible + active.
 template <typename _Type>
 struct is_autosuggest : std::conjunction<
     detail::has_source_member<_Type>,
     detail::has_suggestions_member<_Type>,
     detail::has_selected_member<_Type>,
-    detail::has_visible_member<_Type>,
-    detail::has_active_member<_Type>
+    component_traits::detail::has_visible_member<_Type>,
+    component_traits::detail::has_active_member<_Type>
 >
 {};
 
-template <typename _T>
+template <typename _Type>
 inline constexpr bool is_autosuggest_v =
-    is_autosuggest<_T>::value;
+    is_autosuggest<_Type>::value;
 
 }   // namespace autosuggest_traits
 

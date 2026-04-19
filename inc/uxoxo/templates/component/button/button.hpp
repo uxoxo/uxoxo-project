@@ -41,15 +41,19 @@
 #ifndef UXOXO_COMPONENT_BUTTON_
 #define UXOXO_COMPONENT_BUTTON_ 1
 
+// std
 #include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <string>
 #include <type_traits>
 #include <utility>
-#include "../uxoxo.hpp"
-#include "component_traits.hpp"
-#include "component_common.hpp"
+// djinterp
+#include <djinterp/core/djinterp.hpp>
+// uxoxo
+#include "../../../uxoxo.hpp"
+#include "../component_traits.hpp"
+#include "../component_common.hpp"
 
 
 NS_UXOXO
@@ -496,8 +500,8 @@ btn_is_toggled(
 // compatibility.  New code should prefer the ADL-dispatched
 // equivalents in component_common.hpp:
 //
-//     btn_enable(btn)   →  enable(btn)
-//     btn_disable(btn)  →  disable(btn)
+//     btn_enable(btn)   ->  enable(btn)
+//     btn_disable(btn)  ->  disable(btn)
 //                          show(btn)      (no legacy equivalent existed)
 //                          hide(btn)      (no legacy equivalent existed)
 

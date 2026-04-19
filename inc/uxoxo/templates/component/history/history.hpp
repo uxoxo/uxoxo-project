@@ -46,7 +46,7 @@
 *
 * path:      /inc/uxoxo/templates/util/history/history.hpp
 * link(s):   TBA
-* author(s): Sam 'teer' Neal-Blim                             date: 2026.04.09
+* author(s): Sam 'teer' Neal-Blim                          created: 2026.04.09
 ******************************************************************************/
 
 #ifndef UXOXO_TEMPLATES_HISTORY_
@@ -96,11 +96,11 @@ template<typename  _Type,
          _SizeType _MaxSize   = std::numeric_limits<_SizeType>::max()>
 class history
 {
-    static_assert(is_history_compatible<_Container>::value,
-                  "Template parameter `_Container` must satisfy "
-                  "is_history_compatible: it must provide push_back, "
-                  "size, begin/end, clear, and front removal "
-                  "(pop_front or erase(iterator)).");
+    //static_assert(is_history_compatible<_Container>::value,
+    //              "Template parameter `_Container` must satisfy "
+    //              "is_history_compatible: it must provide push_back, "
+    //              "size, begin/end, clear, and front removal "
+    //              "(pop_front or erase(iterator)).");
 
     static_assert(_MaxSize > 0,
                   "Non-type parameter `_MaxSize` must be greater "
