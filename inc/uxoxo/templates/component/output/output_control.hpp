@@ -259,7 +259,7 @@ void oc_hide(output_control<_V, _F>& _oc)
 // ===============================================================================
 
 namespace output_control_traits {
-namespace detail {
+NS_INTERNAL
 
     template <typename, typename = void>
     struct has_value_member : std::false_type {};
@@ -310,38 +310,38 @@ namespace detail {
         decltype(std::declval<_Type>().copy_requested)
     >> : std::true_type {};
 
-}   // namespace detail
+}   // NS_INTERNAL
 
 template <typename _Type>
 inline constexpr bool has_value_v =
-    detail::has_value_member<_Type>::value;
+    internal::has_value_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_enabled_v =
-    detail::has_enabled_member<_Type>::value;
+    internal::has_enabled_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_visible_v =
-    detail::has_visible_member<_Type>::value;
+    internal::has_visible_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_on_change_v =
-    detail::has_on_change_member<_Type>::value;
+    internal::has_on_change_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_label_v =
-    detail::has_label_member<_Type>::value;
+    internal::has_label_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_default_value_v =
-    detail::has_default_value_member<_Type>::value;
+    internal::has_default_value_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_copy_requested_v =
-    detail::has_copy_requested_member<_Type>::value;
+    internal::has_copy_requested_member<_Type>::value;
 
 // is_output_control
 //   type trait: has value + enabled + visible + on_change.
 template <typename _Type>
 struct is_output_control : std::conjunction<
-    detail::has_value_member<_Type>,
-    detail::has_enabled_member<_Type>,
-    detail::has_visible_member<_Type>,
-    detail::has_on_change_member<_Type>
+    internal::has_value_member<_Type>,
+    internal::has_enabled_member<_Type>,
+    internal::has_visible_member<_Type>,
+    internal::has_on_change_member<_Type>
 >
 {};
 
@@ -353,7 +353,7 @@ inline constexpr bool is_output_control_v =
 template <typename _Type>
 struct is_labeled_output : std::conjunction<
     is_output_control<_Type>,
-    detail::has_label_member<_Type>
+    internal::has_label_member<_Type>
 >
 {};
 
@@ -365,7 +365,7 @@ inline constexpr bool is_labeled_output_v =
 template <typename _Type>
 struct is_clearable_output : std::conjunction<
     is_output_control<_Type>,
-    detail::has_default_value_member<_Type>
+    internal::has_default_value_member<_Type>
 >
 {};
 
@@ -377,7 +377,7 @@ inline constexpr bool is_clearable_output_v =
 template <typename _Type>
 struct is_copyable_output : std::conjunction<
     is_output_control<_Type>,
-    detail::has_copy_requested_member<_Type>
+    internal::has_copy_requested_member<_Type>
 >
 {};
 

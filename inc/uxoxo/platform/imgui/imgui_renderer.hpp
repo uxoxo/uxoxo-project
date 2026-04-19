@@ -50,13 +50,8 @@
 #include "../../templates/component/table/table_view.hpp"
 #include "../../templates/component/table/database/database_table_view.hpp"
 #include "../../templates/component/window/window_panel.hpp"
-#include "./imgui_table_draw.hpp"
-#include "./imgui_database_table_draw.hpp"
-
-// Dear ImGui — caller must have included imgui.h before this header.
-#ifndef IMGUI_VERSION
-    #error "imgui.h must be included before imgui_renderer.hpp"
-#endif
+#include "./table/imgui_table_draw.hpp"
+#include "./table/database/imgui_database_table_draw.hpp"
 
 
 NS_UXOXO

@@ -1303,47 +1303,47 @@ NS_END  // internal
 // -- tab entry value aliases ----------------------------------------------
 template <typename _Type>
 inline constexpr bool has_user_id_v =
-    detail::has_user_id_member<_Type>::value;
+    internal::has_user_id_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_pinned_v =
-    detail::has_pinned_member<_Type>::value;
+    internal::has_pinned_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_close_policy_v =
-    detail::has_close_policy_member<_Type>::value;
+    internal::has_close_policy_member<_Type>::value;
 
 // -- tab control value aliases --------------------------------------------
 template <typename _Type>
 inline constexpr bool has_tabs_v =
-    detail::has_tabs_member<_Type>::value;
+    internal::has_tabs_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_selected_v =
-    detail::has_selected_member<_Type>::value;
+    internal::has_selected_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_placement_v =
-    detail::has_placement_member<_Type>::value;
+    internal::has_placement_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_scroll_offset_v =
-    detail::has_scroll_offset_member<_Type>::value;
+    internal::has_scroll_offset_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_drag_v =
-    detail::has_drag_member<_Type>::value;
+    internal::has_drag_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_overflow_indices_v =
-    detail::has_overflow_indices_member<_Type>::value;
+    internal::has_overflow_indices_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_max_rows_v =
-    detail::has_max_rows_member<_Type>::value;
+    internal::has_max_rows_member<_Type>::value;
 
 // -- shared aliases (delegate to component_traits) ------------------------
 template <typename _Type>
 inline constexpr bool has_enabled_v =
-    component_traits::has_enabled_v<_Type>;
+    has_enabled_v<_Type>;
 template <typename _Type>
 inline constexpr bool has_visible_v =
-    component_traits::has_visible_v<_Type>;
+    has_visible_v<_Type>;
 template <typename _Type>
 inline constexpr bool has_label_v =
-    component_traits::has_label_v<_Type>;
+    has_label_v<_Type>;
 
 // -- composite traits -----------------------------------------------------
 
@@ -1351,10 +1351,10 @@ inline constexpr bool has_label_v =
 //   trait: has label + enabled + visible + user_id.
 template <typename _Type>
 struct is_tab_entry : std::conjunction<
-    component_traits::detail::has_label_member<_Type>,
-    component_traits::detail::has_enabled_member<_Type>,
-    component_traits::detail::has_visible_member<_Type>,
-    detail::has_user_id_member<_Type>
+    internal::has_label_member<_Type>,
+    internal::has_enabled_member<_Type>,
+    internal::has_visible_member<_Type>,
+    internal::has_user_id_member<_Type>
 >
 {};
 
@@ -1366,12 +1366,12 @@ inline constexpr bool is_tab_entry_v = is_tab_entry<_Type>::value;
 // focusable.
 template <typename _Type>
 struct is_tab_control : std::conjunction<
-    detail::has_tabs_member<_Type>,
-    detail::has_selected_member<_Type>,
-    detail::has_placement_member<_Type>,
-    component_traits::detail::has_enabled_member<_Type>,
-    component_traits::detail::has_visible_member<_Type>,
-    component_traits::detail::has_focusable_flag<_Type>
+    internal::has_tabs_member<_Type>,
+    internal::has_selected_member<_Type>,
+    internal::has_placement_member<_Type>,
+    internal::has_enabled_member<_Type>,
+    internal::has_visible_member<_Type>,
+    internal::has_focusable_flag<_Type>
 >
 {};
 
@@ -1383,7 +1383,7 @@ inline constexpr bool is_tab_control_v =
 template <typename _Type>
 struct is_closable_tab_control : std::conjunction<
     is_tab_control<_Type>,
-    detail::has_on_close_member<_Type>
+    internal::has_on_close_member<_Type>
 >
 {};
 
@@ -1395,7 +1395,7 @@ inline constexpr bool is_closable_tab_control_v =
 template <typename _Type>
 struct is_scrollable_tab_control : std::conjunction<
     is_tab_control<_Type>,
-    detail::has_scroll_offset_member<_Type>
+    internal::has_scroll_offset_member<_Type>
 >
 {};
 
@@ -1407,7 +1407,7 @@ inline constexpr bool is_scrollable_tab_control_v =
 template <typename _Type>
 struct is_reorderable_tab_control : std::conjunction<
     is_tab_control<_Type>,
-    detail::has_drag_member<_Type>
+    internal::has_drag_member<_Type>
 >
 {};
 
@@ -1419,7 +1419,7 @@ inline constexpr bool is_reorderable_tab_control_v =
 template <typename _Type>
 struct is_multirow_tab_control : std::conjunction<
     is_tab_control<_Type>,
-    detail::has_max_rows_member<_Type>
+    internal::has_max_rows_member<_Type>
 >
 {};
 
@@ -1431,7 +1431,7 @@ inline constexpr bool is_multirow_tab_control_v =
 template <typename _Type>
 struct is_overflow_tab_control : std::conjunction<
     is_tab_control<_Type>,
-    detail::has_overflow_indices_member<_Type>
+    internal::has_overflow_indices_member<_Type>
 >
 {};
 

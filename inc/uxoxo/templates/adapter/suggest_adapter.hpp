@@ -1,7 +1,7 @@
 /******************************************************************************
-* uxoxo [component]                                        suggest_adapter.hpp
+* djinterp [container]                                    suggest_adapter.hpp
 *
-* autosuggest/autocomplete adapter interface:
+* Autosuggest / Autocomplete Adapter Interface:
 *   Provides an abstract, zero-overhead foundation for adapting arbitrary
 * data structures into autosuggest or autocomplete sources. Built on the
 * CRTP interface_adapter pattern, this module defines the greatest common
@@ -48,7 +48,7 @@
 *   - C++20  : concept-constrained suggest_adapter, suggest_source concept
 *
 *
-* path:      /inc/uxoxo/templates/adapter/suggest_adapter.hpp
+* path:      /inc/uxoxo/container/suggest_adapter.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                          date: 2026.04.09
 ******************************************************************************/
@@ -84,12 +84,8 @@ IV.   CONCEPTS (C++20+)
 #ifndef UXOXO_ADAPTER_SUGGEST_ADAPTER_
 #define UXOXO_ADAPTER_SUGGEST_ADAPTER_ 1
 
-// std
 #include <cstddef>
 #include <type_traits>
-// djinterp
-#include <djinterp/core/djinterp.hpp>
-// uxoxo
 #include "../../uxoxo.hpp"
 #include "../../meta/type_traits.hpp"
 

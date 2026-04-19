@@ -93,7 +93,7 @@ constexpr bool has_bf(unsigned     _f,
 }
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  2  SHAPE AND STATE ENUMS
@@ -120,7 +120,7 @@ enum class button_size : std::uint8_t
 };
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  3  EBO MIXINS
@@ -221,7 +221,7 @@ namespace button_mixin {
 }   // namespace button_mixin
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  4  BUTTON
@@ -279,7 +279,7 @@ struct button
 };
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  5  DOMAIN-SPECIFIC FREE FUNCTIONS
@@ -491,7 +491,7 @@ btn_is_toggled(
 }
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  6  LEGACY FREE FUNCTIONS
@@ -532,7 +532,7 @@ btn_disable(
 }
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  7  TRAITS
@@ -541,9 +541,9 @@ btn_disable(
 // has_focusable_flag) delegate to component_traits.  Button-
 // specific detectors remain here.
 
-namespace button_traits {
-namespace detail {
-
+namespace button_traits 
+{
+NS_INTERNAL
     // -- button-specific detectors ----------------------------------------
 
     template <typename, typename = void>
@@ -602,41 +602,41 @@ namespace detail {
         decltype(std::declval<_Type>().shortcut_label)
     >> : std::true_type {};
 
-}   // namespace detail
+NS_END  // internal
 
 // -- shared aliases (delegate to component_traits) ------------------------
 template <typename _Type>
 inline constexpr bool has_label_v =
-    component_traits::has_label_v<_Type>;
+    has_label_v<_Type>;
 template <typename _Type>
 inline constexpr bool has_enabled_v =
-    component_traits::has_enabled_v<_Type>;
+    has_enabled_v<_Type>;
 
 // -- button-specific aliases ----------------------------------------------
 template <typename _Type>
 inline constexpr bool has_on_click_v =
-    detail::has_on_click_member<_Type>::value;
+    internal::has_on_click_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_pressed_v =
-    detail::has_pressed_member<_Type>::value;
+    internal::has_pressed_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_icon_v =
-    detail::has_icon_member<_Type>::value;
+    internal::has_icon_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_tooltip_v =
-    detail::has_tooltip_member<_Type>::value;
+    internal::has_tooltip_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_shape_v =
-    detail::has_shape_member<_Type>::value;
+    internal::has_shape_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_toggled_v =
-    detail::has_toggled_member<_Type>::value;
+    internal::has_toggled_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_badge_count_v =
-    detail::has_badge_count_member<_Type>::value;
+    internal::has_badge_count_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_shortcut_label_v =
-    detail::has_shortcut_label_member<_Type>::value;
+    internal::has_shortcut_label_member<_Type>::value;
 
 // -- composite traits -----------------------------------------------------
 
@@ -644,12 +644,12 @@ inline constexpr bool has_shortcut_label_v =
 //   trait: has label + enabled + on_click + pressed + focusable.
 template <typename _Type>
 struct is_button : std::conjunction<
-    component_traits::detail::has_label_member<_Type>,
-    component_traits::detail::has_enabled_member<_Type>,
-    detail::has_on_click_member<_Type>,
-    detail::has_pressed_member<_Type>,
-    component_traits::detail::has_focusable_flag<_Type>
->
+    ::uxoxo::component::internal::has_label_member<_Type>,
+    ::uxoxo::component::internal::has_enabled_member<_Type>,
+    internal::has_on_click_member<_Type>,
+    internal::has_pressed_member<_Type>,
+    ::uxoxo::component::internal::has_focusable_flag<_Type>
+    >
 {};
 
 template <typename _Type>
@@ -660,7 +660,7 @@ inline constexpr bool is_button_v =
 template <typename _Type>
 struct is_toggle_button : std::conjunction<
     is_button<_Type>,
-    detail::has_toggled_member<_Type>
+    internal::has_toggled_member<_Type>
 >
 {};
 
@@ -672,7 +672,7 @@ inline constexpr bool is_toggle_button_v =
 template <typename _Type>
 struct is_icon_button : std::conjunction<
     is_button<_Type>,
-    detail::has_icon_member<_Type>
+    internal::has_icon_member<_Type>
 >
 {};
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
-* uxoxo [component]                                imgui_dev_console_draw.hpp
+* uxoxo [imgui]                                      imgui_dev_console_draw.hpp
 *
 *   Dear ImGui draw handler for the dev_console component.  Renders the
 * console as a dockable/hideable ImGui window containing:
@@ -30,13 +30,13 @@
 * before this header.
 *
 *
-* path:      /inc/uxoxo/component/renderer/imgui/imgui_dev_console_draw.hpp
+* path:      /inc/uxoxo/platform/imgui/input/console/imgui_dev_console_draw.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.10
 *******************************************************************************/
 
-#ifndef UXOXO_COMPONENT_IMGUI_DEV_CONSOLE_DRAW_
-#define UXOXO_COMPONENT_IMGUI_DEV_CONSOLE_DRAW_ 1
+#ifndef UXOXO_IMGUI_COMPONENT_DEV_CONSOLE_DRAW_
+#define UXOXO_IMGUI_COMPONENT_DEV_CONSOLE_DRAW_ 1
 
 // std
 #include <algorithm>
@@ -45,26 +45,20 @@
 #include <string>
 #include <type_traits>
 // imgui
-#include "imgui.h"
+#include <imgui.h>
 // djinterp
 #include <djinterp/core/djinterp.hpp>
 // uxoxo
-#include "../../uxoxo.hpp"
-#include "../../templates/render_context.hpp"
-#include "../../templates/component/input/console/dev_console.hpp"
-#include "../../templates/component/output/text_output.hpp"
-#include "../../templates/component/button/button.hpp"
-
-
-// Dear ImGui — caller must have included imgui.h before this header.
-#ifndef IMGUI_VERSION
-    #error "imgui.h must be included before imgui_dev_console_draw.hpp"
-#endif
+#include "../../../../uxoxo.hpp"
+#include "../../../../templates/render_context.hpp"
+#include "../../../../templates/component/input/console/dev_console.hpp"
+#include "../../../../templates/component/output/text_output.hpp"
+#include "../../../../templates/component/button/button.hpp"
 
 
 NS_UXOXO
 NS_COMPONENT
-
+NS_IMGUI
 
 // =============================================================================
 //  1.  STYLE CONSTANTS
@@ -950,9 +944,9 @@ imgui_console_set_dock(
     return;
 }
 
-
+NS_END  // imgui
 NS_END  // component
 NS_END  // uxoxo
 
 
-#endif  // UXOXO_COMPONENT_IMGUI_DEV_CONSOLE_DRAW_
+#endif  // UXOXO_IMGUI_COMPONENT_DEV_CONSOLE_DRAW_

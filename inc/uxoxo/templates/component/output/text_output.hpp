@@ -86,7 +86,7 @@ constexpr bool has_tof(unsigned          _f,
 }
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  2  LINE ENTRY
@@ -168,7 +168,7 @@ struct output_line
 };
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  3  TEXT OUTPUT EBO MIXINS
@@ -222,7 +222,7 @@ namespace text_output_mixin {
 }   // namespace text_output_mixin
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  4  TEXT OUTPUT
@@ -273,7 +273,7 @@ struct text_output
 };
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  5  FREE FUNCTIONS
@@ -552,14 +552,14 @@ std::string to_selected_text(const text_output<_F>& _to)
 }
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  6  TRAITS
 // ===============================================================================
 
 namespace text_output_traits {
-namespace detail {
+NS_INTERNAL
 
     template <typename, typename = void>
     struct has_lines_member : std::false_type {};
@@ -610,38 +610,38 @@ namespace detail {
                                std::enable_if_t<_Type::scrollable>>
         : std::true_type {};
 
-}   // namespace detail
+}   // NS_INTERNAL
 
 template <typename _Type>
 inline constexpr bool has_lines_v =
-    detail::has_lines_member<_Type>::value;
+    internal::has_lines_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_scroll_offset_v =
-    detail::has_scroll_offset_member<_Type>::value;
+    internal::has_scroll_offset_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_auto_scroll_v =
-    detail::has_auto_scroll_member<_Type>::value;
+    internal::has_auto_scroll_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_max_lines_v =
-    detail::has_max_lines_member<_Type>::value;
+    internal::has_max_lines_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_filter_v =
-    detail::has_filter_member<_Type>::value;
+    internal::has_filter_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_selection_v =
-    detail::has_has_selection_member<_Type>::value;
+    internal::has_has_selection_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool is_scrollable_v =
-    detail::has_scrollable_flag<_Type>::value;
+    internal::has_scrollable_flag<_Type>::value;
 
 // is_text_output
 //   type trait: has lines + scroll_offset + auto_scroll + scrollable.
 template <typename _Type>
 struct is_text_output : std::conjunction<
-    detail::has_lines_member<_Type>,
-    detail::has_scroll_offset_member<_Type>,
-    detail::has_auto_scroll_member<_Type>,
-    detail::has_scrollable_flag<_Type>
+    internal::has_lines_member<_Type>,
+    internal::has_scroll_offset_member<_Type>,
+    internal::has_auto_scroll_member<_Type>,
+    internal::has_scrollable_flag<_Type>
 >
 {};
 
@@ -653,7 +653,7 @@ inline constexpr bool is_text_output_v =
 template <typename _Type>
 struct is_buffered_text_output : std::conjunction<
     is_text_output<_Type>,
-    detail::has_max_lines_member<_Type>
+    internal::has_max_lines_member<_Type>
 >
 {};
 
@@ -665,7 +665,7 @@ inline constexpr bool is_buffered_text_output_v =
 template <typename _Type>
 struct is_selectable_text_output : std::conjunction<
     is_text_output<_Type>,
-    detail::has_has_selection_member<_Type>
+    internal::has_has_selection_member<_Type>
 >
 {};
 
@@ -677,7 +677,7 @@ inline constexpr bool is_selectable_text_output_v =
 template <typename _Type>
 struct is_filterable_text_output : std::conjunction<
     is_text_output<_Type>,
-    detail::has_filter_member<_Type>
+    internal::has_filter_member<_Type>
 >
 {};
 

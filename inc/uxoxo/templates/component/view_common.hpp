@@ -465,8 +465,7 @@ namespace sel {
 // specific traits live in their own headers (tree_traits, list_traits).
 
 namespace view_traits {
-namespace detail 
-{
+NS_INTERNAL 
     // -- entry-level feature detectors ------------------------------------
 
     template <typename,
@@ -597,34 +596,34 @@ namespace detail
     struct has_scrollable_flag<_Type, std::enable_if_t<_Type::scrollable>>
         : std::true_type {};
 
-}   // namespace detail
+NS_END  // internal
 
 // convenience aliases
-template <typename _Type> inline constexpr bool has_checked_v          = detail::has_checked_member<_Type>::value;
-template <typename _Type> inline constexpr bool has_icon_v             = detail::has_icon_member<_Type>::value;
-template <typename _Type> inline constexpr bool has_expanded_icon_v    = detail::has_expanded_icon_member<_Type>::value;
-template <typename _Type> inline constexpr bool has_renamable_v        = detail::has_renamable_member<_Type>::value;
-template <typename _Type> inline constexpr bool has_context_actions_v  = detail::has_context_actions_member<_Type>::value;
-template <typename _Type> inline constexpr bool has_data_v             = detail::has_data_member<_Type>::value;
-template <typename _Type> inline constexpr bool has_data_type_v        = detail::has_data_type_alias<_Type>::value;
-template <typename _Type> inline constexpr bool has_features_v         = detail::has_features_constant<_Type>::value;
-template <typename _Type> inline constexpr bool has_cursor_v           = detail::has_cursor_member<_Type>::value;
-template <typename _Type> inline constexpr bool has_scroll_offset_v    = detail::has_scroll_offset_member<_Type>::value;
-template <typename _Type> inline constexpr bool has_selected_v         = detail::has_selected_member<_Type>::value;
-template <typename _Type> inline constexpr bool has_editing_v          = detail::has_editing_member<_Type>::value;
-template <typename _Type> inline constexpr bool has_context_open_v     = detail::has_context_open_member<_Type>::value;
-template <typename _Type> inline constexpr bool has_policy_v           = detail::has_policy_member<_Type>::value;
-template <typename _Type> inline constexpr bool is_focusable_v         = detail::has_focusable_flag<_Type>::value;
-template <typename _Type> inline constexpr bool is_scrollable_v        = detail::has_scrollable_flag<_Type>::value;
+template <typename _Type> inline constexpr bool has_checked_v          = internal::has_checked_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_icon_v             = internal::has_icon_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_expanded_icon_v    = internal::has_expanded_icon_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_renamable_v        = internal::has_renamable_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_context_actions_v  = internal::has_context_actions_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_data_v             = internal::has_data_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_data_type_v        = internal::has_data_type_alias<_Type>::value;
+template <typename _Type> inline constexpr bool has_features_v         = internal::has_features_constant<_Type>::value;
+template <typename _Type> inline constexpr bool has_cursor_v           = internal::has_cursor_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_scroll_offset_v    = internal::has_scroll_offset_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_selected_v         = internal::has_selected_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_editing_v          = internal::has_editing_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_context_open_v     = internal::has_context_open_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_policy_v           = internal::has_policy_member<_Type>::value;
+template <typename _Type> inline constexpr bool is_focusable_v         = internal::has_focusable_flag<_Type>::value;
+template <typename _Type> inline constexpr bool is_scrollable_v        = internal::has_scrollable_flag<_Type>::value;
 
 // is_navigable_view
 //   type trait: has cursor + scroll_offset + focusable.  The minimum for
 // any view component that supports keyboard navigation.
 template <typename _Type>
 struct is_navigable_view : std::conjunction<
-    detail::has_cursor_member<_Type>,
-    detail::has_scroll_offset_member<_Type>,
-    detail::has_focusable_flag<_Type>
+    internal::has_cursor_member<_Type>,
+    internal::has_scroll_offset_member<_Type>,
+    internal::has_focusable_flag<_Type>
 > {};
 
 template <typename _Type>
@@ -634,7 +633,7 @@ inline constexpr bool is_navigable_view_v = is_navigable_view<_Type>::value;
 template <typename _Type>
 struct is_editable_view : std::conjunction<
     is_navigable_view<_Type>,
-    detail::has_editing_member<_Type>
+    internal::has_editing_member<_Type>
 > {};
 template <typename _Type>
 inline constexpr bool is_editable_view_v = is_editable_view<_Type>::value;
@@ -643,7 +642,7 @@ inline constexpr bool is_editable_view_v = is_editable_view<_Type>::value;
 template <typename _Type>
 struct is_context_view : std::conjunction<
     is_navigable_view<_Type>,
-    detail::has_context_open_member<_Type>
+    internal::has_context_open_member<_Type>
 > {};
 template <typename _Type>
 inline constexpr bool is_context_view_v = is_context_view<_Type>::value;
@@ -652,7 +651,7 @@ inline constexpr bool is_context_view_v = is_context_view<_Type>::value;
 template <typename _Type>
 struct is_checkable_view : std::conjunction<
     is_navigable_view<_Type>,
-    detail::has_policy_member<_Type>
+    internal::has_policy_member<_Type>
 > {};
 template <typename _Type>
 inline constexpr bool is_checkable_view_v = is_checkable_view<_Type>::value;

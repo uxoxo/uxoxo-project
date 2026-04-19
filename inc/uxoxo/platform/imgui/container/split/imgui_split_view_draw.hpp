@@ -1,5 +1,5 @@
 /*******************************************************************************
-* uxoxo [ui/imgui]                                     imgui_split_view_draw.hpp
+* uxoxo [imgui]                                       imgui_split_view_draw.hpp
 *
 * ImGui renderer for the `split_view` template:
 *   Lays out N panes along the main axis with interactive splitters
@@ -30,25 +30,25 @@
 * author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.17
 *******************************************************************************/
 
-#ifndef  UXOXO_UI_IMGUI_SPLIT_VIEW_DRAW_
-#define  UXOXO_UI_IMGUI_SPLIT_VIEW_DRAW_ 1
+#ifndef  UXOXO_IMGUI_COMPONENT_SPLIT_VIEW_DRAW_
+#define  UXOXO_IMGUI_COMPONENT_SPLIT_VIEW_DRAW_ 1
 
 // std
 #include <cmath>
 #include <cstddef>
 #include <cstdio>
 #include <functional>
-
 // imgui
 #include <imgui.h>
-
+// djinterp
+#include <djinterp/core/djinterp.hpp>
 // uxoxo
-#include "../../uxoxo.hpp"
-#include "../../templates/component/split/split_view.hpp"
+#include "../../../../uxoxo.hpp"
+#include "../../../../templates/component/container/split/split_view.hpp"
 
 
 NS_UXOXO
-NS_UI
+NS_PLATFORM
 NS_IMGUI
 
 
@@ -455,8 +455,8 @@ imgui_draw_split_view(
 
 
 NS_END  // imgui
-NS_END  // ui
+NS_END  // platform
 NS_END  // uxoxo
 
 
-#endif  // UXOXO_UI_IMGUI_SPLIT_VIEW_DRAW_
+#endif  // UXOXO_IMGUI_COMPONENT_SPLIT_VIEW_DRAW_

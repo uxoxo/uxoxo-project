@@ -1,5 +1,5 @@
 /*******************************************************************************
-* uxoxo [component]                                        imgui_table_draw.hpp
+* uxoxo [imgui]                                            imgui_table_draw.hpp
 *
 *   Dear ImGui draw handler for the table_view component.  Translates the
 * framework-agnostic table_view struct into ImGui::BeginTable / EndTable
@@ -28,13 +28,13 @@
 * this header.
 *
 *
-* path:      /inc/uxoxo/platform/imgui/imgui_table_draw.hpp
+* path:      /inc/uxoxo/platform/imgui/table/imgui_table_draw.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.10
 *******************************************************************************/
 
-#ifndef UXOXO_COMPONENT_IMGUI_TABLE_DRAW_
-#define UXOXO_COMPONENT_IMGUI_TABLE_DRAW_ 1
+#ifndef UXOXO_IMGUI_COMPONENT_TABLE_DRAW_
+#define UXOXO_IMGUI_COMPONENT_TABLE_DRAW_ 1
 
 // std
 #include <algorithm>
@@ -42,18 +42,13 @@
 #include <cstring>
 #include <string>
 // imgui
-#include "imgui.h"
+#include <imgui.h>
 // djinterp
 #include <djinterp/core/djinterp.hpp>
 // uxoxo
-#include "../../uxoxo.hpp"
-#include "../../templates/component/table/table_view.hpp"
-#include "../../templates/renderer.hpp"
-
-// Dear ImGui — caller must have included imgui.h before this header.
-#ifndef IMGUI_VERSION
-    #error "imgui.h must be included before imgui_table_draw.hpp"
-#endif
+#include "../../../uxoxo.hpp"
+#include "../../../templates/component/table/table_view.hpp"
+#include "../../../templates/renderer.hpp"
 
 
 NS_UXOXO
@@ -746,4 +741,4 @@ NS_END  // platform
 NS_END  // uxoxo
 
 
-#endif  // UXOXO_COMPONENT_IMGUI_TABLE_DRAW_
+#endif  // UXOXO_IMGUI_COMPONENT_TABLE_DRAW_

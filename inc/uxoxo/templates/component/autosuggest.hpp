@@ -1,5 +1,5 @@
 /*******************************************************************************
-* uxoxo [component]                                           autosuggest.hpp
+* uxoxo [component]                                             autosuggest.hpp
 *
 * Autosuggest component:
 *   A framework-agnostic, presentation-neutral autosuggest template.
@@ -43,17 +43,16 @@
 * retained for backward compatibility.
 *
 * Contents:
-*   1  Display mode enum
-*   2  Default policy
-*   3  autosuggest struct
-*   4  Domain-specific free functions
-*   5  Legacy free functions (as_-prefixed, thin wrappers)
-*   6  Traits (SFINAE detection)
+*   1.  display mode enum
+*   2.  default policy
+*   3.  autosuggest struct
+*   4.  domain-specific free functions
+*   5.  traits (SFINAE detection)
 *
 *
-* path:      /inc/uxoxo/component/autosuggest.hpp
+* path:      /inc/uxoxo/templates/component/autosuggest.hpp
 * link(s):   TBA
-* author(s): Samuel 'teer' Neal-Blim                      date: 2026.04.09
+* author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.09
 *******************************************************************************/
 
 #ifndef  UXOXO_COMPONENT_AUTOSUGGEST_
@@ -63,6 +62,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -70,16 +70,15 @@
 #include <djinterp/core/djinterp.hpp>
 // uxoxo
 #include "../../uxoxo.hpp"
-#include "component_traits.hpp"
-#include "component_common.hpp"
+#include "./component_traits.hpp"
+#include "./component_common.hpp"
 
 
 NS_UXOXO
 NS_COMPONENT
 
-
 // ===============================================================================
-//  1  DISPLAY MODE
+//  1.  DISPLAY MODE
 // ===============================================================================
 
 enum class suggest_display_mode : std::uint8_t
@@ -103,7 +102,7 @@ enum class suggest_display_mode : std::uint8_t
 };
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  2  DEFAULT POLICY
@@ -113,7 +112,7 @@ struct autosuggest_default_policy
 {};
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  3  AUTOSUGGEST
@@ -186,7 +185,7 @@ struct autosuggest
 };
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  4  DOMAIN-SPECIFIC FREE FUNCTIONS
@@ -312,82 +311,15 @@ void as_clear(autosuggest<_I, _S, _C, _P>& _as)
 }
 
 
-/*****************************************************************************/
 
 // ===============================================================================
-//  5  LEGACY FREE FUNCTIONS
-// ===============================================================================
-//   These as_-prefixed functions are retained for backward
-// compatibility.  New code should prefer the ADL-dispatched
-// equivalents in component_common.hpp:
-//
-//     as_show(as)        ->  show(as)
-//     as_hide(as)        ->  hide(as)
-//     as_toggle(as)      ->  toggle_visible(as)
-//     as_activate(as)    ->  activate(as)
-//     as_deactivate(as)  ->  deactivate(as)
-
-// as_show
-template <typename _I, typename _S,
-          typename _C, typename _P>
-void as_show(autosuggest<_I, _S, _C, _P>& _as)
-{
-    show(_as);
-
-    return;
-}
-
-// as_hide
-template <typename _I, typename _S,
-          typename _C, typename _P>
-void as_hide(autosuggest<_I, _S, _C, _P>& _as)
-{
-    hide(_as);
-
-    return;
-}
-
-// as_toggle
-template <typename _I, typename _S,
-          typename _C, typename _P>
-void as_toggle(autosuggest<_I, _S, _C, _P>& _as)
-{
-    toggle_visible(_as);
-
-    return;
-}
-
-// as_activate
-template <typename _I, typename _S,
-          typename _C, typename _P>
-void as_activate(autosuggest<_I, _S, _C, _P>& _as)
-{
-    activate(_as);
-
-    return;
-}
-
-// as_deactivate
-template <typename _I, typename _S,
-          typename _C, typename _P>
-void as_deactivate(autosuggest<_I, _S, _C, _P>& _as)
-{
-    deactivate(_as);
-
-    return;
-}
-
-
-/*****************************************************************************/
-
-// ===============================================================================
-//  6  TRAITS
+//  5.  TRAITS
 // ===============================================================================
 //   Shared detectors (has_visible, has_active) delegate to
 // component_traits.  Autosuggest-specific detectors remain here.
 
 namespace autosuggest_traits {
-namespace detail {
+NS_INTERNAL
 
     // -- autosuggest-specific detectors -------------------------------
 
@@ -426,29 +358,29 @@ namespace detail {
         decltype(std::declval<_Type>().max_visible)
     >> : std::true_type {};
 
-}   // namespace detail
+}   // NS_INTERNAL
 
 // -- autosuggest-specific aliases -----------------------------------------
 template <typename _Type>
 inline constexpr bool has_source_v =
-    detail::has_source_member<_Type>::value;
+    internal::has_source_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_suggestions_v =
-    detail::has_suggestions_member<_Type>::value;
+    internal::has_suggestions_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_selected_v =
-    detail::has_selected_member<_Type>::value;
+    internal::has_selected_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_max_visible_v =
-    detail::has_max_visible_member<_Type>::value;
+    internal::has_max_visible_member<_Type>::value;
 
 // -- shared aliases (delegate to component_traits) ------------------------
 template <typename _Type>
 inline constexpr bool has_visible_v =
-    component_traits::has_visible_v<_Type>;
+    has_visible_v<_Type>;
 template <typename _Type>
 inline constexpr bool has_active_v =
-    component_traits::has_active_v<_Type>;
+    has_active_v<_Type>;
 
 // -- composite traits -----------------------------------------------------
 
@@ -456,11 +388,11 @@ inline constexpr bool has_active_v =
 //   trait: has source + suggestions + selected + visible + active.
 template <typename _Type>
 struct is_autosuggest : std::conjunction<
-    detail::has_source_member<_Type>,
-    detail::has_suggestions_member<_Type>,
-    detail::has_selected_member<_Type>,
-    component_traits::detail::has_visible_member<_Type>,
-    component_traits::detail::has_active_member<_Type>
+    internal::has_source_member<_Type>,
+    internal::has_suggestions_member<_Type>,
+    internal::has_selected_member<_Type>,
+    ::uxoxo::component::internal::has_visible_member<_Type>,
+    ::uxoxo::component::internal::has_active_member<_Type>
 >
 {};
 

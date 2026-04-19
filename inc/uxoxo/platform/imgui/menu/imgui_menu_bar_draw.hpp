@@ -1,5 +1,5 @@
 /*******************************************************************************
-* uxoxo [component]                                   imgui_menu_bar_draw.hpp
+* uxoxo [imgui]                                         imgui_menu_bar_draw.hpp
 *
 *   Dear ImGui draw handler for the menu_bar component.  Renders a
 * horizontal menu bar using ImGui::BeginMainMenuBar / BeginMenuBar,
@@ -32,31 +32,32 @@
 * before this header.
 *
 *
-* path:      /inc/uxoxo/component/renderer/imgui/imgui_menu_bar_draw.hpp
+* path:      /inc/uxoxo/platform/imgui/menu/imgui_menu_bar_draw.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.10
 *******************************************************************************/
 
-#ifndef UXOXO_COMPONENT_IMGUI_MENU_BAR_DRAW_
-#define UXOXO_COMPONENT_IMGUI_MENU_BAR_DRAW_ 1
+#ifndef UXOXO_IMGUI_COMPONENT_MENU_BAR_DRAW_
+#define UXOXO_IMGUI_COMPONENT_MENU_BAR_DRAW_ 1
 
+// std
 #include <cstddef>
 #include <string>
 #include <type_traits>
+// imgui
+#include <imgui.h>
+// djinterp
+#include <djinterp/core/djinterp.hpp>
+// uxoxo
 #include "../../../uxoxo.hpp"
-#include "../../menu/menu.hpp"
-#include "../../menu/menu_bar.hpp"
-#include "../render_context.hpp"
-
-// Dear ImGui — caller must have included imgui.h before this header.
-#ifndef IMGUI_VERSION
-    #error "imgui.h must be included before imgui_menu_bar_draw.hpp"
-#endif
+#include "../../../templates/component/menu/menu.hpp"
+#include "../../../templates/component/menu/menu_bar.hpp"
+#include "../../../templates/render_context.hpp"
 
 
 NS_UXOXO
 NS_COMPONENT
-
+NS_IMGUI
 
 // =============================================================================
 //  1.  STYLE CONSTANTS
@@ -459,8 +460,9 @@ imgui_draw_context_menu(
 }
 
 
+NS_END  // imgui
 NS_END  // component
 NS_END  // uxoxo
 
 
-#endif  // UXOXO_COMPONENT_IMGUI_MENU_BAR_DRAW_
+#endif  // UXOXO_IMGUI_COMPONENT_MENU_BAR_DRAW_

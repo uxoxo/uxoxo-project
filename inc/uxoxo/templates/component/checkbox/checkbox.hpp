@@ -8,26 +8,26 @@
 * are in heterogeneous states — e.g. a table header checkbox whose rows
 * are not uniformly selected.
 *
+*   DCheckState is defined in component_types.hpp (rather than here) so
+* that toggleable_common.hpp can reference it for unified is_on / toggle /
+* turn_on overloads without introducing a circular include.
+*
 *   Like the rest of the component namespace, the checkbox is a plain
 * aggregate with no base class overhead.  Capability mixins (label,
 * clearable, undoable) are engaged per-template-instance and contribute
 * zero bytes when disabled thanks to EBO.  All operations in
-* component_common.hpp (enable, disable, show, hide, set_value, clear,
-* undo, commit) work on this type through structural conformance — the
-* free functions below only add behaviors specific to the three-valued
-* state space.
-*
-*   The `_TriState` template flag controls whether the `mixed` state is
-* user-reachable via the checkbox-specific helpers.  When `_TriState` is
-* false, `cb_set_mixed` is unavailable (static_assert); `mixed` remains
-* representable in `DCheckState` but is treated as a non-terminal state
-* by `cb_toggle`.
+* component_common.hpp (enable, disable, set_value, clear, undo,
+* commit) and toggleable_common.hpp (is_on, is_off, is_mixed, turn_on,
+* turn_off, set_mixed, toggle) work on this type through structural
+* conformance.  The cb_* helpers below cover only the tri-state-specific
+* operations (cb_cycle, cb_sync_from_children) that have no generic
+* analogue; the binary ops previously prefixed cb_ are subsumed by the
+* generic verbs from toggleable_common.hpp.
 *
 * Contents:
-*   1  DCheckState enum
-*   2  checkbox template
-*   3  Common configurations (type aliases)
-*   4  Checkbox-specific free functions
+*   1  checkbox template
+*   2  Common configurations (type aliases)
+*   3  Checkbox-specific free functions (tri-state-only)
 *
 *
 * path:      /inc/uxoxo/templates/component/checkbox.hpp
@@ -47,6 +47,7 @@
 #include "../../uxoxo.hpp"
 #include "./component_mixin.hpp"
 #include "./component_common.hpp"
+#include "./component_types.hpp"
 
 
 NS_UXOXO
@@ -54,35 +55,12 @@ NS_COMPONENT
 
 
 // ===============================================================================
-//  1  CHECK STATE ENUM
+//  1  CHECKBOX TEMPLATE
 // ===============================================================================
-
-// DCheckState
-//   enum: tri-state value type for checkbox components.  `mixed` represents
-// the indeterminate state used by "check all" controls whose governed
-// children are in heterogeneous states.
-enum class DCheckState : std::uint8_t
-{
-    unchecked = 0,
-    checked   = 1,
-    mixed     = 2
-};
-
-
-/*****************************************************************************/
-
-// ===============================================================================
-//  2  CHECKBOX TEMPLATE
-// ===============================================================================
-//   Plain aggregate with optional EBO mixins.  All template parameters
-// default to false, yielding a minimal focusable binary checkbox.  Each
-// enabled mixin injects exactly the members its corresponding trait
-// detectors in component_traits.hpp look for, so shared operations
-// (clear, undo, set_value, commit) light up automatically.
 
 // checkbox
-//   struct: generic checkbox component template with tri-state support and
-// optional label, clearable, and undoable capability mixins.
+//   struct: generic checkbox component with optional label, clearable,
+// undoable, and tri-state capability mixins.
 template <bool _HasLabel  = false,
           bool _Clearable = false,
           bool _Undoable  = false,
@@ -108,158 +86,37 @@ struct checkbox
 /*****************************************************************************/
 
 // ===============================================================================
-//  3  COMMON CONFIGURATIONS
+//  2  COMMON CONFIGURATIONS
 // ===============================================================================
-//   Convenience aliases for the most frequent checkbox shapes.  Clients
-// are free to instantiate the primary template directly for arbitrary
-// capability combinations.
 
 // simple_checkbox
-//   type: minimal binary checkbox — no label, no reset, no undo, no mixed.
+//   type: minimal binary checkbox — no label, no clearable, no undo, no
+// mixed.
 using simple_checkbox   = checkbox<false, false, false, false>;
 
 // labeled_checkbox
-//   type: binary checkbox with a string label.
+//   type: binary checkbox with a label.
 using labeled_checkbox  = checkbox<true,  false, false, false>;
 
 // tri_checkbox
-//   type: tri-state checkbox suitable for "check all" / master controls.
+//   type: tri-state checkbox for "check all" / master controls.
 using tri_checkbox      = checkbox<false, false, false, true>;
 
 // full_checkbox
-//   type: labeled, clearable, undoable, tri-state checkbox.
+//   type: checkbox with all mixin capabilities enabled.
 using full_checkbox     = checkbox<true,  true,  true,  true>;
 
 
 /*****************************************************************************/
 
 // ===============================================================================
-//  4  CHECKBOX-SPECIFIC FREE FUNCTIONS
+//  3  CHECKBOX-SPECIFIC FREE FUNCTIONS
 // ===============================================================================
-//   These operate on concrete checkbox instances and provide the
-// three-valued semantics that component_common.hpp cannot express
-// generically.  State transitions route through set_value so that
-// undo snapshots and on_change callbacks fire correctly.
-
-/*
-cb_check
-  Sets the checkbox to the `checked` state.  Undo state is captured and
-on_change is invoked per set_value semantics.
-
-Parameter(s):
-  _c: the checkbox to modify.
-Return:
-  none.
-*/
-template <bool _HasLabel,
-          bool _Clearable,
-          bool _Undoable,
-          bool _TriState>
-void
-cb_check(
-    checkbox<_HasLabel, _Clearable, _Undoable, _TriState>& _c
-)
-{
-    set_value(_c, DCheckState::checked);
-
-    return;
-}
-
-
-/*
-cb_uncheck
-  Sets the checkbox to the `unchecked` state.  Undo state is captured and
-on_change is invoked per set_value semantics.
-
-Parameter(s):
-  _c: the checkbox to modify.
-Return:
-  none.
-*/
-template <bool _HasLabel,
-          bool _Clearable,
-          bool _Undoable,
-          bool _TriState>
-void
-cb_uncheck(
-    checkbox<_HasLabel, _Clearable, _Undoable, _TriState>& _c
-)
-{
-    set_value(_c, DCheckState::unchecked);
-
-    return;
-}
-
-
-/*
-cb_set_mixed
-  Sets the checkbox to the `mixed` (indeterminate) state.  Only available
-for tri-state checkboxes; attempting to instantiate this template with a
-non-tri-state checkbox yields a compile-time error.
-
-Parameter(s):
-  _c: the checkbox to modify.  Must be instantiated with _TriState == true.
-Return:
-  none.
-*/
-template <bool _HasLabel,
-          bool _Clearable,
-          bool _Undoable,
-          bool _TriState>
-void
-cb_set_mixed(
-    checkbox<_HasLabel, _Clearable, _Undoable, _TriState>& _c
-)
-{
-    static_assert(_TriState,
-                  "cb_set_mixed requires a tri-state checkbox "
-                  "(_TriState template parameter must be true).");
-
-    set_value(_c, DCheckState::mixed);
-
-    return;
-}
-
-
-/*
-cb_toggle
-  Toggles the checkbox.  When the current state is `checked`, transitions
-to `unchecked`; from any other state (`unchecked` or `mixed`), transitions
-to `checked`.  This matches conventional "check all" semantics where a
-mixed master checkbox, when clicked, becomes fully checked.
-
-Parameter(s):
-  _c: the checkbox to toggle.
-Return:
-  none.
-*/
-template <bool _HasLabel,
-          bool _Clearable,
-          bool _Undoable,
-          bool _TriState>
-void
-cb_toggle(
-    checkbox<_HasLabel, _Clearable, _Undoable, _TriState>& _c
-)
-{
-    DCheckState next;
-
-    // `checked` is the only state that toggles back to `unchecked`;
-    // `unchecked` and `mixed` both advance to `checked`.
-    if (_c.value == DCheckState::checked)
-    {
-        next = DCheckState::unchecked;
-    }
-    else
-    {
-        next = DCheckState::checked;
-    }
-
-    set_value(_c, next);
-
-    return;
-}
-
+//   Binary toggle operations (turn_on, turn_off, toggle, is_on, is_off,
+// is_mixed, set_mixed) are provided by toggleable_common.hpp and work
+// on checkbox directly via structural conformance.  The cb_* helpers
+// below cover the two tri-state-only operations that have no generic
+// analogue.
 
 /*
 cb_cycle
@@ -311,80 +168,6 @@ cb_cycle(
 
 
 /*
-cb_is_checked
-  Query whether the checkbox is in the `checked` state.
-
-Parameter(s):
-  _c: the checkbox to query.
-Return:
-  true if value == DCheckState::checked, false otherwise.
-*/
-template <bool _HasLabel,
-          bool _Clearable,
-          bool _Undoable,
-          bool _TriState>
-[[nodiscard]] bool
-cb_is_checked(
-    const checkbox<_HasLabel, _Clearable, _Undoable, _TriState>& _c
-) noexcept
-{
-    return (_c.value == DCheckState::checked);
-}
-
-
-/*
-cb_is_unchecked
-  Query whether the checkbox is in the `unchecked` state.
-
-Parameter(s):
-  _c: the checkbox to query.
-Return:
-  true if value == DCheckState::unchecked, false otherwise.
-*/
-template <bool _HasLabel,
-          bool _Clearable,
-          bool _Undoable,
-          bool _TriState>
-[[nodiscard]] bool
-cb_is_unchecked(
-    const checkbox<_HasLabel, _Clearable, _Undoable, _TriState>& _c
-) noexcept
-{
-    return (_c.value == DCheckState::unchecked);
-}
-
-
-/*
-cb_is_mixed
-  Query whether the checkbox is in the `mixed` (indeterminate) state.
-Always returns false for non-tri-state checkboxes (statically folded).
-
-Parameter(s):
-  _c: the checkbox to query.
-Return:
-  true if value == DCheckState::mixed, false otherwise.
-*/
-template <bool _HasLabel,
-          bool _Clearable,
-          bool _Undoable,
-          bool _TriState>
-[[nodiscard]] bool
-cb_is_mixed(
-    const checkbox<_HasLabel, _Clearable, _Undoable, _TriState>& _c
-) noexcept
-{
-    if constexpr (!_TriState)
-    {
-        return false;
-    }
-    else
-    {
-        return (_c.value == DCheckState::mixed);
-    }
-}
-
-
-/*
 cb_sync_from_children
   Updates a tri-state master checkbox to reflect the aggregate state of
 a range of child booleans.  All-true yields `checked`, all-false yields
@@ -416,8 +199,9 @@ cb_sync_from_children(
                   "cb_sync_from_children requires a tri-state master "
                   "checkbox (_TriState template parameter must be true).");
 
-    bool any_true;
-    bool any_false;
+    bool        any_true;
+    bool        any_false;
+    DCheckState next;
 
     any_true  = false;
     any_false = false;
@@ -441,8 +225,6 @@ cb_sync_from_children(
     }
 
     // derive target state: empty range collapses to unchecked
-    DCheckState next;
-
     if (any_true && any_false)
     {
         next = DCheckState::mixed;

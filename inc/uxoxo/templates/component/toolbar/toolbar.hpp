@@ -73,7 +73,7 @@ enum class entry_kind : std::uint8_t
 };
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  2  TOOLBAR ENTRY (type-erased button wrapper)
@@ -207,7 +207,7 @@ struct toolbar_entry
 };
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  3  TOOLBAR
@@ -235,7 +235,7 @@ struct toolbar
 };
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  4  FREE FUNCTIONS
@@ -419,14 +419,14 @@ tb_for_each_button(
 }
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  5  TRAITS
 // ===============================================================================
 
 namespace toolbar_traits {
-namespace detail {
+NS_INTERNAL
 
     template <typename, typename = void>
     struct has_entries_member : std::false_type {};
@@ -456,29 +456,29 @@ namespace detail {
         decltype(std::declval<_Type>().visible)
     >> : std::true_type {};
 
-}   // namespace detail
+}   // NS_INTERNAL
 
 template <typename _Type>
 inline constexpr bool has_entries_v =
-    detail::has_entries_member<_Type>::value;
+    internal::has_entries_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_dock_v =
-    detail::has_dock_member<_Type>::value;
+    internal::has_dock_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_height_v =
-    detail::has_height_member<_Type>::value;
+    internal::has_height_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_visible_v =
-    detail::has_visible_member<_Type>::value;
+    internal::has_visible_member<_Type>::value;
 
 // is_toolbar
 //   type trait: has entries + dock + height + visible.
 template <typename _Type>
 struct is_toolbar : std::conjunction<
-    detail::has_entries_member<_Type>,
-    detail::has_dock_member<_Type>,
-    detail::has_height_member<_Type>,
-    detail::has_visible_member<_Type>
+    internal::has_entries_member<_Type>,
+    internal::has_dock_member<_Type>,
+    internal::has_height_member<_Type>,
+    internal::has_visible_member<_Type>
 >
 {};
 

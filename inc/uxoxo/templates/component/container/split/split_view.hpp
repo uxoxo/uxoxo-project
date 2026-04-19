@@ -76,7 +76,7 @@
 // djinterp
 #include <djinterp/core/djinterp.hpp>
 // uxoxo
-#include "../../../uxoxo.hpp"
+#include "../../../../uxoxo.hpp"
 #include "../../component_traits.hpp"
 #include "../../component_common.hpp"
 
@@ -2238,69 +2238,69 @@ NS_END  // internal
 // -- pane value aliases ---------------------------------------------------
 template <typename _Type>
 inline constexpr bool has_size_v =
-    detail::has_size_member<_Type>::value;
+    internal::has_size_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_min_size_v =
-    detail::has_min_size_member<_Type>::value;
+    internal::has_min_size_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_max_size_v =
-    detail::has_max_size_member<_Type>::value;
+    internal::has_max_size_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_weight_v =
-    detail::has_weight_member<_Type>::value;
+    internal::has_weight_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_user_id_v =
-    detail::has_user_id_member<_Type>::value;
+    internal::has_user_id_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_id_v =
-    detail::has_id_member<_Type>::value;
+    internal::has_id_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_title_v =
-    detail::has_title_member<_Type>::value;
+    internal::has_title_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_collapsed_v =
-    detail::has_collapsed_member<_Type>::value;
+    internal::has_collapsed_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_saved_size_v =
-    detail::has_saved_size_member<_Type>::value;
+    internal::has_saved_size_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_user_tag_v =
-    detail::has_user_tag_member<_Type>::value;
+    internal::has_user_tag_member<_Type>::value;
 
 // -- view value aliases ---------------------------------------------------
 template <typename _Type>
 inline constexpr bool has_panes_v =
-    detail::has_panes_member<_Type>::value;
+    internal::has_panes_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_orientation_v =
-    detail::has_orientation_member<_Type>::value;
+    internal::has_orientation_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_splitter_thickness_v =
-    detail::has_splitter_thickness_member<_Type>::value;
+    internal::has_splitter_thickness_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_resizable_v =
-    detail::has_resizable_member<_Type>::value;
+    internal::has_resizable_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_active_splitter_v =
-    detail::has_active_splitter_member<_Type>::value;
+    internal::has_active_splitter_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_policy_v =
-    detail::has_policy_member<_Type>::value;
+    internal::has_policy_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_snap_points_v =
-    detail::has_snap_points_member<_Type>::value;
+    internal::has_snap_points_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_splitters_v =
-    detail::has_splitters_member<_Type>::value;
+    internal::has_splitters_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_anim_progress_v =
-    detail::has_anim_progress_member<_Type>::value;
+    internal::has_anim_progress_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_double_click_v =
-    detail::has_double_click_member<_Type>::value;
+    internal::has_double_click_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_focused_splitter_v =
-    detail::has_focused_splitter_member<_Type>::value;
+    internal::has_focused_splitter_member<_Type>::value;
 
 
 // -- composite traits -----------------------------------------------------
@@ -2311,13 +2311,13 @@ inline constexpr bool has_focused_splitter_v =
 // features do not participate in the test.
 template <typename _Type>
 struct is_split_pane : std::conjunction<
-    detail::has_size_member<_Type>,
-    detail::has_min_size_member<_Type>,
-    detail::has_max_size_member<_Type>,
-    detail::has_weight_member<_Type>,
-    component_traits::detail::has_enabled_member<_Type>,
-    component_traits::detail::has_visible_member<_Type>,
-    detail::has_user_id_member<_Type>
+    internal::has_size_member<_Type>,
+    internal::has_min_size_member<_Type>,
+    internal::has_max_size_member<_Type>,
+    internal::has_weight_member<_Type>,
+    internal::has_enabled_member<_Type>,
+    internal::has_visible_member<_Type>,
+    internal::has_user_id_member<_Type>
 >
 {};
 
@@ -2330,12 +2330,12 @@ inline constexpr bool is_split_pane_v =
 // orientation, splitter_thickness, resizable, enabled, visible.
 template <typename _Type>
 struct is_split_view : std::conjunction<
-    detail::has_panes_member<_Type>,
-    detail::has_orientation_member<_Type>,
-    detail::has_splitter_thickness_member<_Type>,
-    detail::has_resizable_member<_Type>,
-    component_traits::detail::has_enabled_member<_Type>,
-    component_traits::detail::has_visible_member<_Type>
+    internal::has_panes_member<_Type>,
+    internal::has_orientation_member<_Type>,
+    internal::has_splitter_thickness_member<_Type>,
+    internal::has_resizable_member<_Type>,
+    internal::has_enabled_member<_Type>,
+    internal::has_visible_member<_Type>
 >
 {};
 
@@ -2347,7 +2347,7 @@ inline constexpr bool is_split_view_v =
 template <typename _Type>
 struct is_draggable_split_view : std::conjunction<
     is_split_view<_Type>,
-    detail::has_active_splitter_member<_Type>
+    internal::has_active_splitter_member<_Type>
 >
 {};
 
@@ -2359,7 +2359,7 @@ inline constexpr bool is_draggable_split_view_v =
 template <typename _Type>
 struct is_policy_split_view : std::conjunction<
     is_split_view<_Type>,
-    detail::has_policy_member<_Type>
+    internal::has_policy_member<_Type>
 >
 {};
 
@@ -2371,7 +2371,7 @@ inline constexpr bool is_policy_split_view_v =
 template <typename _Type>
 struct is_snap_split_view : std::conjunction<
     is_split_view<_Type>,
-    detail::has_snap_points_member<_Type>
+    internal::has_snap_points_member<_Type>
 >
 {};
 
@@ -2383,7 +2383,7 @@ inline constexpr bool is_snap_split_view_v =
 template <typename _Type>
 struct is_animated_split_view : std::conjunction<
     is_split_view<_Type>,
-    detail::has_anim_progress_member<_Type>
+    internal::has_anim_progress_member<_Type>
 >
 {};
 
@@ -2395,7 +2395,7 @@ inline constexpr bool is_animated_split_view_v =
 template <typename _Type>
 struct is_keyboard_split_view : std::conjunction<
     is_split_view<_Type>,
-    detail::has_focused_splitter_member<_Type>
+    internal::has_focused_splitter_member<_Type>
 >
 {};
 

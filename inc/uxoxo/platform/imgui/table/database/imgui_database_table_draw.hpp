@@ -1,5 +1,5 @@
 /*******************************************************************************
-* uxoxo [component]                               imgui_database_table_draw.hpp
+* uxoxo [imgui]                                   imgui_database_table_draw.hpp
 *
 *   Dear ImGui draw handler for the database_table_view component.  Draws
 * the database-specific chrome — toolbar (refresh, commit), status bar,
@@ -21,31 +21,27 @@
 * this header.
 *
 *
-* path:      /inc/uxoxo/platform/imgui/imgui_database_table_draw.hpp
+* path:      /inc/uxoxo/platform/imgui/table/database/
+                 imgui_database_table_draw.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.10
 *******************************************************************************/
 
-#ifndef UXOXO_COMPONENT_IMGUI_DATABASE_TABLE_DRAW_
-#define UXOXO_COMPONENT_IMGUI_DATABASE_TABLE_DRAW_ 1
+#ifndef UXOXO_IMGUI_COMPONENT_TABLE_DATABASE_DRAW_
+#define UXOXO_IMGUI_COMPONENT_TABLE_DATABASE_DRAW_ 1
 
 // std
 #include <string>
 // imgui
-#include "imgui.h"
+#include <imgui.h>
 // djinterp
 #include <djinterp/core/djinterp.hpp>
 // uxoxo
-#include "../../uxoxo.hpp"
-#include "../../templates/component/table/table_view.hpp"
-#include "../../templates/component/table/database/database_table_view.hpp"
-#include "../../templates/render_context.hpp"
-#include "./imgui_table_draw.hpp"
-
-// Dear ImGui — caller must have included imgui.h before this header.
-#ifndef IMGUI_VERSION
-    #error "imgui.h must be included before imgui_database_table_draw.hpp"
-#endif
+#include "../../../../uxoxo.hpp"
+#include "../../../../templates/component/table/table_view.hpp"
+#include "../../../../templates/component/table/database/database_table_view.hpp"
+#include "../../../../templates/render_context.hpp"
+#include "../imgui_table_draw.hpp"
 
 
 NS_UXOXO
@@ -351,4 +347,4 @@ NS_END  // platform
 NS_END  // uxoxo
 
 
-#endif  // UXOXO_COMPONENT_IMGUI_DATABASE_TABLE_DRAW_
+#endif  // UXOXO_IMGUI_COMPONENT_TABLE_DATABASE_DRAW_

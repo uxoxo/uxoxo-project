@@ -12,7 +12,7 @@
 *
 *   Structure:
 *     1.  draw_handler (type-erased draw callback)
-*     2.  component_registry (type_index → draw_handler map)
+*     2.  component_registry (type_index -> draw_handler map)
 *     3.  renderer (abstract base)
 *     4.  free functions (render_component dispatch)
 *     5.  traits
@@ -20,7 +20,7 @@
 *   REQUIRES: C++17 or later.
 *
 *
-* path:      /inc/uxoxo/templates/renderer/renderer.hpp
+* path:      /inc/uxoxo/component/renderer/renderer.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.10
 *******************************************************************************/
@@ -175,7 +175,7 @@ private:
 //  3.  RENDERER (abstract base)
 // =============================================================================
 //   A renderer owns a component_registry and provides the frame lifecycle:
-// begin_frame → draw components → end_frame.  Concrete backends override
+// begin_frame -> draw components -> end_frame.  Concrete backends override
 // the virtual methods to set up and tear down their per-frame state.
 
 // renderer

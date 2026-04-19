@@ -752,7 +752,7 @@ void dc_toggle(dev_console<_IF, _F>& _dc)
 // ===============================================================================
 
 namespace console_traits {
-namespace detail {
+NS_INTERNAL
 
     // -- console-specific detectors -----------------------------------
 
@@ -819,31 +819,31 @@ namespace detail {
         decltype(std::declval<_Type>().on_submit)
     >> : std::true_type {};
 
-}   // namespace detail
+}   // NS_INTERNAL
 
 // -- console-specific aliases -----------------------------------------
-template<typename _Type> inline constexpr bool has_input_v        = detail::has_input_member<_Type>::value;
-template<typename _Type> inline constexpr bool has_prompt_v       = detail::has_prompt_member<_Type>::value;
-template<typename _Type> inline constexpr bool has_output_v       = detail::has_output_member<_Type>::value;
-template<typename _Type> inline constexpr bool has_cmd_history_v  = detail::has_cmd_history_member<_Type>::value;
-template<typename _Type> inline constexpr bool has_suggest_v      = detail::has_suggest_member<_Type>::value;
-template<typename _Type> inline constexpr bool has_complete_v     = detail::has_complete_member<_Type>::value;
-template<typename _Type> inline constexpr bool has_submit_btn_v   = detail::has_submit_btn_member<_Type>::value;
-template<typename _Type> inline constexpr bool has_active_level_v = detail::has_active_level_member<_Type>::value;
-template<typename _Type> inline constexpr bool has_on_submit_v    = detail::has_on_submit_member<_Type>::value;
+template<typename _Type> inline constexpr bool has_input_v        = internal::has_input_member<_Type>::value;
+template<typename _Type> inline constexpr bool has_prompt_v       = internal::has_prompt_member<_Type>::value;
+template<typename _Type> inline constexpr bool has_output_v       = internal::has_output_member<_Type>::value;
+template<typename _Type> inline constexpr bool has_cmd_history_v  = internal::has_cmd_history_member<_Type>::value;
+template<typename _Type> inline constexpr bool has_suggest_v      = internal::has_suggest_member<_Type>::value;
+template<typename _Type> inline constexpr bool has_complete_v     = internal::has_complete_member<_Type>::value;
+template<typename _Type> inline constexpr bool has_submit_btn_v   = internal::has_submit_btn_member<_Type>::value;
+template<typename _Type> inline constexpr bool has_active_level_v = internal::has_active_level_member<_Type>::value;
+template<typename _Type> inline constexpr bool has_on_submit_v    = internal::has_on_submit_member<_Type>::value;
 
 // -- shared aliases (delegate to component_traits) --------------------
-template<typename _Type> inline constexpr bool has_visible_v      = component_traits::has_visible_v<_Type>;
-template<typename _Type> inline constexpr bool is_focusable_v     = component_traits::is_focusable_v<_Type>;
+template<typename _Type> inline constexpr bool has_visible_v      = has_visible_v<_Type>;
+template<typename _Type> inline constexpr bool is_focusable_v     = is_focusable_v<_Type>;
 
 // is_dev_console
 //   trait: has input + prompt + visible + focusable.
 template<typename _Type>
 struct is_dev_console : std::conjunction<
-    detail::has_input_member<_Type>,
-    detail::has_prompt_member<_Type>,
-    component_traits::detail::has_visible_member<_Type>,
-    component_traits::detail::has_focusable_flag<_Type>
+    internal::has_input_member<_Type>,
+    internal::has_prompt_member<_Type>,
+    ::uxoxo::component::internal::has_visible_member<_Type>
+    ::uxoxo::component::internal::has_focusable_flag<_Type>
 >
 {};
 
@@ -853,7 +853,7 @@ template<typename _Type> inline constexpr bool is_dev_console_v = is_dev_console
 template<typename _Type>
 struct is_output_console : std::conjunction<
     is_dev_console<_Type>,
-    detail::has_output_member<_Type>
+    internal::has_output_member<_Type>
 >
 {};
 
@@ -863,7 +863,7 @@ template<typename _Type> inline constexpr bool is_output_console_v = is_output_c
 template<typename _Type>
 struct is_history_console : std::conjunction<
     is_dev_console<_Type>,
-    detail::has_cmd_history_member<_Type>
+    internal::has_cmd_history_member<_Type>
 >
 {};
 
@@ -873,7 +873,7 @@ template<typename _Type> inline constexpr bool is_history_console_v = is_history
 template<typename _Type>
 struct is_suggest_console : std::conjunction<
     is_dev_console<_Type>,
-    detail::has_suggest_member<_Type>
+    internal::has_suggest_member<_Type>
 >
 {};
 
@@ -883,7 +883,7 @@ template<typename _Type> inline constexpr bool is_suggest_console_v = is_suggest
 template<typename _Type>
 struct is_complete_console : std::conjunction<
     is_dev_console<_Type>,
-    detail::has_complete_member<_Type>
+    internal::has_complete_member<_Type>
 >
 {};
 
@@ -893,7 +893,7 @@ template<typename _Type> inline constexpr bool is_complete_console_v = is_comple
 template<typename _Type>
 struct is_submit_btn_console : std::conjunction<
     is_dev_console<_Type>,
-    detail::has_submit_btn_member<_Type>
+    internal::has_submit_btn_member<_Type>
 >
 {};
 
@@ -903,7 +903,7 @@ template<typename _Type> inline constexpr bool is_submit_btn_console_v = is_subm
 template<typename _Type>
 struct is_leveled_console : std::conjunction<
     is_dev_console<_Type>,
-    detail::has_active_level_member<_Type>
+    internal::has_active_level_member<_Type>
 >
 {};
 

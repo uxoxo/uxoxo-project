@@ -295,7 +295,7 @@ bool ic_undo(input_control<_V, _F>& ic)
 // ===============================================================================
 
 namespace input_control_traits {
-namespace detail {
+NS_INTERNAL
 
     template <typename, typename = void>
     struct has_value_member : std::false_type {};
@@ -353,38 +353,38 @@ namespace detail {
         decltype(std::declval<_Type>().previous_value)
     >> : std::true_type {};
 
-}   // namespace detail
+}   // NS_INTERNAL
 
 template <typename _Type>
 inline constexpr bool has_value_v =
-    detail::has_value_member<_Type>::value;
+    internal::has_value_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_enabled_v =
-    detail::has_enabled_member<_Type>::value;
+    internal::has_enabled_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_read_only_v =
-    detail::has_read_only_member<_Type>::value;
+    internal::has_read_only_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_on_commit_v =
-    detail::has_on_commit_member<_Type>::value;
+    internal::has_on_commit_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_label_v =
-    detail::has_label_member<_Type>::value;
+    internal::has_label_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_default_value_v =
-    detail::has_default_value_member<_Type>::value;
+    internal::has_default_value_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_previous_value_v =
-    detail::has_previous_value_member<_Type>::value;
+    internal::has_previous_value_member<_Type>::value;
 
 // is_input_control
 //   type trait: has value + enabled + read_only + focusable.
 template <typename _Type>
 struct is_input_control : std::conjunction<
-    detail::has_value_member<_Type>,
-    detail::has_enabled_member<_Type>,
-    detail::has_read_only_member<_Type>,
-    detail::has_focusable_flag<_Type>
+    internal::has_value_member<_Type>,
+    internal::has_enabled_member<_Type>,
+    internal::has_read_only_member<_Type>,
+    internal::has_focusable_flag<_Type>
 >
 {};
 
@@ -396,7 +396,7 @@ inline constexpr bool is_input_control_v =
 template <typename _Type>
 struct is_labeled_input : std::conjunction<
     is_input_control<_Type>,
-    detail::has_label_member<_Type>
+    internal::has_label_member<_Type>
 >
 {};
 
@@ -408,7 +408,7 @@ inline constexpr bool is_labeled_input_v =
 template <typename _Type>
 struct is_clearable_input : std::conjunction<
     is_input_control<_Type>,
-    detail::has_default_value_member<_Type>
+    internal::has_default_value_member<_Type>
 >
 {};
 
@@ -420,7 +420,7 @@ inline constexpr bool is_clearable_input_v =
 template <typename _Type>
 struct is_undoable_input : std::conjunction<
     is_input_control<_Type>,
-    detail::has_previous_value_member<_Type>
+    internal::has_previous_value_member<_Type>
 >
 {};
 

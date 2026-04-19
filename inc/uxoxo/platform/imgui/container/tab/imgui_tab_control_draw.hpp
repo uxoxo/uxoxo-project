@@ -1,5 +1,5 @@
 /*******************************************************************************
-* uxoxo [component]                                     imgui_tab_control_draw.hpp
+* uxoxo [imgui]                                      imgui_tab_control_draw.hpp
 *
 *   Dear ImGui draw handler for the tab_control component.  Renders a
 * tab bar with full support for the tab_control feature set:
@@ -34,7 +34,7 @@
 * before this header.
 *
 *
-* path:      /inc/uxoxo/component/renderer/imgui/imgui_tab_control_draw.hpp
+* path:      /inc/uxoxo/platform/imgui/container/tab/imgui_tab_control_draw.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                      date: 2026.04.15
 *******************************************************************************/
@@ -42,6 +42,7 @@
 #ifndef UXOXO_COMPONENT_IMGUI_TAB_CONTROL_DRAW_
 #define UXOXO_COMPONENT_IMGUI_TAB_CONTROL_DRAW_ 1
 
+// std
 #include <algorithm>
 #include <cstddef>
 #include <cstdio>
@@ -49,18 +50,19 @@
 #include <string>
 #include <type_traits>
 #include <vector>
-#include "../../../uxoxo.hpp"
-#include "../../tab/tab_control.hpp"
-#include "../render_context.hpp"
-
-// Dear ImGui — caller must have included imgui.h before this header.
-#ifndef IMGUI_VERSION
-    #error "imgui.h must be included before imgui_tab_control_draw.hpp"
-#endif
+// imgui
+#include <imgui.h>
+// djinterp
+#include <djinterp/core/djinterp.hpp>
+// uxoxo
+#include "../../../../uxoxo.hpp"
+#include "../../../../templates/component/container/tab/tab_control.hpp"
+#include "../../../../templates/render_context.hpp"
 
 
 NS_UXOXO
 NS_COMPONENT
+NS_IMGUI
 
 
 // =============================================================================
@@ -361,7 +363,7 @@ NS_INTERNAL
     }
 
 
-/*****************************************************************************/
+
 
 // =============================================================================
 //  3.  SINGLE TAB RENDERING
@@ -682,7 +684,7 @@ NS_INTERNAL
     }
 
 
-/*****************************************************************************/
+
 
 // =============================================================================
 //  4.  HORIZONTAL TAB BAR
@@ -905,7 +907,7 @@ NS_INTERNAL
     }
 
 
-/*****************************************************************************/
+
 
 // =============================================================================
 //  5.  VERTICAL TAB BAR
@@ -1003,7 +1005,7 @@ NS_INTERNAL
     }
 
 
-/*****************************************************************************/
+
 
 // =============================================================================
 //  6.  RENAME POPUP
@@ -1104,7 +1106,7 @@ NS_INTERNAL
 NS_END  // internal
 
 
-/*****************************************************************************/
+
 
 // =============================================================================
 //  7.  IMGUI DRAW TAB CONTROL
@@ -1207,7 +1209,7 @@ imgui_draw_tab_control(
 }
 
 
-/*****************************************************************************/
+
 
 // =============================================================================
 //  8.  KEYBOARD INPUT
@@ -1319,6 +1321,7 @@ imgui_tab_control_handle_input(
 }
 
 
+NS_END
 NS_END  // component
 NS_END  // uxoxo
 

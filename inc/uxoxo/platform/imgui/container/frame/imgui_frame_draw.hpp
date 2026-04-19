@@ -1,5 +1,5 @@
 /*******************************************************************************
-* uxoxo [ui/imgui]                                          imgui_frame_draw.hpp
+* uxoxo [imgui]                                            imgui_frame_draw.hpp
 *
 * ImGui renderer for the `frame` component:
 *   Draws a bordered container with an optional title on any of the four
@@ -18,42 +18,80 @@
 * an unbroken rectangle.  When show_border is false, the title alone is
 * drawn — no surrounding line.
 *
-*   Children are rendered via the caller-supplied `node_render_fn` inside
-* an inset content region created with BeginChild.  The frame reserves
-* ImGui layout space equal to the full content region it was handed on
-* entry.  Emphasis is mapped to a border colour — normal uses the theme's
-* ImGuiCol_Border.
+*   Since `frame` no longer owns a child list, this renderer exposes
+* three complementary entry points for attaching content:
 *
-*   This module depends on the node_render_fn callback type defined in
-* imgui_stacked_view_draw.hpp, which is the canonical home for the
-* shared container-child-rendering callback.
+*     imgui_frame_begin / imgui_frame_end
+*       Paired begin/end calls with a state struct passed between.
+*       Use when content cannot be wrapped in a lambda — stateful
+*       flow, early-return, interspersed draw calls.
+*
+*     imgui_draw_frame
+*       Single-call form taking a user content callable.  A thin
+*       wrapper around begin/end; convenient for the common case.
+*
+*     imgui_frame_scope
+*       RAII wrapper that calls begin in its constructor and end in
+*       its destructor.  Use when exception safety matters or when
+*       the "never forget end" guarantee is worth a stack object.
+*
+*   Feature-flagged behaviour is dispatched with if constexpr on the
+* compile-time feature constants exposed by frame<_F>:
+*
+*     frf_emphasis     → border colour mapped from semantic severity.
+*     frf_collapsible  → title acts as a toggle; collapsed frames omit
+*                        the content region and shrink their layout
+*                        reservation.
+*     frf_hover_state  → the frame's `hovered` member is updated each
+*                        draw from IsMouseHoveringRect over the border.
+*     frf_tooltip      → on hover, the frame's `tooltip` string is
+*                        shown via ImGui::SetTooltip.
+*
+*   The renderer itself is header-only and depends only on ImGui and
+* the frame component.  It does not depend on components.hpp or any
+* node-variant infrastructure.
 *
 *
-* path:      /inc/uxoxo/ui/imgui/imgui_frame_draw.hpp
+* path:      /inc/uxoxo/platform/imgui/container/frame/imgui_frame_draw.hpp
 * link(s):   TBA
-* author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.17
+* author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.19
 *******************************************************************************/
 
-#ifndef  UXOXO_UI_IMGUI_FRAME_DRAW_
-#define  UXOXO_UI_IMGUI_FRAME_DRAW_ 1
+#ifndef  UXOXO_IMGUI_COMPONENT_FRAME_DRAW_
+#define  UXOXO_IMGUI_COMPONENT_FRAME_DRAW_ 1
 
 // std
 #include <cstddef>
 #include <cstdint>
 #include <string>
-
+#include <utility>
 // imgui
 #include <imgui.h>
-
+// djinterp
+#include <djinterp/core/djinterp.hpp>
 // uxoxo
-#include "../../uxoxo.hpp"
-#include "../components.hpp"
-#include "./imgui_stacked_view_draw.hpp"        // for node_render_fn
+#include "../../../../uxoxo.hpp"
+#include "../../../../templates/component/container/frame/frame.hpp"
 
 
 NS_UXOXO
-NS_UI
+NS_PLATFORM
 NS_IMGUI
+
+
+// bring the frame component names into scope for the renderer.
+// The renderer is coupled to the frame component and having to
+// write `component::frame<_F>`, `component::frame_title_position`,
+// etc. at every call site hurts readability without adding safety.
+using component::frame;
+using component::frame_title_position;
+using component::frame_title_align;
+using component::frame_emphasis;
+using component::has_frf;
+using component::frf_emphasis;
+using component::frf_collapsible;
+using component::frf_hover_state;
+using component::frf_tooltip;
 
 
 // ===============================================================================
@@ -67,7 +105,7 @@ NS_IMGUI
 
 // D_FRAME_TITLE_EDGE_OFFSET
 //   constant: minimum distance in pixels from a frame corner to the start
-// of the title, applied to `left` and `right` alignments so the title
+// of the title, applied to `start` and `end` alignments so the title
 // never collides with the corner of the border.
 #define D_FRAME_TITLE_EDGE_OFFSET       8.0f
 
@@ -80,6 +118,12 @@ NS_IMGUI
 //   constant: thickness in pixels of the border line.
 #define D_FRAME_BORDER_THICKNESS        1.0f
 
+// D_FRAME_COLLAPSED_PAD
+//   constant: extra pixels of padding placed around the title when the
+// frame is drawn collapsed, so the reserved layout space leaves a
+// comfortable margin around the title text.
+#define D_FRAME_COLLAPSED_PAD           4.0f
+
 
 // ===============================================================================
 //  II.  INTERNAL HELPERS
@@ -90,9 +134,10 @@ NS_INTERNAL
     /*
     imgui_frame_emphasis_color
       Maps a frame's semantic emphasis to a concrete ImGui border colour.
-    `emphasis::normal` resolves to the current theme's ImGuiCol_Border so
-    the frame blends with ambient chrome; all other emphases resolve to
-    fixed palette entries that read consistently across themes.
+    `frame_emphasis::normal` resolves to the current theme's
+    ImGuiCol_Border so the frame blends with ambient chrome; all other
+    emphases resolve to fixed palette entries that read consistently
+    across themes.
 
     Parameter(s):
       _emph: the semantic emphasis to map.
@@ -101,7 +146,7 @@ NS_INTERNAL
     */
     inline ImU32
     imgui_frame_emphasis_color(
-        emphasis _emph
+        frame_emphasis _emph
     )
     {
         ImU32 c;
@@ -110,28 +155,28 @@ NS_INTERNAL
 
         switch (_emph)
         {
-            case emphasis::primary:
+            case frame_emphasis::primary:
                 c = IM_COL32( 90, 140, 220, 255);
                 break;
-            case emphasis::secondary:
+            case frame_emphasis::secondary:
                 c = IM_COL32(150, 150, 170, 255);
                 break;
-            case emphasis::success:
+            case frame_emphasis::success:
                 c = IM_COL32( 90, 190, 110, 255);
                 break;
-            case emphasis::warning:
+            case frame_emphasis::warning:
                 c = IM_COL32(220, 180,  70, 255);
                 break;
-            case emphasis::danger:
+            case frame_emphasis::danger:
                 c = IM_COL32(220,  90,  90, 255);
                 break;
-            case emphasis::info:
+            case frame_emphasis::info:
                 c = IM_COL32( 90, 170, 220, 255);
                 break;
-            case emphasis::muted:
+            case frame_emphasis::muted:
                 c = ImGui::GetColorU32(ImGuiCol_BorderShadow);
                 break;
-            case emphasis::normal:
+            case frame_emphasis::normal:
             default:
                 break;
         }
@@ -265,15 +310,15 @@ NS_INTERNAL
     */
     inline void
     imgui_frame_draw_border_notched(
-        ImDrawList*    _dl,
-        ImVec2         _min,
-        ImVec2         _max,
-        title_position _pos,
-        float          _notch_start,
-        float          _notch_end,
-        bool           _has_notch,
-        ImU32          _color,
-        float          _thickness
+        ImDrawList*          _dl,
+        ImVec2               _min,
+        ImVec2               _max,
+        frame_title_position _pos,
+        float                _notch_start,
+        float                _notch_end,
+        bool                 _has_notch,
+        ImU32                _color,
+        float                _thickness
     )
     {
         // parameter validation
@@ -293,7 +338,7 @@ NS_INTERNAL
         // draw all four edges, breaking the one containing the title
         switch (_pos)
         {
-            case title_position::top:
+            case frame_title_position::top:
                 // top edge, broken by notch
                 _dl->AddLine(
                     ImVec2(_min.x,       _min.y),
@@ -312,7 +357,7 @@ NS_INTERNAL
                              _color, _thickness);
                 break;
 
-            case title_position::bottom:
+            case frame_title_position::bottom:
                 // bottom edge, broken by notch
                 _dl->AddLine(
                     ImVec2(_min.x,       _max.y),
@@ -331,7 +376,7 @@ NS_INTERNAL
                              _color, _thickness);
                 break;
 
-            case title_position::left:
+            case frame_title_position::left:
                 // left edge, broken by notch
                 _dl->AddLine(
                     ImVec2(_min.x, _min.y),
@@ -350,7 +395,7 @@ NS_INTERNAL
                              _color, _thickness);
                 break;
 
-            case title_position::right:
+            case frame_title_position::right:
                 // right edge, broken by notch
                 _dl->AddLine(
                     ImVec2(_max.x, _min.y),
@@ -376,9 +421,9 @@ NS_INTERNAL
     /*
     imgui_frame_title_offset_on_edge
       Computes where the title's leading corner sits along its edge,
-    measured as an offset from the edge's min coordinate.  For `left`
+    measured as an offset from the edge's min coordinate.  For `start`
     alignment this is a small inset from the corner; for `center` it
-    is centred; for `right` it is flush against the far corner minus
+    is centred; for `end` it is flush against the far corner minus
     the same inset.  The result is clamped to >= 0 so a title wider
     than the edge still fits (truncation is the renderer's problem,
     not ours).
@@ -392,23 +437,23 @@ NS_INTERNAL
     */
     inline float
     imgui_frame_title_offset_on_edge(
-        float          _edge_length,
-        float          _title_length,
-        text_alignment _align
+        float             _edge_length,
+        float             _title_length,
+        frame_title_align _align
     )
     {
         float offset;
 
         switch (_align)
         {
-            case text_alignment::center:
+            case frame_title_align::center:
                 offset = (_edge_length - _title_length) * 0.5f;
                 break;
-            case text_alignment::right:
+            case frame_title_align::end:
                 offset = _edge_length - _title_length
                        - D_FRAME_TITLE_EDGE_OFFSET;
                 break;
-            case text_alignment::left:
+            case frame_title_align::start:
             default:
                 offset = D_FRAME_TITLE_EDGE_OFFSET;
                 break;
@@ -427,73 +472,126 @@ NS_END  // internal
 
 
 // ===============================================================================
-//  III. PUBLIC DRAW FUNCTION
+//  III. DRAW STATE
+// ===============================================================================
+//   State produced by imgui_frame_begin and consumed by imgui_frame_end.
+// The state carries just enough layout information for end to correctly
+// reserve outer layout space and balance the BeginChild / EndChild pair
+// that wraps the content region.
+
+// imgui_frame_draw_state
+//   struct: layout state passed from imgui_frame_begin to
+// imgui_frame_end.  Opaque to callers except that it should be kept
+// on the stack across the content-draw region.
+struct imgui_frame_draw_state
+{
+    ImVec2 outer_origin;     // top-left of the entire frame rect
+    ImVec2 outer_avail;      // size of the entire frame rect
+    bool   child_begun;      // true when BeginChild was called (→ call EndChild)
+    bool   collapsed;        // true when the frame was drawn collapsed
+    bool   visible;          // false skips content; end becomes a no-op
+};
+
+
+// ===============================================================================
+//  IV.  BEGIN / END
 // ===============================================================================
 
 /*
-imgui_draw_frame
-  Renders a frame component using ImGui primitives.  Draws the border
-(notched on the titled edge if both show_border and a non-empty title
-are present), positions the title at the requested alignment along its
-edge, and recurses into the frame's children inside an inset content
-region.  For vertical title placements (left/right), the title is
-rendered as stacked characters — ImGui has no rotated-text primitive
-and stacking gives a readable, predictable result.
+imgui_frame_begin
+  Begins a frame render.  Computes the layout, draws the border and
+title chrome, updates feature-gated state (hovered, collapsible
+toggle), optionally shows a tooltip, and — unless the frame is
+invisible or collapsed — opens a BeginChild scope for the inner
+content region.  The caller then draws content inside the child
+scope and calls imgui_frame_end with the returned state.
 
-  The frame occupies the full current ImGui content region on entry.
-To size a frame explicitly, wrap the call in a BeginChild with the
-desired extents, or set the cursor position and clip rect before
-calling.  The frame reserves layout space equal to the full region it
-consumed so ImGui's subsequent cursor math is correct.
+  When the frame is collapsible and currently collapsed, the
+content region is skipped entirely; the reserved layout space
+shrinks to just the title row (or column) plus border padding.
+The title rect acts as a clickable toggle whenever user_collapsible
+is true.
+
+  When the frame is invisible (`visible == false`), this function
+returns early with a sentinel state; imgui_frame_end then becomes
+a no-op.  This keeps the begin/end contract symmetric.
 
 Parameter(s):
-  _fr:        the frame component to draw.
-  _render_fn: callback invoked for each child node of the frame.  If
-              null, children are skipped but the frame itself (border
-              plus title) is still drawn.  If a child pointer is null,
-              that child is skipped.
+  _fr: the frame to render.  Non-const because the renderer writes
+       to the hovered flag (if present) and may mutate the collapsed
+       state (if present) in response to a click.
 Return:
-  none.
+  An imgui_frame_draw_state carrying layout information for the
+  matching imgui_frame_end call.
 */
-inline void
-imgui_draw_frame(
-    const frame&          _fr,
-    const node_render_fn& _render_fn
+template <unsigned _F>
+imgui_frame_draw_state
+imgui_frame_begin(
+    frame<_F>& _fr
 )
 {
-    ImVec2      outer_origin;
-    ImVec2      outer_avail;
-    ImVec2      border_min;
-    ImVec2      border_max;
-    ImVec2      inner_origin;
-    ImVec2      inner_size;
-    ImVec2      title_size;
-    ImDrawList* dl;
-    ImU32       border_color;
-    ImU32       text_color;
-    float       line_h;
-    float       edge_len;
-    float       title_offset;
-    float       notch_start;
-    float       notch_end;
-    float       inset_top;
-    float       inset_bot;
-    float       inset_left;
-    float       inset_right;
-    bool        has_title;
-    bool        vertical_title;
-    bool        has_notch;
+    imgui_frame_draw_state st;
+    ImVec2                 outer_origin;
+    ImVec2                 outer_avail;
+    ImVec2                 border_min;
+    ImVec2                 border_max;
+    ImVec2                 inner_origin;
+    ImVec2                 inner_size;
+    ImVec2                 title_size;
+    ImVec2                 title_rect_min;
+    ImVec2                 title_rect_max;
+    ImDrawList*            dl;
+    ImU32                  border_color;
+    ImU32                  text_color;
+    float                  edge_len;
+    float                  title_offset;
+    float                  notch_start;
+    float                  notch_end;
+    float                  inset_top;
+    float                  inset_bot;
+    float                  inset_left;
+    float                  inset_right;
+    bool                   has_title;
+    bool                   vertical_title;
+    bool                   has_notch;
+    bool                   is_collapsed;
+    bool                   hovered_now;
+
+    // invisible frame — return sentinel, matching end is a no-op
+    if (!_fr.visible)
+    {
+        st.outer_origin = ImVec2(0.0f, 0.0f);
+        st.outer_avail  = ImVec2(0.0f, 0.0f);
+        st.child_begun  = false;
+        st.collapsed    = false;
+        st.visible      = false;
+        return st;
+    }
 
     // initialize — scope-wide layout geometry
     outer_origin   = ImGui::GetCursorScreenPos();
     outer_avail    = ImGui::GetContentRegionAvail();
     dl             = ImGui::GetWindowDrawList();
-    line_h         = ImGui::GetTextLineHeight();
-    border_color   = internal::imgui_frame_emphasis_color(_fr.emph);
     text_color     = ImGui::GetColorU32(ImGuiCol_Text);
     has_title      = !_fr.title.empty();
-    vertical_title = ( (_fr.title_pos == title_position::left)  ||
-                       (_fr.title_pos == title_position::right) );
+    vertical_title = _fr.is_vertical_title();
+
+    // resolve emphasis → border colour (feature-gated)
+    if constexpr (frame<_F>::has_emphasis)
+    {
+        border_color = internal::imgui_frame_emphasis_color(_fr.emph);
+    }
+    else
+    {
+        border_color = ImGui::GetColorU32(ImGuiCol_Border);
+    }
+
+    // resolve collapsed state (feature-gated)
+    is_collapsed = false;
+    if constexpr (frame<_F>::is_collapsible)
+    {
+        is_collapsed = _fr.collapsed;
+    }
 
     // ─── compute title extent ─────────────────────────────────────────
     if (!has_title)
@@ -513,24 +611,58 @@ imgui_draw_frame(
     //   The border is inset on the titled edge by half the title's
     // cross-axis size so the title, when drawn straddling the border
     // line, stays entirely inside the outer reserved region.
+    //   When collapsed the border shrinks to hug just the title row /
+    // column plus a small padding; the full outer_avail is still
+    // reserved at layout-end time only if NOT collapsed.
     border_min = outer_origin;
     border_max = ImVec2(outer_origin.x + outer_avail.x,
                         outer_origin.y + outer_avail.y);
 
-    if (has_title)
+    if (is_collapsed)
+    {
+        // collapse the border perpendicular to the title edge
+        switch (_fr.title_pos)
+        {
+            case frame_title_position::top:
+                border_max.y = border_min.y
+                             + title_size.y
+                             + D_FRAME_COLLAPSED_PAD * 2.0f;
+                border_min.y += title_size.y * 0.5f;
+                break;
+            case frame_title_position::bottom:
+                border_min.y = border_max.y
+                             - title_size.y
+                             - D_FRAME_COLLAPSED_PAD * 2.0f;
+                border_max.y -= title_size.y * 0.5f;
+                break;
+            case frame_title_position::left:
+                border_max.x = border_min.x
+                             + title_size.x
+                             + D_FRAME_COLLAPSED_PAD * 2.0f;
+                border_min.x += title_size.x * 0.5f;
+                break;
+            case frame_title_position::right:
+                border_min.x = border_max.x
+                             - title_size.x
+                             - D_FRAME_COLLAPSED_PAD * 2.0f;
+                border_max.x -= title_size.x * 0.5f;
+                break;
+        }
+    }
+    else if (has_title)
     {
         switch (_fr.title_pos)
         {
-            case title_position::top:
+            case frame_title_position::top:
                 border_min.y += title_size.y * 0.5f;
                 break;
-            case title_position::bottom:
+            case frame_title_position::bottom:
                 border_max.y -= title_size.y * 0.5f;
                 break;
-            case title_position::left:
+            case frame_title_position::left:
                 border_min.x += title_size.x * 0.5f;
                 break;
-            case title_position::right:
+            case frame_title_position::right:
                 border_max.x -= title_size.x * 0.5f;
                 break;
         }
@@ -546,16 +678,16 @@ imgui_draw_frame(
     {
         switch (_fr.title_pos)
         {
-            case title_position::top:
+            case frame_title_position::top:
                 inset_top   += title_size.y;
                 break;
-            case title_position::bottom:
+            case frame_title_position::bottom:
                 inset_bot   += title_size.y;
                 break;
-            case title_position::left:
+            case frame_title_position::left:
                 inset_left  += title_size.x;
                 break;
-            case title_position::right:
+            case frame_title_position::right:
                 inset_right += title_size.x;
                 break;
         }
@@ -572,9 +704,9 @@ imgui_draw_frame(
     {
         switch (_fr.title_pos)
         {
-            case title_position::top:
-            case title_position::bottom:
-                edge_len     = outer_avail.x;
+            case frame_title_position::top:
+            case frame_title_position::bottom:
+                edge_len     = border_max.x - border_min.x;
                 title_offset = internal::imgui_frame_title_offset_on_edge(
                                    edge_len, title_size.x, _fr.title_align);
                 notch_start  = border_min.x + title_offset
@@ -583,9 +715,9 @@ imgui_draw_frame(
                              + D_FRAME_TITLE_INSET_PAD;
                 break;
 
-            case title_position::left:
-            case title_position::right:
-                edge_len     = outer_avail.y;
+            case frame_title_position::left:
+            case frame_title_position::right:
+                edge_len     = border_max.y - border_min.y;
                 title_offset = internal::imgui_frame_title_offset_on_edge(
                                    edge_len, title_size.y, _fr.title_align);
                 notch_start  = border_min.y + title_offset
@@ -611,100 +743,383 @@ imgui_draw_frame(
             D_FRAME_BORDER_THICKNESS);
     }
 
+    // ─── compute & cache the title rect for hit-testing ──────────────
+    //   title_rect_min / _max bound the interactive title hit zone
+    // used by hover detection and the collapsible toggle.
+    title_rect_min = ImVec2(0.0f, 0.0f);
+    title_rect_max = ImVec2(0.0f, 0.0f);
+
+    if (has_title)
+    {
+        switch (_fr.title_pos)
+        {
+            case frame_title_position::top:
+                title_rect_min = ImVec2(
+                    border_min.x + title_offset,
+                    border_min.y - title_size.y * 0.5f);
+                title_rect_max = ImVec2(
+                    title_rect_min.x + title_size.x,
+                    title_rect_min.y + title_size.y);
+                break;
+            case frame_title_position::bottom:
+                title_rect_min = ImVec2(
+                    border_min.x + title_offset,
+                    border_max.y - title_size.y * 0.5f);
+                title_rect_max = ImVec2(
+                    title_rect_min.x + title_size.x,
+                    title_rect_min.y + title_size.y);
+                break;
+            case frame_title_position::left:
+                title_rect_min = ImVec2(
+                    border_min.x - title_size.x * 0.5f,
+                    border_min.y + title_offset);
+                title_rect_max = ImVec2(
+                    title_rect_min.x + title_size.x,
+                    title_rect_min.y + title_size.y);
+                break;
+            case frame_title_position::right:
+                title_rect_min = ImVec2(
+                    border_max.x - title_size.x * 0.5f,
+                    border_min.y + title_offset);
+                title_rect_max = ImVec2(
+                    title_rect_min.x + title_size.x,
+                    title_rect_min.y + title_size.y);
+                break;
+        }
+    }
+
     // ─── draw the title ──────────────────────────────────────────────
     if (has_title)
     {
-        ImVec2 title_origin;
-
         switch (_fr.title_pos)
         {
-            case title_position::top:
-                // straddle the top border line: title vertical centre
-                // aligns with border_min.y
-                title_origin = ImVec2(
-                    border_min.x + title_offset,
-                    border_min.y - title_size.y * 0.5f);
-                dl->AddText(title_origin, text_color, _fr.title.c_str());
+            case frame_title_position::top:
+            case frame_title_position::bottom:
+                dl->AddText(title_rect_min, text_color, _fr.title.c_str());
                 break;
 
-            case title_position::bottom:
-                title_origin = ImVec2(
-                    border_min.x + title_offset,
-                    border_max.y - title_size.y * 0.5f);
-                dl->AddText(title_origin, text_color, _fr.title.c_str());
-                break;
-
-            case title_position::left:
-                // straddle the left border line: title horizontal centre
-                // aligns with border_min.x
-                title_origin = ImVec2(
-                    border_min.x - title_size.x * 0.5f,
-                    border_min.y + title_offset);
+            case frame_title_position::left:
+            case frame_title_position::right:
                 internal::imgui_frame_draw_vertical_title(
-                    dl, title_origin, _fr.title, text_color);
-                break;
-
-            case title_position::right:
-                title_origin = ImVec2(
-                    border_max.x - title_size.x * 0.5f,
-                    border_min.y + title_offset);
-                internal::imgui_frame_draw_vertical_title(
-                    dl, title_origin, _fr.title, text_color);
+                    dl, title_rect_min, _fr.title, text_color);
                 break;
         }
     }
 
-    // ─── compute inner content region for children ───────────────────
-    inner_origin = ImVec2(outer_origin.x + inset_left,
-                          outer_origin.y + inset_top);
-    inner_size   = ImVec2(outer_avail.x - inset_left - inset_right,
-                          outer_avail.y - inset_top  - inset_bot);
-
-    // clamp — BeginChild rejects zero / negative sizes
-    if (inner_size.x < 1.0f)
-    {
-        inner_size.x = 1.0f;
-    }
-    if (inner_size.y < 1.0f)
-    {
-        inner_size.y = 1.0f;
-    }
-
-    // ─── render children inside the content region ───────────────────
-    ImGui::SetCursorScreenPos(inner_origin);
+    // ─── push an ID scope for interactive bits ───────────────────────
     ImGui::PushID(static_cast<const void*>(&_fr));
 
-    if (ImGui::BeginChild("##uxoxo_frame_inner",
-                          inner_size,
-                          false,
-                          ImGuiWindowFlags_NoScrollbar))
+    // ─── collapsible toggle over the title rect ──────────────────────
+    if constexpr (frame<_F>::is_collapsible)
     {
-        if (_render_fn)
+        // only render the toggle when there's actually a title to hit
+        if ( (has_title) &&
+             (_fr.user_collapsible) )
         {
-            for (const auto& child : _fr.children)
+            ImVec2 cursor_restore;
+            ImVec2 btn_size;
+
+            cursor_restore = ImGui::GetCursorScreenPos();
+            btn_size       = ImVec2(
+                title_rect_max.x - title_rect_min.x,
+                title_rect_max.y - title_rect_min.y);
+
+            // clamp — InvisibleButton rejects zero / negative sizes
+            if (btn_size.x < 1.0f)
             {
-                if (child)
-                {
-                    _render_fn(*child);
-                }
+                btn_size.x = 1.0f;
             }
+            if (btn_size.y < 1.0f)
+            {
+                btn_size.y = 1.0f;
+            }
+
+            ImGui::SetCursorScreenPos(title_rect_min);
+            if (ImGui::InvisibleButton("##uxoxo_frame_toggle", btn_size))
+            {
+                _fr.collapsed = !_fr.collapsed;
+                if (_fr.on_toggle)
+                {
+                    _fr.on_toggle(_fr.collapsed);
+                }
+                is_collapsed = _fr.collapsed;
+            }
+            ImGui::SetCursorScreenPos(cursor_restore);
         }
     }
-    ImGui::EndChild();
+
+    // ─── hover state (frf_hover_state) ───────────────────────────────
+    hovered_now = false;
+    if constexpr (frame<_F>::has_hover_state)
+    {
+        hovered_now = ImGui::IsMouseHoveringRect(border_min, border_max);
+        _fr.hovered = hovered_now;
+    }
+    else if constexpr (frame<_F>::has_tooltip)
+    {
+        // tooltip without a stored hover flag — still need the test
+        hovered_now = ImGui::IsMouseHoveringRect(border_min, border_max);
+    }
+
+    // ─── tooltip on hover (frf_tooltip) ──────────────────────────────
+    if constexpr (frame<_F>::has_tooltip)
+    {
+        if ( (hovered_now)           &&
+             (!_fr.tooltip.empty()) )
+        {
+            ImGui::SetTooltip("%s", _fr.tooltip.c_str());
+        }
+    }
+
+    // ─── open content region (skipped when collapsed) ────────────────
+    st.outer_origin = outer_origin;
+    st.outer_avail  = outer_avail;
+    st.collapsed    = is_collapsed;
+    st.visible      = true;
+    st.child_begun  = false;
+
+    if (!is_collapsed)
+    {
+        inner_origin = ImVec2(outer_origin.x + inset_left,
+                              outer_origin.y + inset_top);
+        inner_size   = ImVec2(outer_avail.x - inset_left - inset_right,
+                              outer_avail.y - inset_top  - inset_bot);
+
+        // clamp — BeginChild rejects zero / negative sizes
+        if (inner_size.x < 1.0f)
+        {
+            inner_size.x = 1.0f;
+        }
+        if (inner_size.y < 1.0f)
+        {
+            inner_size.y = 1.0f;
+        }
+
+        ImGui::SetCursorScreenPos(inner_origin);
+
+        if (ImGui::BeginChild("##uxoxo_frame_inner",
+                              inner_size,
+                              false,
+                              ImGuiWindowFlags_NoScrollbar))
+        {
+            st.child_begun = true;
+        }
+        else
+        {
+            // BeginChild returned false — EndChild still required
+            st.child_begun = true;
+        }
+    }
+
+    return st;
+}
+
+/*
+imgui_frame_end
+  Finalises a frame render.  Closes the BeginChild scope that
+imgui_frame_begin opened (if any), pops the ID scope, and reserves
+ImGui layout space equal to the full region the frame consumed so
+subsequent cursor math is correct.
+
+  For a collapsed frame the reserved layout space shrinks to the
+visible chrome extent (title row / column plus padding) rather than
+the full region that would have been occupied if expanded.
+
+Parameter(s):
+  _state: the state returned by the matching imgui_frame_begin.
+Return:
+  none.
+*/
+inline void
+imgui_frame_end(
+    const imgui_frame_draw_state& _state
+)
+{
+    ImVec2 reserve_size;
+
+    // invisible frame — begin returned a sentinel, nothing to close
+    if (!_state.visible)
+    {
+        return;
+    }
+
+    // close the content scope if one was opened
+    if (_state.child_begun)
+    {
+        ImGui::EndChild();
+    }
 
     ImGui::PopID();
 
-    // ─── reserve layout space for the entire outer region ────────────
-    ImGui::SetCursorScreenPos(outer_origin);
-    ImGui::Dummy(outer_avail);
+    // reserve layout space
+    //   Expanded:  the full outer region the frame consumed.
+    //   Collapsed: just the visible chrome extent along the title's
+    //              perpendicular axis, full extent along the parallel
+    //              axis (so sibling frames still line up).
+    ImGui::SetCursorScreenPos(_state.outer_origin);
+
+    if (_state.collapsed)
+    {
+        //   A collapsed frame occupies a strip: full width (or height)
+        // along the title's edge, and just enough on the perpendicular
+        // axis to contain the collapsed chrome.  We don't know the
+        // title edge here without re-deriving it, so we fall back to
+        // a single line of ImGui content height — this is a safe
+        // underestimate that lets collapsed frames stack neatly.
+        reserve_size = ImVec2(
+            _state.outer_avail.x,
+            ImGui::GetTextLineHeightWithSpacing()
+                + D_FRAME_COLLAPSED_PAD * 2.0f);
+    }
+    else
+    {
+        reserve_size = _state.outer_avail;
+    }
+
+    ImGui::Dummy(reserve_size);
 
     return;
 }
 
 
+// ===============================================================================
+//  V.   CALLBACK CONVENIENCE
+// ===============================================================================
+
+/*
+imgui_draw_frame
+  Single-call convenience wrapper around imgui_frame_begin and
+imgui_frame_end.  Invokes `_content` between them for the frame's
+interior.  When the frame is invisible or collapsed, the content
+callable is not invoked.
+
+  `_content` is any nullary callable — lambda, function pointer,
+functor.  Exceptions propagate out of `_content`; in that case the
+begin/end pair is still balanced by imgui_frame_end being called
+after the throw (which this wrapper does not guarantee — prefer
+imgui_frame_scope for exception-safe rendering).
+
+Parameter(s):
+  _fr:      the frame to render.
+  _content: a nullary callable that draws the frame's interior.  May
+            be empty or a no-op.
+Return:
+  none.
+*/
+template <unsigned _F,
+          typename _ContentFn>
+void
+imgui_draw_frame(
+    frame<_F>&   _fr,
+    _ContentFn&& _content
+)
+{
+    imgui_frame_draw_state st;
+
+    st = imgui_frame_begin(_fr);
+
+    if ( (st.visible)        &&
+         (st.child_begun)    &&
+         (!st.collapsed) )
+    {
+        _content();
+    }
+
+    imgui_frame_end(st);
+
+    return;
+}
+
+/*
+imgui_draw_frame
+  Overload that draws only the frame chrome and reserves layout
+space.  Useful when the frame is purely decorative or when content
+is drawn through a separate path.
+
+Parameter(s):
+  _fr: the frame to render.
+Return:
+  none.
+*/
+template <unsigned _F>
+void
+imgui_draw_frame(
+    frame<_F>& _fr
+)
+{
+    imgui_frame_draw_state st;
+
+    st = imgui_frame_begin(_fr);
+    imgui_frame_end(st);
+
+    return;
+}
+
+
+// ===============================================================================
+//  VI.  RAII SCOPE
+// ===============================================================================
+
+// imgui_frame_scope
+//   class: RAII wrapper that calls imgui_frame_begin in its
+// constructor and imgui_frame_end in its destructor.  Provides
+// exception-safe frame rendering — if the content draw throws, the
+// destructor still balances the begin/end pair.  Non-copyable,
+// non-movable; intended to live on the stack for the duration of
+// the content scope.
+template <unsigned _F>
+class imgui_frame_scope
+{
+public:
+    explicit imgui_frame_scope(
+            frame<_F>& _fr
+        )
+            : m_state(imgui_frame_begin(_fr))
+        {}
+
+    ~imgui_frame_scope()
+    {
+        imgui_frame_end(m_state);
+    }
+
+    imgui_frame_scope(const imgui_frame_scope&)            = delete;
+    imgui_frame_scope& operator=(const imgui_frame_scope&) = delete;
+    imgui_frame_scope(imgui_frame_scope&&)                 = delete;
+    imgui_frame_scope& operator=(imgui_frame_scope&&)      = delete;
+
+    // -- queries ----------------------------------------------------------
+    //   Allow content-drawing code to ask whether the content region
+    // actually opened (i.e. the frame is visible, expanded, and the
+    // BeginChild succeeded).  Skip drawing when false.
+
+    [[nodiscard]] bool
+    content_open() const noexcept
+    {
+        return ( (m_state.visible)     &&
+                 (m_state.child_begun) &&
+                 (!m_state.collapsed) );
+    }
+
+    [[nodiscard]] bool
+    collapsed() const noexcept
+    {
+        return m_state.collapsed;
+    }
+
+    [[nodiscard]] bool
+    visible() const noexcept
+    {
+        return m_state.visible;
+    }
+
+private:
+    imgui_frame_draw_state m_state;
+};
+
+
 NS_END  // imgui
-NS_END  // ui
+NS_END  // platform
 NS_END  // uxoxo
 
 
-#endif  // UXOXO_UI_IMGUI_FRAME_DRAW_
+#endif  // UXOXO_IMGUI_COMPONENT_FRAME_DRAW_

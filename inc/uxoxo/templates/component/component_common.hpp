@@ -70,11 +70,11 @@ NS_COMPONENT
 
 // enable
 //   function: sets the component's enabled flag to true.
-template <typename _T,
+template <typename _Type,
           std::enable_if_t<
-              component_traits::has_enabled_v<_T>,
+              has_enabled_v<_Type>,
               int> = 0>
-void enable(_T& _c)
+void enable(_Type& _c)
 {
     _c.enabled = true;
 
@@ -83,11 +83,11 @@ void enable(_T& _c)
 
 // disable
 //   function: sets the component's enabled flag to false.
-template <typename _T,
+template <typename _Type,
           std::enable_if_t<
-              component_traits::has_enabled_v<_T>,
+              has_enabled_v<_Type>,
               int> = 0>
-void disable(_T& _c)
+void disable(_Type& _c)
 {
     _c.enabled = false;
 
@@ -98,31 +98,31 @@ void disable(_T& _c)
 //   function: returns the component's enabled state.
 // For input-like components with read_only, returns
 // enabled && !read_only.
-template <typename _T,
+template <typename _Type,
           std::enable_if_t<
-              ( component_traits::has_enabled_v<_T> &&
-                component_traits::has_read_only_v<_T> ),
+              ( has_enabled_v<_Type> &&
+                has_read_only_v<_Type> ),
               int> = 0>
 [[nodiscard]] bool
-is_enabled(const _T& _c) noexcept
+is_enabled(const _Type& _c) noexcept
 {
     return _c.enabled && !_c.read_only;
 }
 
 // is_enabled (no read_only member)
-template <typename _T,
+template <typename _Type,
           std::enable_if_t<
-              ( component_traits::has_enabled_v<_T> &&
-                !component_traits::has_read_only_v<_T> ),
+              ( has_enabled_v<_Type> &&
+                !has_read_only_v<_Type> ),
               int> = 0>
 [[nodiscard]] bool
-is_enabled(const _T& _c) noexcept
+is_enabled(const _Type& _c) noexcept
 {
     return _c.enabled;
 }
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  2  SHOW / HIDE / TOGGLE VISIBILITY
@@ -130,11 +130,11 @@ is_enabled(const _T& _c) noexcept
 //   Constrained to types with a `visible` member.
 
 // show
-template <typename _T,
+template <typename _Type,
           std::enable_if_t<
-              component_traits::has_visible_v<_T>,
+              has_visible_v<_Type>,
               int> = 0>
-void show(_T& _c)
+void show(_Type& _c)
 {
     _c.visible = true;
 
@@ -142,11 +142,11 @@ void show(_T& _c)
 }
 
 // hide
-template <typename _T,
+template <typename _Type,
           std::enable_if_t<
-              component_traits::has_visible_v<_T>,
+              has_visible_v<_Type>,
               int> = 0>
-void hide(_T& _c)
+void hide(_Type& _c)
 {
     _c.visible = false;
 
@@ -154,11 +154,11 @@ void hide(_T& _c)
 }
 
 // toggle_visible
-template <typename _T,
+template <typename _Type,
           std::enable_if_t<
-              component_traits::has_visible_v<_T>,
+              has_visible_v<_Type>,
               int> = 0>
-void toggle_visible(_T& _c)
+void toggle_visible(_Type& _c)
 {
     _c.visible = !_c.visible;
 
@@ -166,18 +166,18 @@ void toggle_visible(_T& _c)
 }
 
 // is_visible (non-member query)
-template <typename _T,
+template <typename _Type,
           std::enable_if_t<
-              component_traits::has_visible_v<_T>,
+              has_visible_v<_Type>,
               int> = 0>
 [[nodiscard]] bool
-is_visible(const _T& _c) noexcept
+is_visible(const _Type& _c) noexcept
 {
     return _c.visible;
 }
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  3  ACTIVATE / DEACTIVATE
@@ -186,11 +186,11 @@ is_visible(const _T& _c) noexcept
 // autocomplete, etc.).
 
 // activate
-template <typename _T,
+template <typename _Type,
           std::enable_if_t<
-              component_traits::has_active_v<_T>,
+              has_active_v<_Type>,
               int> = 0>
-void activate(_T& _c)
+void activate(_Type& _c)
 {
     _c.active = true;
 
@@ -199,15 +199,15 @@ void activate(_T& _c)
 
 // deactivate
 //   Also hides the component if it has a visible member.
-template <typename _T,
+template <typename _Type,
           std::enable_if_t<
-              component_traits::has_active_v<_T>,
+              has_active_v<_Type>,
               int> = 0>
-void deactivate(_T& _c)
+void deactivate(_Type& _c)
 {
     _c.active = false;
 
-    if constexpr (component_traits::has_visible_v<_T>)
+    if constexpr (has_visible_v<_Type>)
     {
         _c.visible = false;
     }
@@ -216,7 +216,7 @@ void deactivate(_T& _c)
 }
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  4  READ-ONLY
@@ -224,11 +224,11 @@ void deactivate(_T& _c)
 //   Constrained to types with a `read_only` member.
 
 // set_read_only
-template <typename _T,
+template <typename _Type,
           std::enable_if_t<
-              component_traits::has_read_only_v<_T>,
+              has_read_only_v<_Type>,
               int> = 0>
-void set_read_only(_T& _c,
+void set_read_only(_Type& _c,
                    bool _ro)
 {
     _c.read_only = _ro;
@@ -237,7 +237,7 @@ void set_read_only(_T& _c,
 }
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  5  VALUE ACCESS
@@ -249,16 +249,16 @@ void set_read_only(_T& _c,
 // undoable (has previous_value + has_previous), stores the old
 // value before replacing.  If the component has an on_change
 // callback, invokes it after replacement.
-template <typename _T,
+template <typename _Type,
           std::enable_if_t<
-              component_traits::has_value_v<_T>,
+              has_value_v<_Type>,
               int> = 0>
-void set_value(_T& _c,
+void set_value(_Type& _c,
                typename std::remove_reference_t<
-                   decltype(std::declval<_T&>().value)> _val)
+                   decltype(std::declval<_Type&>().value)> _val)
 {
     // store undo state if available
-    if constexpr (component_traits::is_undoable_v<_T>)
+    if constexpr (is_undoable_v<_Type>)
     {
         _c.previous_value = _c.value;
         _c.has_previous   = true;
@@ -267,7 +267,7 @@ void set_value(_T& _c,
     _c.value = std::move(_val);
 
     // notify on_change if present
-    if constexpr (component_traits::has_on_change_v<_T>)
+    if constexpr (has_on_change_v<_Type>)
     {
         if (_c.on_change)
         {
@@ -280,18 +280,18 @@ void set_value(_T& _c,
 
 // get_value
 //   function: returns a const reference to the component's value.
-template <typename _T,
+template <typename _Type,
           std::enable_if_t<
-              component_traits::has_value_v<_T>,
+              has_value_v<_Type>,
               int> = 0>
 [[nodiscard]] const auto&
-get_value(const _T& _c) noexcept
+get_value(const _Type& _c) noexcept
 {
     return _c.value;
 }
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  6  CLEAR  (requires clearable mixin)
@@ -301,13 +301,13 @@ get_value(const _T& _c) noexcept
 //   function: resets the component's value to its default_value.
 // If undoable, stores the current value before clearing.
 // If on_change is present, notifies after clearing.
-template <typename _T,
+template <typename _Type,
           std::enable_if_t<
-              component_traits::is_clearable_v<_T>,
+              is_clearable_v<_Type>,
               int> = 0>
-void clear(_T& _c)
+void clear(_Type& _c)
 {
-    if constexpr (component_traits::is_undoable_v<_T>)
+    if constexpr (is_undoable_v<_Type>)
     {
         _c.previous_value = _c.value;
         _c.has_previous   = true;
@@ -315,7 +315,7 @@ void clear(_T& _c)
 
     _c.value = _c.default_value;
 
-    if constexpr (component_traits::has_on_change_v<_T>)
+    if constexpr (has_on_change_v<_Type>)
     {
         if (_c.on_change)
         {
@@ -327,7 +327,7 @@ void clear(_T& _c)
 }
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  7  UNDO  (requires undo mixin)
@@ -337,11 +337,11 @@ void clear(_T& _c)
 //   function: restores the component's previous value.
 // Returns true if undo was performed, false if no previous
 // value was stored.
-template <typename _T,
+template <typename _Type,
           std::enable_if_t<
-              component_traits::is_undoable_v<_T>,
+              is_undoable_v<_Type>,
               int> = 0>
-bool undo(_T& _c)
+bool undo(_Type& _c)
 {
     if (!_c.has_previous)
     {
@@ -351,7 +351,7 @@ bool undo(_T& _c)
     _c.value        = _c.previous_value;
     _c.has_previous = false;
 
-    if constexpr (component_traits::has_on_change_v<_T>)
+    if constexpr (has_on_change_v<_Type>)
     {
         if (_c.on_change)
         {
@@ -363,7 +363,7 @@ bool undo(_T& _c)
 }
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  8  COPY REQUEST  (requires copyable mixin)
@@ -372,11 +372,11 @@ bool undo(_T& _c)
 // request_copy
 //   function: signals the renderer to copy the component's value
 // to the clipboard.
-template <typename _T,
+template <typename _Type,
           std::enable_if_t<
-              component_traits::is_copyable_v<_T>,
+              is_copyable_v<_Type>,
               int> = 0>
-void request_copy(_T& _c)
+void request_copy(_Type& _c)
 {
     _c.copy_requested = true;
 
@@ -384,7 +384,7 @@ void request_copy(_T& _c)
 }
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  9  COMMIT  (input-like components with on_commit)
@@ -394,15 +394,15 @@ void request_copy(_T& _c)
 //   function: invokes the component's on_commit callback with
 // its current value.  Returns true if the callback was invoked,
 // false if the component is disabled or no callback is set.
-template <typename _T,
+template <typename _Type,
           std::enable_if_t<
-              ( component_traits::has_on_commit_v<_T> &&
-                component_traits::has_value_v<_T>     &&
-                component_traits::has_enabled_v<_T> ),
+              ( has_on_commit_v<_Type> &&
+                has_value_v<_Type>     &&
+                has_enabled_v<_Type> ),
               int> = 0>
-bool commit(_T& _c)
+bool commit(_Type& _c)
 {
-    if constexpr (component_traits::has_read_only_v<_T>)
+    if constexpr (has_read_only_v<_Type>)
     {
         if (!_c.enabled || _c.read_only)
         {
@@ -428,7 +428,7 @@ bool commit(_T& _c)
 }
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  10  COMPOSITIONAL FORWARDING UTILITIES
@@ -470,30 +470,30 @@ bool commit(_T& _c)
 // the composite exposes via its visit_components method.
 // Requires the composite to define a visit_components member.
 
-namespace detail {
+NS_INTERNAL
 
     template <typename, typename = void>
     struct has_visit_components : std::false_type {};
 
-    template <typename _T>
-    struct has_visit_components<_T, std::void_t<
-        decltype(std::declval<_T&>().visit_components(
+    template <typename _Type>
+    struct has_visit_components<_Type, std::void_t<
+        decltype(std::declval<_Type&>().visit_components(
             std::declval<void(*)(int&)>()
         ))
     >> : std::true_type {};
 
-}   // namespace detail
+}   // NS_INTERNAL
 
-template <typename _T>
+template <typename _Type>
 inline constexpr bool has_visit_components_v =
-    detail::has_visit_components<_T>::value;
+    internal::has_visit_components<_Type>::value;
 
-template <typename _T,
+template <typename _Type,
           typename _Fn,
           std::enable_if_t<
-              has_visit_components_v<_T>,
+              has_visit_components_v<_Type>,
               int> = 0>
-void for_each_sub(_T&   _composite,
+void for_each_sub(_Type&   _composite,
                   _Fn&& _fn)
 {
     _composite.visit_components(std::forward<_Fn>(_fn));
@@ -503,17 +503,17 @@ void for_each_sub(_T&   _composite,
 
 // enable_all
 //   function: enables the composite and all its sub-components.
-template <typename _T,
+template <typename _Type,
           std::enable_if_t<
-              ( component_traits::has_enabled_v<_T> &&
-                has_visit_components_v<_T> ),
+              ( has_enabled_v<_Type> &&
+                has_visit_components_v<_Type> ),
               int> = 0>
-void enable_all(_T& _c)
+void enable_all(_Type& _c)
 {
     _c.enabled = true;
     _c.visit_components([](auto& _sub)
     {
-        if constexpr (component_traits::has_enabled_v<
+        if constexpr (has_enabled_v<
                           std::remove_reference_t<decltype(_sub)>>)
         {
             _sub.enabled = true;
@@ -525,17 +525,17 @@ void enable_all(_T& _c)
 
 // disable_all
 //   function: disables the composite and all its sub-components.
-template <typename _T,
+template <typename _Type,
           std::enable_if_t<
-              ( component_traits::has_enabled_v<_T> &&
-                has_visit_components_v<_T> ),
+              ( has_enabled_v<_Type> &&
+                has_visit_components_v<_Type> ),
               int> = 0>
-void disable_all(_T& _c)
+void disable_all(_Type& _c)
 {
     _c.enabled = false;
     _c.visit_components([](auto& _sub)
     {
-        if constexpr (component_traits::has_enabled_v<
+        if constexpr (has_enabled_v<
                           std::remove_reference_t<decltype(_sub)>>)
         {
             _sub.enabled = false;

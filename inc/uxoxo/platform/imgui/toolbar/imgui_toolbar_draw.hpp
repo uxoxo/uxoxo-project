@@ -1,5 +1,5 @@
 /*******************************************************************************
-* uxoxo [component]                                     imgui_toolbar_draw.hpp
+* uxoxo [imgui]                                          imgui_toolbar_draw.hpp
 *
 *   Dear ImGui draw handler for the toolbar and button components.
 *
@@ -28,27 +28,28 @@
 * this header.
 *
 *
-* path:      /inc/uxoxo/component/renderer/imgui/imgui_toolbar_draw.hpp
+* path:      /inc/uxoxo/platform/imgui/toolbar/imgui_toolbar_draw.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.10
 *******************************************************************************/
 
-#ifndef UXOXO_COMPONENT_IMGUI_TOOLBAR_DRAW_
-#define UXOXO_COMPONENT_IMGUI_TOOLBAR_DRAW_ 1
+#ifndef UXOXO_IMGUI_COMPONENT_TOOLBAR_DRAW_
+#define UXOXO_IMGUI_COMPONENT_TOOLBAR_DRAW_ 1
 
+// std
 #include <algorithm>
 #include <cstddef>
 #include <string>
 #include <type_traits>
+// imgui
+#include <imgui.h>
+// djinterp
+#include <djinterp/core/djinterp.hpp>
+// uxoxo
 #include "../../../uxoxo.hpp"
-#include "../../button.hpp"
-#include "../../toolbar.hpp"
-#include "../render_context.hpp"
-
-// Dear ImGui — caller must have included imgui.h before this header.
-#ifndef IMGUI_VERSION
-    #error "imgui.h must be included before imgui_toolbar_draw.hpp"
-#endif
+#include "../../../templates/component/button/button.hpp"
+#include "../../../templates/component/toolbar/toolbar.hpp"
+#include "../../../templates/render_context.hpp"
 
 
 NS_UXOXO
@@ -759,4 +760,4 @@ NS_END  // component
 NS_END  // uxoxo
 
 
-#endif  // UXOXO_COMPONENT_IMGUI_TOOLBAR_DRAW_
+#endif  // UXOXO_IMGUI_COMPONENT_TOOLBAR_DRAW_

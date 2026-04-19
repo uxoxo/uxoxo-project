@@ -1,5 +1,5 @@
 /*******************************************************************************
-* uxoxo [platform]                                          imgui_ui_tree.hpp
+* uxoxo [imgui]                                               imgui_ui_tree.hpp
 *
 *   ImGui UI layout tree schema and builder.  Populates a ui_tree with a
 * node hierarchy describing the entire ImGui-rendered interface:
@@ -38,22 +38,24 @@
 *   REQUIRES: C++17 or later.
 *
 *
-* path:      /inc/uxoxo/platform/imgui/imgui_ui_tree.hpp
+* path:      /inc/uxoxo/platform/imgui/tree/imgui_ui_tree.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.15
 *******************************************************************************/
 
-#ifndef UXOXO_IMGUI_UI_TREE_
-#define UXOXO_IMGUI_UI_TREE_ 1
+#ifndef UXOXO_IMGUI_COMPONENT_UI_TREE_
+#define UXOXO_IMGUI_COMPONENT_UI_TREE_ 1
 
 // std
 #include <cstdint>
 #include <string>
+// imgui
+#include <imgui.h>
 // djinterp
 #include <djinterp/core/djinterp.hpp>
 // uxoxo
-#include "../../uxoxo.hpp"
-#include "../../core/tree/ui_tree.hpp"
+#include "../../../uxoxo.hpp"
+#include "../../../core/tree/ui_tree.hpp"
 
 
 NS_UXOXO
@@ -462,4 +464,4 @@ NS_END  // platform
 NS_END  // uxoxo
 
 
-#endif  // UXOXO_IMGUI_UI_TREE_
+#endif  // UXOXO_IMGUI_COMPONENT_UI_TREE_

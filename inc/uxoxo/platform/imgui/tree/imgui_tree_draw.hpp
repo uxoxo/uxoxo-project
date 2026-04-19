@@ -1,5 +1,5 @@
 /*******************************************************************************
-* uxoxo [ui]                                                imgui_tree_draw.hpp
+* uxoxo [imgui]                                             imgui_tree_draw.hpp
 *
 *   ImGui draw handler for tree_view<_Data, _Feat, _Icon>.  Discovers node
 * and view capabilities at compile time via if constexpr and the tree_traits
@@ -31,13 +31,13 @@
 *   REQUIRES: C++17 or later, Dear ImGui.
 *
 *
-* path:      /inc/uxoxo/platform/imgui/imgui_tree_draw.hpp
+* path:      /inc/uxoxo/platform/imgui/tree/imgui_tree_draw.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.12
 *******************************************************************************/
 
-#ifndef UXOXO_UI_IMGUI_TREE_DRAW_
-#define UXOXO_UI_IMGUI_TREE_DRAW_ 1
+#ifndef UXOXO_IMGUI_COMPONENT_TREE_DRAW_
+#define UXOXO_IMGUI_COMPONENT_TREE_DRAW_ 1
 
 // std
 #include <algorithm>
@@ -49,13 +49,13 @@
 #include <type_traits>
 #include <vector>
 // imgui
-#include "imgui.h"
+#include <imgui.h>
 // djinterp
 #include <djinterp/core/djinterp.hpp>
 // uxoxo
-#include "../../uxoxo.hpp"
-#include "../../templates/component/tree/tree_node.hpp"
-#include "../../templates/component/tree/tree_view.hpp"
+#include "../../../uxoxo.hpp"
+#include "../../../templates/component/tree/tree_node.hpp"
+#include "../../../templates/component/tree/tree_view.hpp"
 
 
 NS_UXOXO
@@ -64,6 +64,7 @@ NS_IMGUI
 
 using uxoxo::component::tree_node;
 using uxoxo::component::tree_view;
+
 
 // =============================================================================
 //  1.  IMGUI TREE STYLE
@@ -1125,4 +1126,4 @@ NS_END  // platform
 NS_END  // uxoxo
 
 
-#endif  // UXOXO_UI_IMGUI_TREE_DRAW_
+#endif  // UXOXO_IMGUI_COMPONENT_TREE_DRAW_

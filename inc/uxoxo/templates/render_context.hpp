@@ -17,7 +17,7 @@
 *   REQUIRES: C++17 or later.
 *
 *
-* path:      /inc/uxoxo/templates/renderer/render_context.hpp
+* path:      /inc/uxoxo/component/renderer/render_context.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.10
 *******************************************************************************/

@@ -742,8 +742,7 @@ struct tree_view
 // ===============================================================================
 
 namespace tree_traits {
-    namespace detail
-    {
+    NS_INTERNAL
         // -- node-level detectors ---------------------------------------------
 
         // has_data_member
@@ -933,41 +932,41 @@ namespace tree_traits {
             : std::true_type {
         };
 
-    }   // namespace detail
+    }   // internal
 
 
-    /*****************************************************************************/
+    
 
     // -- convenience aliases --------------------------------------------------
 
     // node detectors
-    template <typename _Type> inline constexpr bool has_data_v = detail::has_data_member<_Type>::value;
-    template <typename _Type> inline constexpr bool has_children_v = detail::has_children_member<_Type>::value;
-    template <typename _Type> inline constexpr bool has_is_leaf_v = detail::has_is_leaf_method<_Type>::value;
-    template <typename _Type> inline constexpr bool has_features_v = detail::has_features_constant<_Type>::value;
-    template <typename _Type> inline constexpr bool has_data_type_v = detail::has_data_type_alias<_Type>::value;
+    template <typename _Type> inline constexpr bool has_data_v = internal::has_data_member<_Type>::value;
+    template <typename _Type> inline constexpr bool has_children_v = internal::has_children_member<_Type>::value;
+    template <typename _Type> inline constexpr bool has_is_leaf_v = internal::has_is_leaf_method<_Type>::value;
+    template <typename _Type> inline constexpr bool has_features_v = internal::has_features_constant<_Type>::value;
+    template <typename _Type> inline constexpr bool has_data_type_v = internal::has_data_type_alias<_Type>::value;
 
     // feature detectors
-    template <typename _Type> inline constexpr bool has_checked_v = detail::has_checked_member<_Type>::value;
-    template <typename _Type> inline constexpr bool has_icon_v = detail::has_icon_member<_Type>::value;
-    template <typename _Type> inline constexpr bool has_expanded_icon_v = detail::has_expanded_icon_member<_Type>::value;
-    template <typename _Type> inline constexpr bool has_expanded_v = detail::has_expanded_member<_Type>::value;
-    template <typename _Type> inline constexpr bool has_renamable_v = detail::has_renamable_member<_Type>::value;
-    template <typename _Type> inline constexpr bool has_context_actions_v = detail::has_context_actions_member<_Type>::value;
+    template <typename _Type> inline constexpr bool has_checked_v = internal::has_checked_member<_Type>::value;
+    template <typename _Type> inline constexpr bool has_icon_v = internal::has_icon_member<_Type>::value;
+    template <typename _Type> inline constexpr bool has_expanded_icon_v = internal::has_expanded_icon_member<_Type>::value;
+    template <typename _Type> inline constexpr bool has_expanded_v = internal::has_expanded_member<_Type>::value;
+    template <typename _Type> inline constexpr bool has_renamable_v = internal::has_renamable_member<_Type>::value;
+    template <typename _Type> inline constexpr bool has_context_actions_v = internal::has_context_actions_member<_Type>::value;
 
     // view detectors
-    template <typename _Type> inline constexpr bool has_roots_v = detail::has_roots_member<_Type>::value;
-    template <typename _Type> inline constexpr bool has_cursor_v = detail::has_cursor_member<_Type>::value;
-    template <typename _Type> inline constexpr bool has_scroll_offset_v = detail::has_scroll_offset_member<_Type>::value;
-    template <typename _Type> inline constexpr bool has_selected_v = detail::has_selected_member<_Type>::value;
-    template <typename _Type> inline constexpr bool has_editing_v = detail::has_editing_member<_Type>::value;
-    template <typename _Type> inline constexpr bool has_context_open_v = detail::has_context_open_member<_Type>::value;
-    template <typename _Type> inline constexpr bool has_policy_v = detail::has_policy_member<_Type>::value;
-    template <typename _Type> inline constexpr bool is_focusable_v = detail::has_focusable_flag<_Type>::value;
-    template <typename _Type> inline constexpr bool is_scrollable_v = detail::has_scrollable_flag<_Type>::value;
+    template <typename _Type> inline constexpr bool has_roots_v = internal::has_roots_member<_Type>::value;
+    template <typename _Type> inline constexpr bool has_cursor_v = internal::has_cursor_member<_Type>::value;
+    template <typename _Type> inline constexpr bool has_scroll_offset_v = internal::has_scroll_offset_member<_Type>::value;
+    template <typename _Type> inline constexpr bool has_selected_v = internal::has_selected_member<_Type>::value;
+    template <typename _Type> inline constexpr bool has_editing_v = internal::has_editing_member<_Type>::value;
+    template <typename _Type> inline constexpr bool has_context_open_v = internal::has_context_open_member<_Type>::value;
+    template <typename _Type> inline constexpr bool has_policy_v = internal::has_policy_member<_Type>::value;
+    template <typename _Type> inline constexpr bool is_focusable_v = internal::has_focusable_flag<_Type>::value;
+    template <typename _Type> inline constexpr bool is_scrollable_v = internal::has_scrollable_flag<_Type>::value;
 
 
-    /*****************************************************************************/
+    
 
     // ===============================================================================
     //  COMPOSITE IDENTITY TRAITS
@@ -977,32 +976,32 @@ namespace tree_traits {
     //   type trait: has data + children + is_leaf.  The structural minimum.
     template <typename _Type>
     struct is_tree_node : std::conjunction<
-        detail::has_data_member<_Type>,
-        detail::has_children_member<_Type>,
-        detail::has_is_leaf_method<_Type>
+        internal::has_data_member<_Type>,
+        internal::has_children_member<_Type>,
+        internal::has_is_leaf_method<_Type>
     > {
     };
 
     template <typename _Type>
     inline constexpr bool is_tree_node_v = is_tree_node<_Type>::value;
 
-    /*****************************************************************************/
+    
 
     // is_tree_view
     //   type trait: has roots + cursor + scroll_offset + focusable.
     template <typename _Type>
     struct is_tree_view : std::conjunction<
-        detail::has_roots_member<_Type>,
-        detail::has_cursor_member<_Type>,
-        detail::has_scroll_offset_member<_Type>,
-        detail::has_focusable_flag<_Type>
+        internal::has_roots_member<_Type>,
+        internal::has_cursor_member<_Type>,
+        internal::has_scroll_offset_member<_Type>,
+        internal::has_focusable_flag<_Type>
     > {
     };
 
     template <typename _Type>
     inline constexpr bool is_tree_view_v = is_tree_view<_Type>::value;
 
-    /*****************************************************************************/
+    
 
     // node feature composites
 
@@ -1010,66 +1009,66 @@ namespace tree_traits {
     template <typename _Type>
     struct is_checkable_node : std::conjunction<
         is_tree_node<_Type>,
-        detail::has_checked_member<_Type>
+        internal::has_checked_member<_Type>
     > {
     };
 
     template <typename _Type>
     inline constexpr bool is_checkable_node_v = is_checkable_node<_Type>::value;
 
-    /*****************************************************************************/
+    
 
     // is_icon_node
     template <typename _Type>
     struct is_icon_node : std::conjunction<
         is_tree_node<_Type>,
-        detail::has_icon_member<_Type>
+        internal::has_icon_member<_Type>
     > {
     };
 
     template <typename _Type>
     inline constexpr bool is_icon_node_v = is_icon_node<_Type>::value;
 
-    /*****************************************************************************/
+    
 
     // is_collapsible_node
     template <typename _Type>
     struct is_collapsible_node : std::conjunction<
         is_tree_node<_Type>,
-        detail::has_expanded_member<_Type>
+        internal::has_expanded_member<_Type>
     > {
     };
 
     template <typename _Type>
     inline constexpr bool is_collapsible_node_v = is_collapsible_node<_Type>::value;
 
-    /*****************************************************************************/
+    
 
     // is_renamable_node
     template <typename _Type>
     struct is_renamable_node : std::conjunction<
         is_tree_node<_Type>,
-        detail::has_renamable_member<_Type>
+        internal::has_renamable_member<_Type>
     > {
     };
 
     template <typename _Type>
     inline constexpr bool is_renamable_node_v = is_renamable_node<_Type>::value;
 
-    /*****************************************************************************/
+    
 
     // is_context_node
     template <typename _Type>
     struct is_context_node : std::conjunction<
         is_tree_node<_Type>,
-        detail::has_context_actions_member<_Type>
+        internal::has_context_actions_member<_Type>
     > {
     };
 
     template <typename _Type>
     inline constexpr bool is_context_node_v = is_context_node<_Type>::value;
 
-    /*****************************************************************************/
+    
 
     // view feature composites
 
@@ -1077,33 +1076,33 @@ namespace tree_traits {
     template <typename _Type>
     struct is_editable_view : std::conjunction<
         is_tree_view<_Type>,
-        detail::has_editing_member<_Type>
+        internal::has_editing_member<_Type>
     > {
     };
 
     template <typename _Type>
     inline constexpr bool is_editable_view_v = is_editable_view<_Type>::value;
 
-    /*****************************************************************************/
+    
 
     // is_context_view
     template <typename _Type>
     struct is_context_view : std::conjunction<
         is_tree_view<_Type>,
-        detail::has_context_open_member<_Type>
+        internal::has_context_open_member<_Type>
     > {
     };
 
     template <typename _Type>
     inline constexpr bool is_context_view_v = is_context_view<_Type>::value;
 
-    /*****************************************************************************/
+    
 
     // is_checkable_view
     template <typename _Type>
     struct is_checkable_view : std::conjunction<
         is_tree_view<_Type>,
-        detail::has_policy_member<_Type>
+        internal::has_policy_member<_Type>
     > {
     };
 

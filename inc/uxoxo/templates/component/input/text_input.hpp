@@ -477,7 +477,7 @@ void ti_deselect(text_input<_F, _I>& ti)
 //  6.  EDITING  (free functions)
 // ===============================================================================
  
-namespace detail_ti {
+NS_INTERNAL
     // delete selected text, leave cursor at start of deleted range
     template <unsigned _F,
               typename _I>
@@ -523,9 +523,9 @@ bool ti_insert(text_input<_F, _I>& ti, const std::string& text)
     }
  
     // delete selection first (frees space for max_length check)
-    detail_ti::delete_selection(ti);
+    internal::delete_selection(ti);
  
-    if (!detail_ti::check_length(ti, text.size()))
+    if (!internal::check_length(ti, text.size()))
     {
         return false;
     }
@@ -545,8 +545,8 @@ bool ti_insert_char(text_input<_F, _I>& ti, char ch)
     {
         return false;
     }
-    detail_ti::delete_selection(ti);
-    if (!detail_ti::check_length(ti, 1))
+    internal::delete_selection(ti);
+    if (!internal::check_length(ti, 1))
     {
         return false;
     }
@@ -568,7 +568,7 @@ bool ti_backspace(text_input<_F, _I>& ti)
     }
     if (ti.has_selection)
     {
-        detail_ti::delete_selection(ti);
+        internal::delete_selection(ti);
         return true;
     }
     if (ti.cursor == 0)
@@ -591,7 +591,7 @@ bool ti_delete_forward(text_input<_F, _I>& ti)
     }
     if (ti.has_selection)
     {
-        detail_ti::delete_selection(ti);
+        internal::delete_selection(ti);
         return true;
     }
     if (ti.cursor >= ti.value.size())
@@ -613,7 +613,7 @@ bool ti_delete_word_back(text_input<_F, _I>& ti)
     }
     if (ti.has_selection)
     {
-        detail_ti::delete_selection(ti); return true;
+        internal::delete_selection(ti); return true;
     }
     if (ti.cursor == 0)
     {
@@ -647,7 +647,7 @@ bool ti_delete_word_forward(text_input<_F, _I>& ti)
     }
     if (ti.has_selection)
     {
-        detail_ti::delete_selection(ti); return true;
+        internal::delete_selection(ti); return true;
     }
     if (ti.cursor >= ti.value.size())
     {
@@ -756,7 +756,7 @@ std::string ti_cut(text_input<_F, _I>& ti)
         return {};
     }
     auto text = ti.selected_text();
-    detail_ti::delete_selection(ti);
+    internal::delete_selection(ti);
     return text;
 }
  
@@ -937,7 +937,7 @@ inline validator_fn make_pattern_validator(
 // ===============================================================================
  
 namespace text_input_traits {
-namespace detail {
+NS_INTERNAL
     template <typename,
               typename = void>
     struct has_value_member : std::false_type {};
@@ -1011,25 +1011,25 @@ namespace detail {
     >> : std::true_type {};
 }
  
-template <typename _Type> inline constexpr bool has_value_v       = detail::has_value_member<_Type>::value;
-template <typename _Type> inline constexpr bool has_cursor_v      = detail::has_cursor_member<_Type>::value;
-template <typename _Type> inline constexpr bool has_placeholder_v = detail::has_placeholder_member<_Type>::value;
-template <typename _Type> inline constexpr bool has_sel_anchor_v  = detail::has_sel_anchor_member<_Type>::value;
-template <typename _Type> inline constexpr bool has_read_only_v   = detail::has_read_only_member<_Type>::value;
-template <typename _Type> inline constexpr bool has_history_v     = detail::has_history_member<_Type>::value;
-template <typename _Type> inline constexpr bool has_validators_v  = detail::has_validators_member<_Type>::value;
-template <typename _Type> inline constexpr bool has_masked_v      = detail::has_masked_member<_Type>::value;
-template <typename _Type> inline constexpr bool has_word_wrap_v   = detail::has_word_wrap_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_value_v       = internal::has_value_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_cursor_v      = internal::has_cursor_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_placeholder_v = internal::has_placeholder_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_sel_anchor_v  = internal::has_sel_anchor_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_read_only_v   = internal::has_read_only_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_history_v     = internal::has_history_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_validators_v  = internal::has_validators_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_masked_v      = internal::has_masked_member<_Type>::value;
+template <typename _Type> inline constexpr bool has_word_wrap_v   = internal::has_word_wrap_member<_Type>::value;
  
 // is_text_input
 //   Has value + cursor + placeholder + sel_anchor + focusable.
 template <typename _Type>
 struct is_text_input : std::conjunction<
-    detail::has_value_member<_Type>,
-    detail::has_cursor_member<_Type>,
-    detail::has_placeholder_member<_Type>,
-    detail::has_sel_anchor_member<_Type>,
-    view_traits::detail::has_focusable_flag<_Type>
+    internal::has_value_member<_Type>,
+    internal::has_cursor_member<_Type>,
+    internal::has_placeholder_member<_Type>,
+    internal::has_sel_anchor_member<_Type>,
+    view_traits::internal::has_focusable_flag<_Type>
 > {};
 template <typename _Type> inline constexpr bool is_text_input_v = is_text_input<_Type>::value;
  
@@ -1037,7 +1037,7 @@ template <typename _Type> inline constexpr bool is_text_input_v = is_text_input<
 template <typename _Type>
 struct is_multiline_input : std::conjunction<
     is_text_input<_Type>,
-    detail::has_word_wrap_member<_Type>
+    internal::has_word_wrap_member<_Type>
 > {};
 template <typename _Type> inline constexpr bool is_multiline_input_v = is_multiline_input<_Type>::value;
  
@@ -1045,7 +1045,7 @@ template <typename _Type> inline constexpr bool is_multiline_input_v = is_multil
 template <typename _Type>
 struct is_history_input : std::conjunction<
     is_text_input<_Type>,
-    detail::has_history_member<_Type>
+    internal::has_history_member<_Type>
 > {};
 template <typename _Type> inline constexpr bool is_history_input_v = is_history_input<_Type>::value;
  
@@ -1053,7 +1053,7 @@ template <typename _Type> inline constexpr bool is_history_input_v = is_history_
 template <typename _Type>
 struct is_validated_input : std::conjunction<
     is_text_input<_Type>,
-    detail::has_validators_member<_Type>
+    internal::has_validators_member<_Type>
 > {};
 template <typename _Type> inline constexpr bool is_validated_input_v = is_validated_input<_Type>::value;
  
@@ -1061,7 +1061,7 @@ template <typename _Type> inline constexpr bool is_validated_input_v = is_valida
 template <typename _Type>
 struct is_masked_text_input : std::conjunction<
     is_text_input<_Type>,
-    detail::has_masked_member<_Type>
+    internal::has_masked_member<_Type>
 > {};
 template <typename _Type> inline constexpr bool is_masked_text_input_v = is_masked_text_input<_Type>::value;
  

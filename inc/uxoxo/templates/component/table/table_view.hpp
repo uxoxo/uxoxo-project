@@ -1043,8 +1043,7 @@ table_view_toggle_sort(
     return;
 }
 
-namespace detail_tv
-{
+NS_INTERNAL
     // has_header_rows
     //   trait: detects a static header_rows member.
     template<typename _Type,
@@ -1135,7 +1134,7 @@ namespace detail_tv
                            std::void_t<typename _Type::spans>>
         : std::true_type
     {};
-}
+NS_END  // internal
 
 // table_view_bind
 //   function: binds a table-like object to a table_view.
@@ -1197,32 +1196,32 @@ table_view_bind_config(
 	table_view& _table_view
 )
 {
-    if D_CONSTEXPR (detail_tv::has_header_rows<_Config>::value)
+    if D_CONSTEXPR (internal::has_header_rows<_Config>::value)
     {
         _table_view.header_rows = _Config::header_rows;
     }
 
-    if D_CONSTEXPR (detail_tv::has_header_cols<_Config>::value)
+    if D_CONSTEXPR (internal::has_header_cols<_Config>::value)
     {
         _table_view.header_columns = _Config::header_columns;
     }
 
-    if D_CONSTEXPR (detail_tv::has_footer_rows<_Config>::value)
+    if D_CONSTEXPR (internal::has_footer_rows<_Config>::value)
     {
         _table_view.footer_rows = _Config::footer_rows;
     }
 
-    if D_CONSTEXPR (detail_tv::has_footer_cols<_Config>::value)
+    if D_CONSTEXPR (internal::has_footer_cols<_Config>::value)
     {
         _table_view.footer_columns = _Config::footer_columns;
     }
 
-    if D_CONSTEXPR (detail_tv::has_total_rows<_Config>::value)
+    if D_CONSTEXPR (internal::has_total_rows<_Config>::value)
     {
         _table_view.total_rows = _Config::total_rows;
     }
 
-    if D_CONSTEXPR (detail_tv::has_total_cols<_Config>::value)
+    if D_CONSTEXPR (internal::has_total_cols<_Config>::value)
     {
         _table_view.total_columns = _Config::total_columns;
     }
@@ -1324,8 +1323,7 @@ table_view_for_each_visible_cell(const table_view& _table_view,
 
 namespace table_view_traits
 {
-    namespace detail
-    {
+    NS_INTERNAL
         // has_num_rows_member
         //   trait: detects a num_rows member.
         template<typename _Type,
@@ -1440,52 +1438,52 @@ namespace table_view_traits
 
     template<typename _Type>
     D_INLINE D_CONSTEXPR bool has_num_rows_v =
-        detail::has_num_rows_member<_Type>::value;
+        internal::has_num_rows_member<_Type>::value;
 
     template<typename _Type>
     D_INLINE D_CONSTEXPR bool has_num_cols_v =
-        detail::has_num_cols_member<_Type>::value;
+        internal::has_num_cols_member<_Type>::value;
 
     template<typename _Type>
     D_INLINE D_CONSTEXPR bool has_columns_v =
-        detail::has_columns_member<_Type>::value;
+        internal::has_columns_member<_Type>::value;
 
     template<typename _Type>
     D_INLINE D_CONSTEXPR bool has_get_cell_v =
-        detail::has_get_cell_member<_Type>::value;
+        internal::has_get_cell_member<_Type>::value;
 
     template<typename _Type>
     D_INLINE D_CONSTEXPR bool has_spans_v =
-        detail::has_spans_member<_Type>::value;
+        internal::has_spans_member<_Type>::value;
 
     template<typename _Type>
     D_INLINE D_CONSTEXPR bool has_cursor_v =
-        detail::has_cursor_member<_Type>::value;
+        internal::has_cursor_member<_Type>::value;
 
     template<typename _Type>
     D_INLINE D_CONSTEXPR bool has_editing_v =
-        detail::has_editing_member<_Type>::value;
+        internal::has_editing_member<_Type>::value;
 
     template<typename _Type>
     D_INLINE D_CONSTEXPR bool is_focusable_v =
-        detail::has_focusable_flag<_Type>::value;
+        internal::has_focusable_flag<_Type>::value;
 
     // is_table_view
     //   trait: detects whether a type satisfies the table_view surface.
     template<typename _Type>
     struct is_table_view : std::conjunction<
-        detail::has_num_rows_member<_Type>,
-        detail::has_num_cols_member<_Type>,
-        detail::has_columns_member<_Type>,
-        detail::has_get_cell_member<_Type>,
-        detail::has_cursor_member<_Type>,
-        detail::has_focusable_flag<_Type>>
+        internal::has_num_rows_member<_Type>,
+        internal::has_num_cols_member<_Type>,
+        internal::has_columns_member<_Type>,
+        internal::has_get_cell_member<_Type>,
+        internal::has_cursor_member<_Type>,
+        internal::has_focusable_flag<_Type>>
     {};
 
     template<typename _Type>
     D_INLINE D_CONSTEXPR bool is_table_view_v =
         is_table_view<_Type>::value;
-}
+NS_END  // internal
 
 
 NS_END  // component

@@ -339,13 +339,13 @@ fos_effective_save_path(
     if constexpr (has_fos(_OS, fos_auto_extension))
     {
         if ( (!_fd.default_extension.empty()) &&
-             (!fos_detail::has_extension(name, _fd.default_extension)) )
+             (!fos_internal::has_extension(name, _fd.default_extension)) )
         {
             name += _fd.default_extension;
         }
     }
 
-    return fos_detail::join_path(_fd.current_path, name);
+    return fos_internal::join_path(_fd.current_path, name);
 }
 
 // fos_effective_open_paths
@@ -574,7 +574,7 @@ fos_reopen(
 // ===============================================================================
 
 namespace file_open_save_traits {
-namespace detail {
+NS_INTERNAL
 
     template <typename, typename = void>
     struct has_mode_member : std::false_type {};
@@ -611,23 +611,23 @@ namespace detail {
         decltype(std::declval<_Type>().on_open_accepted)
     >> : std::true_type {};
 
-}   // namespace detail
+}   // NS_INTERNAL
 
 template <typename _Type>
 inline constexpr bool has_mode_v =
-    detail::has_mode_member<_Type>::value;
+    internal::has_mode_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_default_extension_v =
-    detail::has_default_extension_member<_Type>::value;
+    internal::has_default_extension_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_proposed_filename_v =
-    detail::has_proposed_filename_member<_Type>::value;
+    internal::has_proposed_filename_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_on_save_accepted_v =
-    detail::has_on_save_accepted_member<_Type>::value;
+    internal::has_on_save_accepted_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_on_open_accepted_v =
-    detail::has_on_open_accepted_member<_Type>::value;
+    internal::has_on_open_accepted_member<_Type>::value;
 
 // is_file_open_save_dialog
 //   type trait: satisfies file_dialog AND carries a mode + either
@@ -635,10 +635,10 @@ inline constexpr bool has_on_open_accepted_v =
 template <typename _Type>
 struct is_file_open_save_dialog : std::conjunction<
     file_dialog_traits::is_file_dialog<_Type>,
-    detail::has_mode_member<_Type>,
+    internal::has_mode_member<_Type>,
     std::disjunction<
-        detail::has_on_save_accepted_member<_Type>,
-        detail::has_on_open_accepted_member<_Type>>
+        internal::has_on_save_accepted_member<_Type>,
+        internal::has_on_open_accepted_member<_Type>>
 >
 {};
 

@@ -538,7 +538,7 @@ ftd_reconcile_selection(
         }
     }
 
-    font_dialog_detail::mark_preview_stale(_fd);
+    font_dialog_internal::mark_preview_stale(_fd);
 
     return;
 }
@@ -602,7 +602,7 @@ ftd_set_family(
         }
     }
 
-    font_dialog_detail::mark_preview_stale(_fd);
+    font_dialog_internal::mark_preview_stale(_fd);
 
     if (_fd.on_select_change)
     {
@@ -636,7 +636,7 @@ ftd_set_style(
         }
     }
 
-    font_dialog_detail::mark_preview_stale(_fd);
+    font_dialog_internal::mark_preview_stale(_fd);
 
     if (_fd.on_select_change)
     {
@@ -672,7 +672,7 @@ ftd_set_size(
 
     _fd.selection.size = _size;
 
-    font_dialog_detail::mark_preview_stale(_fd);
+    font_dialog_internal::mark_preview_stale(_fd);
 
     if (_fd.on_select_change)
     {
@@ -695,7 +695,7 @@ ftd_set_weight(
     _fd.selection.weight         = _w;
     _fd.selection.weight_numeric = 0;
 
-    font_dialog_detail::mark_preview_stale(_fd);
+    font_dialog_internal::mark_preview_stale(_fd);
 
     if (_fd.on_select_change)
     {
@@ -734,7 +734,7 @@ ftd_set_weight_numeric(
 
     _fd.selection.weight_numeric = _w;
 
-    font_dialog_detail::mark_preview_stale(_fd);
+    font_dialog_internal::mark_preview_stale(_fd);
 
     if (_fd.on_select_change)
     {
@@ -754,7 +754,7 @@ ftd_set_slant(
 {
     _fd.selection.slant = _s;
 
-    font_dialog_detail::mark_preview_stale(_fd);
+    font_dialog_internal::mark_preview_stale(_fd);
 
     if (_fd.on_select_change)
     {
@@ -802,7 +802,7 @@ ftd_clear_selection(
         _fd.selected_style_index = 0;
     }
 
-    font_dialog_detail::mark_preview_stale(_fd);
+    font_dialog_internal::mark_preview_stale(_fd);
 
     if (_fd.on_select_change)
     {
@@ -839,7 +839,7 @@ ftd_set_underline(
 
     _fd.selection.underline = _on;
 
-    font_dialog_detail::mark_preview_stale(_fd);
+    font_dialog_internal::mark_preview_stale(_fd);
 
     if (_fd.on_select_change)
     {
@@ -864,7 +864,7 @@ ftd_set_strikethrough(
 
     _fd.selection.strikethrough = _on;
 
-    font_dialog_detail::mark_preview_stale(_fd);
+    font_dialog_internal::mark_preview_stale(_fd);
 
     if (_fd.on_select_change)
     {
@@ -889,7 +889,7 @@ ftd_set_overline(
 
     _fd.selection.overline = _on;
 
-    font_dialog_detail::mark_preview_stale(_fd);
+    font_dialog_internal::mark_preview_stale(_fd);
 
     if (_fd.on_select_change)
     {
@@ -914,7 +914,7 @@ ftd_set_small_caps(
 
     _fd.selection.small_caps = _on;
 
-    font_dialog_detail::mark_preview_stale(_fd);
+    font_dialog_internal::mark_preview_stale(_fd);
 
     if (_fd.on_select_change)
     {
@@ -947,7 +947,7 @@ ftd_set_foreground(
 
     _fd.selection.foreground = std::move(_c);
 
-    font_dialog_detail::mark_preview_stale(_fd);
+    font_dialog_internal::mark_preview_stale(_fd);
 
     if (_fd.on_select_change)
     {
@@ -974,7 +974,7 @@ ftd_set_background(
     _fd.selection.background         = std::move(_c);
     _fd.selection.background_enabled = true;
 
-    font_dialog_detail::mark_preview_stale(_fd);
+    font_dialog_internal::mark_preview_stale(_fd);
 
     if (_fd.on_select_change)
     {
@@ -998,7 +998,7 @@ ftd_clear_background(
 
     _fd.selection.background_enabled = false;
 
-    font_dialog_detail::mark_preview_stale(_fd);
+    font_dialog_internal::mark_preview_stale(_fd);
 
     if (_fd.on_select_change)
     {
@@ -1026,7 +1026,7 @@ ftd_set_sample_text(
 
     _fd.sample_text = std::move(_text);
 
-    font_dialog_detail::mark_preview_stale(_fd);
+    font_dialog_internal::mark_preview_stale(_fd);
 
     return;
 }
@@ -1040,7 +1040,7 @@ ftd_invalidate_preview(
     font_dialog<_D, _DF, _FF>& _fd
 )
 {
-    font_dialog_detail::mark_preview_stale(_fd);
+    font_dialog_internal::mark_preview_stale(_fd);
 
     return;
 }
@@ -1265,7 +1265,7 @@ ftd_reopen(
 {
     _fd.last_error.clear();
 
-    font_dialog_detail::mark_preview_stale(_fd);
+    font_dialog_internal::mark_preview_stale(_fd);
 
     dlg_open(static_cast<dialog<_DF>&>(_fd));
 
@@ -1281,7 +1281,7 @@ ftd_reopen(
 // ===============================================================================
 
 namespace font_dialog_traits {
-namespace detail {
+NS_INTERNAL
 
     template <typename, typename = void>
     struct has_selection_member : std::false_type {};
@@ -1346,32 +1346,32 @@ namespace detail {
         decltype(std::declval<_Type>().favourites)
     >> : std::true_type {};
 
-}   // namespace detail
+}   // NS_INTERNAL
 
 template <typename _Type>
 inline constexpr bool has_selection_v =
-    detail::has_selection_member<_Type>::value;
+    internal::has_selection_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_families_v =
-    detail::has_families_member<_Type>::value;
+    internal::has_families_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_size_options_v =
-    detail::has_size_options_member<_Type>::value;
+    internal::has_size_options_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_style_options_v =
-    detail::has_style_options_member<_Type>::value;
+    internal::has_style_options_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_preview_v =
-    detail::has_preview_stale_member<_Type>::value;
+    internal::has_preview_stale_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_sample_edit_v =
-    detail::has_sample_text_member<_Type>::value;
+    internal::has_sample_text_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_recent_v =
-    detail::has_recent_member<_Type>::value;
+    internal::has_recent_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_favourites_v =
-    detail::has_favourites_member<_Type>::value;
+    internal::has_favourites_member<_Type>::value;
 
 // is_font_dialog
 //   type trait: has selection + families + selected_family_index.
@@ -1380,9 +1380,9 @@ inline constexpr bool has_favourites_v =
 // when it inherits dialog<>.
 template <typename _Type>
 struct is_font_dialog : std::conjunction<
-    detail::has_selection_member<_Type>,
-    detail::has_families_member<_Type>,
-    detail::has_selected_family_index_member<_Type>
+    internal::has_selection_member<_Type>,
+    internal::has_families_member<_Type>,
+    internal::has_selected_family_index_member<_Type>
 >
 {};
 
@@ -1394,7 +1394,7 @@ inline constexpr bool is_font_dialog_v =
 template <typename _Type>
 struct is_previewing_font_dialog : std::conjunction<
     is_font_dialog<_Type>,
-    detail::has_preview_stale_member<_Type>
+    internal::has_preview_stale_member<_Type>
 >
 {};
 

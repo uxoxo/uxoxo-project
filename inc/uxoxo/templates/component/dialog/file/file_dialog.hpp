@@ -944,7 +944,7 @@ fd_selected_entries(
 // ===============================================================================
 
 namespace file_dialog_traits {
-namespace detail {
+NS_INTERNAL
 
     template <typename, typename = void>
     struct has_current_path_member : std::false_type {};
@@ -1002,29 +1002,29 @@ namespace detail {
         decltype(std::declval<_Type>().filename_text)
     >> : std::true_type {};
 
-}   // namespace detail
+}   // NS_INTERNAL
 
 template <typename _Type>
 inline constexpr bool has_current_path_v =
-    detail::has_current_path_member<_Type>::value;
+    internal::has_current_path_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_entries_v =
-    detail::has_entries_member<_Type>::value;
+    internal::has_entries_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_view_mode_v =
-    detail::has_view_mode_member<_Type>::value;
+    internal::has_view_mode_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_filters_v =
-    detail::has_filters_member<_Type>::value;
+    internal::has_filters_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_bookmarks_v =
-    detail::has_bookmarks_member<_Type>::value;
+    internal::has_bookmarks_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_history_v =
-    detail::has_back_stack_member<_Type>::value;
+    internal::has_back_stack_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_filename_input_v =
-    detail::has_filename_text_member<_Type>::value;
+    internal::has_filename_text_member<_Type>::value;
 
 // is_file_dialog
 //   type trait: has current_path + entries + selected_indices + view_mode.
@@ -1033,10 +1033,10 @@ inline constexpr bool has_filename_input_v =
 // when it inherits dialog<>.
 template <typename _Type>
 struct is_file_dialog : std::conjunction<
-    detail::has_current_path_member<_Type>,
-    detail::has_entries_member<_Type>,
-    detail::has_selected_indices_member<_Type>,
-    detail::has_view_mode_member<_Type>
+    internal::has_current_path_member<_Type>,
+    internal::has_entries_member<_Type>,
+    internal::has_selected_indices_member<_Type>,
+    internal::has_view_mode_member<_Type>
 >
 {};
 
@@ -1048,7 +1048,7 @@ inline constexpr bool is_file_dialog_v =
 template <typename _Type>
 struct is_filtered_file_dialog : std::conjunction<
     is_file_dialog<_Type>,
-    detail::has_filters_member<_Type>
+    internal::has_filters_member<_Type>
 >
 {};
 
@@ -1060,7 +1060,7 @@ inline constexpr bool is_filtered_file_dialog_v =
 template <typename _Type>
 struct is_navigable_file_dialog : std::conjunction<
     is_file_dialog<_Type>,
-    detail::has_back_stack_member<_Type>
+    internal::has_back_stack_member<_Type>
 >
 {};
 

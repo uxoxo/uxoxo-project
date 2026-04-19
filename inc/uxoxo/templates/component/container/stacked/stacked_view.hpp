@@ -1679,62 +1679,62 @@ NS_END  // internal
 // -- page value aliases ---------------------------------------------------
 template <typename _Type>
 inline constexpr bool has_id_v =
-    detail::has_id_member<_Type>::value;
+    internal::has_id_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_title_v =
-    detail::has_title_member<_Type>::value;
+    internal::has_title_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_icon_v =
-    detail::has_icon_member<_Type>::value;
+    internal::has_icon_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_dirty_v =
-    detail::has_dirty_member<_Type>::value;
+    internal::has_dirty_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_loaded_v =
-    detail::has_loaded_member<_Type>::value;
+    internal::has_loaded_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_visit_count_v =
-    detail::has_visit_count_member<_Type>::value;
+    internal::has_visit_count_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_user_tag_v =
-    detail::has_user_tag_member<_Type>::value;
+    internal::has_user_tag_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_user_id_v =
-    detail::has_user_id_member<_Type>::value;
+    internal::has_user_id_member<_Type>::value;
 
 // -- control value aliases ------------------------------------------------
 template <typename _Type>
 inline constexpr bool has_pages_v =
-    detail::has_pages_member<_Type>::value;
+    internal::has_pages_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_selected_v =
-    detail::has_selected_member<_Type>::value;
+    internal::has_selected_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_bounds_v =
-    detail::has_bounds_member<_Type>::value;
+    internal::has_bounds_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_back_stack_v =
-    detail::has_back_stack_member<_Type>::value;
+    internal::has_back_stack_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_id_index_v =
-    detail::has_id_index_member<_Type>::value;
+    internal::has_id_index_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_locked_v =
-    detail::has_locked_member<_Type>::value;
+    internal::has_locked_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_transition_v =
-    detail::has_transition_member<_Type>::value;
+    internal::has_transition_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_will_leave_v =
-    detail::has_will_leave_member<_Type>::value;
+    internal::has_will_leave_member<_Type>::value;
 
 // -- shared aliases (delegate to component_traits) ------------------------
 template <typename _Type>
 inline constexpr bool has_enabled_v =
-    component_traits::has_enabled_v<_Type>;
+    has_enabled_v<_Type>;
 template <typename _Type>
 inline constexpr bool has_visible_v =
-    component_traits::has_visible_v<_Type>;
+    has_visible_v<_Type>;
 
 
 // -- composite traits -----------------------------------------------------
@@ -1744,9 +1744,9 @@ inline constexpr bool has_visible_v =
 // visible, and user_id.  The label/title/icon features are optional.
 template <typename _Type>
 struct is_stacked_page : std::conjunction<
-    component_traits::detail::has_enabled_member<_Type>,
-    component_traits::detail::has_visible_member<_Type>,
-    detail::has_user_id_member<_Type>
+    internal::has_enabled_member<_Type>,
+    internal::has_visible_member<_Type>,
+    internal::has_user_id_member<_Type>
 >
 {};
 
@@ -1759,11 +1759,11 @@ inline constexpr bool is_stacked_page_v =
 // selected, bounds, enabled, and visible.
 template <typename _Type>
 struct is_stacked_view : std::conjunction<
-    detail::has_pages_member<_Type>,
-    detail::has_selected_member<_Type>,
-    detail::has_bounds_member<_Type>,
-    component_traits::detail::has_enabled_member<_Type>,
-    component_traits::detail::has_visible_member<_Type>
+    internal::has_pages_member<_Type>,
+    internal::has_selected_member<_Type>,
+    internal::has_bounds_member<_Type>,
+    internal::has_enabled_member<_Type>,
+    internal::has_visible_member<_Type>
 >
 {};
 
@@ -1775,7 +1775,7 @@ inline constexpr bool is_stacked_view_v =
 template <typename _Type>
 struct is_history_stacked_view : std::conjunction<
     is_stacked_view<_Type>,
-    detail::has_back_stack_member<_Type>
+    internal::has_back_stack_member<_Type>
 >
 {};
 
@@ -1787,7 +1787,7 @@ inline constexpr bool is_history_stacked_view_v =
 template <typename _Type>
 struct is_indexed_stacked_view : std::conjunction<
     is_stacked_view<_Type>,
-    detail::has_id_index_member<_Type>
+    internal::has_id_index_member<_Type>
 >
 {};
 
@@ -1799,7 +1799,7 @@ inline constexpr bool is_indexed_stacked_view_v =
 template <typename _Type>
 struct is_lockable_stacked_view : std::conjunction<
     is_stacked_view<_Type>,
-    detail::has_locked_member<_Type>
+    internal::has_locked_member<_Type>
 >
 {};
 
@@ -1811,7 +1811,7 @@ inline constexpr bool is_lockable_stacked_view_v =
 template <typename _Type>
 struct is_animated_stacked_view : std::conjunction<
     is_stacked_view<_Type>,
-    detail::has_transition_member<_Type>
+    internal::has_transition_member<_Type>
 >
 {};
 
@@ -1823,7 +1823,7 @@ inline constexpr bool is_animated_stacked_view_v =
 template <typename _Type>
 struct is_veto_stacked_view : std::conjunction<
     is_stacked_view<_Type>,
-    detail::has_will_leave_member<_Type>
+    internal::has_will_leave_member<_Type>
 >
 {};
 

@@ -44,8 +44,6 @@ NS_UXOXO
 NS_COMPONENT
 
 
-namespace component_traits {
-
 // ===============================================================================
 //  1.  COMMON MEMBER DETECTORS
 // ===============================================================================
@@ -55,7 +53,7 @@ namespace component_traits {
 //   Each detector follows the standard uxoxo SFINAE pattern:
 // false_type primary template, void_t specialization.
 
-namespace detail {
+NS_INTERNAL
 
     // -- value --------------------------------------------------------
     template <typename, typename = void>
@@ -121,11 +119,14 @@ namespace detail {
 
     // -- focusable (static constexpr bool) ----------------------------
     template <typename, typename = void>
-    struct has_focusable_flag : std::false_type {};
+    struct has_focusable_flag : std::false_type 
+    {};
+
     template <typename _Type>
-    struct has_focusable_flag<_Type, std::void_t<
-        decltype(_Type::focusable)
-    >> : std::true_type {};
+    struct has_focusable_flag<_Type,
+                              std::void_t<decltype(_Type::focusable)>>
+        : std::true_type 
+    {};
 
     // -- scrollable (static constexpr bool) ---------------------------
     template <typename, typename = void>
@@ -160,7 +161,7 @@ namespace detail {
         : std::bool_constant<_Type::scrollable> {};
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  3,  MIXIN DETECTORS
@@ -209,10 +210,10 @@ namespace detail {
         decltype(std::declval<_Type>().copy_requested)
     >> : std::true_type {};
 
-}   // namespace detail
+}   // NS_INTERNAL
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  VALUE ALIASES
@@ -222,59 +223,59 @@ namespace detail {
 // -- core members ---------------------------------------------------------
 template <typename _Type>
 inline constexpr bool has_value_v =
-    detail::has_value_member<_Type>::value;
+    internal::has_value_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_enabled_v =
-    detail::has_enabled_member<_Type>::value;
+    internal::has_enabled_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_visible_v =
-    detail::has_visible_member<_Type>::value;
+    internal::has_visible_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_read_only_v =
-    detail::has_read_only_member<_Type>::value;
+    internal::has_read_only_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_active_v =
-    detail::has_active_member<_Type>::value;
+    internal::has_active_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_on_commit_v =
-    detail::has_on_commit_member<_Type>::value;
+    internal::has_on_commit_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_on_change_v =
-    detail::has_on_change_member<_Type>::value;
+    internal::has_on_change_member<_Type>::value;
 
 // -- capability flags -----------------------------------------------------
 template <typename _Type>
 inline constexpr bool has_focusable_v =
-    detail::has_focusable_flag<_Type>::value;
+    internal::has_focusable_flag<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_scrollable_v =
-    detail::has_scrollable_flag<_Type>::value;
+    internal::has_scrollable_flag<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_features_v =
-    detail::has_features_field<_Type>::value;
+    internal::has_features_field<_Type>::value;
 template <typename _Type>
 inline constexpr bool is_focusable_v =
-    detail::is_focusable_impl<_Type>::value;
+    internal::is_focusable_impl<_Type>::value;
 template <typename _Type>
 inline constexpr bool is_scrollable_v =
-    detail::is_scrollable_impl<_Type>::value;
+    internal::is_scrollable_impl<_Type>::value;
 
 // -- mixin members --------------------------------------------------------
 template <typename _Type>
 inline constexpr bool has_label_v =
-    detail::has_label_member<_Type>::value;
+    internal::has_label_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_default_value_v =
-    detail::has_default_value_member<_Type>::value;
+    internal::has_default_value_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_previous_value_v =
-    detail::has_previous_value_member<_Type>::value;
+    internal::has_previous_value_member<_Type>::value;
 template <typename _Type>
 inline constexpr bool has_copy_requested_v =
-    detail::has_copy_requested_member<_Type>::value;
+    internal::has_copy_requested_member<_Type>::value;
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  4.  COMPOSITE TRAITS
@@ -288,10 +289,10 @@ inline constexpr bool has_copy_requested_v =
 // a specific base class.
 template <typename _Type>
 struct is_component : std::bool_constant<
-    ( detail::has_enabled_member<_Type>::value ||
-      detail::has_visible_member<_Type>::value )  &&
-    ( detail::has_value_member<_Type>::value   ||
-      detail::has_features_field<_Type>::value )
+    ( internal::has_enabled_member<_Type>::value ||
+      internal::has_visible_member<_Type>::value )  &&
+    ( internal::has_value_member<_Type>::value   ||
+      internal::has_features_field<_Type>::value )
 >
 {};
 
@@ -304,10 +305,10 @@ inline constexpr bool is_component_v =
 // Matches input_control and text_input.
 template <typename _Type>
 struct is_input_like : std::conjunction<
-    detail::has_value_member<_Type>,
-    detail::has_enabled_member<_Type>,
-    detail::has_read_only_member<_Type>,
-    detail::is_focusable_impl<_Type>
+    internal::has_value_member<_Type>,
+    internal::has_enabled_member<_Type>,
+    internal::has_read_only_member<_Type>,
+    internal::is_focusable_impl<_Type>
 >
 {};
 
@@ -320,10 +321,10 @@ inline constexpr bool is_input_like_v =
 // Matches output_control.
 template <typename _Type>
 struct is_output_like : std::conjunction<
-    detail::has_value_member<_Type>,
-    detail::has_enabled_member<_Type>,
-    detail::has_visible_member<_Type>,
-    detail::has_on_change_member<_Type>
+    internal::has_value_member<_Type>,
+    internal::has_enabled_member<_Type>,
+    internal::has_visible_member<_Type>,
+    internal::has_on_change_member<_Type>
 >
 {};
 
@@ -336,7 +337,7 @@ inline constexpr bool is_output_like_v =
 template <typename _Type>
 struct is_labeled : std::conjunction<
     is_component<_Type>,
-    detail::has_label_member<_Type>
+    internal::has_label_member<_Type>
 >
 {};
 
@@ -349,7 +350,7 @@ inline constexpr bool is_labeled_v =
 template <typename _Type>
 struct is_clearable : std::conjunction<
     is_component<_Type>,
-    detail::has_default_value_member<_Type>
+    internal::has_default_value_member<_Type>
 >
 {};
 
@@ -362,8 +363,8 @@ inline constexpr bool is_clearable_v =
 template <typename _Type>
 struct is_undoable : std::conjunction<
     is_component<_Type>,
-    detail::has_previous_value_member<_Type>,
-    detail::has_has_previous_member<_Type>
+    internal::has_previous_value_member<_Type>,
+    internal::has_has_previous_member<_Type>
 >
 {};
 
@@ -376,7 +377,7 @@ inline constexpr bool is_undoable_v =
 template <typename _Type>
 struct is_copyable : std::conjunction<
     is_component<_Type>,
-    detail::has_copy_requested_member<_Type>
+    internal::has_copy_requested_member<_Type>
 >
 {};
 
@@ -385,7 +386,7 @@ inline constexpr bool is_copyable_v =
     is_copyable<_Type>::value;
 
 
-/*****************************************************************************/
+
 
 // ===============================================================================
 //  5  COMPONENT CLASS
@@ -404,63 +405,53 @@ struct component_class
 {
     // -- core state ---------------------------------------------------
     static constexpr bool has_value     =
-        detail::has_value_member<_Type>::value;
+        internal::has_value_member<_Type>::value;
     static constexpr bool has_enabled   =
-        detail::has_enabled_member<_Type>::value;
+        internal::has_enabled_member<_Type>::value;
     static constexpr bool has_visible   =
-        detail::has_visible_member<_Type>::value;
+        internal::has_visible_member<_Type>::value;
     static constexpr bool has_read_only =
-        detail::has_read_only_member<_Type>::value;
+        internal::has_read_only_member<_Type>::value;
     static constexpr bool has_active    =
-        detail::has_active_member<_Type>::value;
+        internal::has_active_member<_Type>::value;
 
     // -- callbacks ----------------------------------------------------
     static constexpr bool has_on_commit =
-        detail::has_on_commit_member<_Type>::value;
+        internal::has_on_commit_member<_Type>::value;
     static constexpr bool has_on_change =
-        detail::has_on_change_member<_Type>::value;
+        internal::has_on_change_member<_Type>::value;
 
     // -- capability flags ---------------------------------------------
     static constexpr bool has_focusable  =
-        detail::has_focusable_flag<_Type>::value;
+        internal::has_focusable_flag<_Type>::value;
     static constexpr bool has_scrollable =
-        detail::has_scrollable_flag<_Type>::value;
+        internal::has_scrollable_flag<_Type>::value;
     static constexpr bool has_features   =
-        detail::has_features_field<_Type>::value;
+        internal::has_features_field<_Type>::value;
     static constexpr bool focusable      =
-        detail::is_focusable_impl<_Type>::value;
+        internal::is_focusable_impl<_Type>::value;
     static constexpr bool scrollable     =
-        detail::is_scrollable_impl<_Type>::value;
+        internal::is_scrollable_impl<_Type>::value;
 
     // -- mixin capabilities -------------------------------------------
     static constexpr bool has_label          =
-        detail::has_label_member<_Type>::value;
+        internal::has_label_member<_Type>::value;
     static constexpr bool has_default_value  =
-        detail::has_default_value_member<_Type>::value;
+        internal::has_default_value_member<_Type>::value;
     static constexpr bool has_previous_value =
-        detail::has_previous_value_member<_Type>::value;
+        internal::has_previous_value_member<_Type>::value;
     static constexpr bool has_copy_requested =
-        detail::has_copy_requested_member<_Type>::value;
+        internal::has_copy_requested_member<_Type>::value;
 
     // -- classifications ----------------------------------------------
-    static constexpr bool is_component =
-        component_traits::is_component<_Type>::value;
-    static constexpr bool is_input     =
-        is_input_like<_Type>::value;
-    static constexpr bool is_output    =
-        is_output_like<_Type>::value;
-    static constexpr bool is_labeled   =
-        component_traits::is_labeled<_Type>::value;
-    static constexpr bool is_clearable =
-        component_traits::is_clearable<_Type>::value;
-    static constexpr bool is_undoable  =
-        component_traits::is_undoable<_Type>::value;
-    static constexpr bool is_copyable  =
-        component_traits::is_copyable<_Type>::value;
+    static constexpr bool is_component = is_component_v<_Type>;
+    static constexpr bool is_input     = is_input_like_v<_Type>;
+    static constexpr bool is_output    = is_output_like_v<_Type>;
+    static constexpr bool is_labeled   = is_labeled_v<_Type>;
+    static constexpr bool is_clearable = is_clearable_v<_Type>;
+    static constexpr bool is_undoable  = is_undoable_v<_Type>;
+    static constexpr bool is_copyable  = is_copyable_v<_Type>;
 };
-
-
-}   // namespace component_traits
 
 
 NS_END  // component
