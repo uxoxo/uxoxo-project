@@ -18,7 +18,7 @@
 *   - Refresh / commit callbacks wired through the view
 *   - Dirty / stale indicator queries
 *   - Read-only enforcement for views and disconnected tables
-*   - Column type-based default alignment (numeric → right, text → left)
+*   - Column type-based default alignment (numeric -> right, text -> left)
 *
 *   Structure:
 *     1.   database view state (extended state beyond table_view)
@@ -32,7 +32,8 @@
 *   REQUIRES: C++17 or later.
 *
 *
-* path:      /inc/uxoxo/component/table/database_table_view.hpp
+* path:      /inc/uxoxo/templates/component/table/database/
+*                database_table_view.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.05
 *******************************************************************************/
@@ -40,6 +41,7 @@
 #ifndef UXOXO_COMPONENT_DATABASE_TABLE_VIEW_
 #define UXOXO_COMPONENT_DATABASE_TABLE_VIEW_ 1
 
+// std
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -47,14 +49,18 @@
 #include <type_traits>
 #include <utility>
 #include <vector>
-
-#include <uxoxo>
-#include "table_view.hpp"
+// djinterp
+#include <djinterp/core/djinterp.hpp>
+#include <djinterp/core/text/text_align.hpp>
+// uxoxo
+#include "../../../uxoxo.hpp"
+#include "../table/table_view.hpp"
 
 
 NS_UXOXO
 NS_COMPONENT
 
+using djinterp::text_alignment;
 
 // =============================================================================
 //  1.  DATABASE VIEW STATE
@@ -101,7 +107,7 @@ struct database_table_state
 // live database_table.  The database_table must outlive the view.
 //
 //   _DatabaseTable:   any database_table<Connection, ValueType, Config>
-//   _ToString:  (const value_type&) → std::string; defaults to
+//   _ToString:  (const value_type&) -> std::string; defaults to
 //               value_to_string from database_common.hpp.
 
 NS_INTERNAL
@@ -553,9 +559,9 @@ database_table_view_begin_edit(
         return false;
     }
 
-    return table_viewbegin_edit(_table_view,
-                         _row,
-                         _column);
+    return table_view_begin_edit(_table_view,
+                                 _row,
+                                 _column);
 }
 
 // database_table_view_begin_edit_at_cursor
@@ -581,7 +587,7 @@ database_table_view_commit_edit(
     database_table_state& _state
 )
 {
-    if (!table_viewcommit_edit(_table_view))
+    if (!table_view_commit_edit(_table_view))
     {
         return false;
     }
