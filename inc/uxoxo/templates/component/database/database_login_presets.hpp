@@ -76,7 +76,7 @@ constexpr unsigned dlf_token_auth =
 // -- embedded / file-backed -------------------------------------------
 
 // sqlite_database_login
-//   alias: SQLite — just a file path (the "database name" slot); no
+//   alias: SQLite - just a file path (the "database name" slot); no
 // network, no credentials, no SSL.
 template <unsigned _Feat = dlf_embedded>
 using sqlite_database_login =
@@ -86,37 +86,37 @@ using sqlite_database_login =
 // -- network RDBMS ----------------------------------------------------
 
 // mariadb_database_login
-//   alias: MariaDB — classic network RDBMS with charset + SSL.
+//   alias: MariaDB - classic network RDBMS with charset + SSL.
 template <unsigned _Feat = dlf_classic_rdbms>
 using mariadb_database_login =
     database_login<djinterp::database::database_type::mariadb, _Feat>;
 
 // mysql_database_login
-//   alias: MySQL — classic network RDBMS with charset + SSL.
+//   alias: MySQL - classic network RDBMS with charset + SSL.
 template <unsigned _Feat = dlf_classic_rdbms>
 using mysql_database_login =
     database_login<djinterp::database::database_type::mysql, _Feat>;
 
 // postgresql_database_login
-//   alias: PostgreSQL — schema-aware network RDBMS.
+//   alias: PostgreSQL - schema-aware network RDBMS.
 template <unsigned _Feat = dlf_schema_rdbms>
 using postgresql_database_login =
     database_login<djinterp::database::database_type::postgresql, _Feat>;
 
 // oracle_database_login
-//   alias: Oracle — schema-aware network RDBMS.
+//   alias: Oracle - schema-aware network RDBMS.
 template <unsigned _Feat = dlf_schema_rdbms>
 using oracle_database_login =
     database_login<djinterp::database::database_type::oracle, _Feat>;
 
 // mssql_database_login
-//   alias: Microsoft SQL Server — schema-aware network RDBMS.
+//   alias: Microsoft SQL Server - schema-aware network RDBMS.
 template <unsigned _Feat = dlf_schema_rdbms>
 using mssql_database_login =
     database_login<djinterp::database::database_type::mssql, _Feat>;
 
 // db2_database_login
-//   alias: IBM DB2 — classic network RDBMS.
+//   alias: IBM DB2 - classic network RDBMS.
 template <unsigned _Feat = dlf_classic_rdbms>
 using db2_database_login =
     database_login<djinterp::database::database_type::db2, _Feat>;
@@ -125,20 +125,20 @@ using db2_database_login =
 // -- document / NoSQL -------------------------------------------------
 
 // mongodb_database_login
-//   alias: MongoDB — canonical form is a URI; username/password/host
+//   alias: MongoDB - canonical form is a URI; username/password/host
 // surfaced for discrete-entry UIs.
 template <unsigned _Feat = dlf_uri_first>
 using mongodb_database_login =
     database_login<djinterp::database::database_type::mongodb, _Feat>;
 
 // couchdb_database_login
-//   alias: CouchDB — URI-first with an optional discrete database slot.
+//   alias: CouchDB - URI-first with an optional discrete database slot.
 template <unsigned _Feat = (dlf_uri_first | dlf_database_name)>
 using couchdb_database_login =
     database_login<djinterp::database::database_type::couchdb, _Feat>;
 
 // arangodb_database_login
-//   alias: ArangoDB — classic network surface plus a database-name
+//   alias: ArangoDB - classic network surface plus a database-name
 // (tenant) slot.
 template <unsigned _Feat = (dlf_user_pass | dlf_network | dlf_ssl)>
 using arangodb_database_login =
@@ -148,14 +148,14 @@ using arangodb_database_login =
 // -- key-value / token-auth -------------------------------------------
 
 // redis_database_login
-//   alias: Redis — password-only auth (pre-6.0 semantics); URI
+//   alias: Redis - password-only auth (pre-6.0 semantics); URI
 // supported for cluster endpoints.
 template <unsigned _Feat = (dlf_password | dlf_host | dlf_port | dlf_ssl)>
 using redis_database_login =
     database_login<djinterp::database::database_type::redis, _Feat>;
 
 // firebase_database_login
-//   alias: Firebase — API key carried in the password slot, endpoint
+//   alias: Firebase - API key carried in the password slot, endpoint
 // in the URI slot.
 template <unsigned _Feat = dlf_token_auth>
 using firebase_database_login =
@@ -165,13 +165,13 @@ using firebase_database_login =
 // -- graph / wide-column ----------------------------------------------
 
 // neo4j_database_login
-//   alias: Neo4j — URI-first graph database.
+//   alias: Neo4j - URI-first graph database.
 template <unsigned _Feat = dlf_uri_first>
 using neo4j_database_login =
     database_login<djinterp::database::database_type::neo4j, _Feat>;
 
 // cassandra_database_login
-//   alias: Cassandra — network + keyspace (database-name slot) + SSL.
+//   alias: Cassandra - network + keyspace (database-name slot) + SSL.
 template <unsigned _Feat = (dlf_user_pass | dlf_network | dlf_ssl)>
 using cassandra_database_login =
     database_login<djinterp::database::database_type::cassandra, _Feat>;

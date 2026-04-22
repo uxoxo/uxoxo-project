@@ -11,7 +11,7 @@
 *
 *   The base identity + network + generic-target slots are inherited
 * intact from dbl_form_base<_Feat> via the form_append_slots_t utility
-* in database_login.hpp — so the existing dbl_tag::* accessors, dbl_*
+* in database_login.hpp - so the existing dbl_tag::* accessors, dbl_*
 * free functions, and fm_* / tc_* form-builder vocabulary all work on
 * mysql_login unchanged.
 *
@@ -54,8 +54,8 @@
 #include <djinterp/core/db/mysql.hpp>
 #include <djinterp/core/db/mysql_common.hpp>
 // uxoxo
-#include "../../../uxoxo.hpp"
-#include "./database_login.hpp"
+#include "../../../../uxoxo.hpp"
+#include "../database_login.hpp"
 
 
 NS_UXOXO
@@ -217,7 +217,7 @@ namespace mylf_tag
 // ===============================================================================
 //   The MySQL vendor slots are appended to dbl_form_base<_Feat> via the
 // form_append_slots_t utility.  The resulting form<> carries the full
-// union of base + vendor slots under a single _Feat — dlf_* bits gate
+// union of base + vendor slots under a single _Feat - dlf_* bits gate
 // the base slots, mylf_* bits gate the vendor slots.
 
 NS_INTERNAL
@@ -331,9 +331,9 @@ struct mysql_login : internal::mysql_login_form_base<_Feat>
 private:
     /*
     apply_vendor_defaults_
-      Seeds enabled slots from the MySQL vendor contract — classic SQL
+      Seeds enabled slots from the MySQL vendor contract - classic SQL
     port 3306, X Protocol port 33060, ssl_mode::preferred, charset
-    "utf8mb4" — plus the base host / port defaults from
+    "utf8mb4" - plus the base host / port defaults from
     vendor_traits<database_type::mysql>.  Only slots enabled by _Feat
     are touched; every other branch elides at compile time.
 
@@ -390,7 +390,7 @@ private:
 // ===============================================================================
 //   Setters for the MySQL-specific slots; validate and config-extract
 // entry points.  The dbl_* setters from database_login.hpp continue to
-// work on mysql_login for the inherited base slots — these free
+// work on mysql_login for the inherited base slots - these free
 // functions only cover slots not present in the base.
 
 // ml_set_ssl_mode
@@ -517,7 +517,7 @@ ml_add_connect_attr(
 // ml_validate
 //   function: validate every enabled input field and return true iff
 // all pass.  Delegates to dbl_validate for the base slots, applied to
-// the upcast form — the mysql_login's extra slots (text_inputs without
+// the upcast form - the mysql_login's extra slots (text_inputs without
 // tif_validation, bools, aggregates) are skipped as trivially valid.
 template <unsigned _F>
 bool

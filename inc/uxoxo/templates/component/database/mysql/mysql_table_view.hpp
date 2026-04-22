@@ -14,7 +14,7 @@
 *     to style JSON cells distinctly from plain text
 *   - table maintenance operations: ANALYZE, OPTIMIZE, CHECK
 *   - compile-time json_is_native query (always true for MySQL, false
-*     for MariaDB's LONGTEXT alias — useful when rendering shared
+*     for MariaDB's LONGTEXT alias - useful when rendering shared
 *     MySQL-family UI)
 *
 *   mysql_table_state publicly inherits from database_table_state.
@@ -252,7 +252,7 @@ mysql_table_view_bind(
 
 // mysql_table_view_set_optimizer_hint
 //   function: sets the optimizer hint string injected into SELECT
-// queries.  The hint must not include the /*+  */ delimiters —
+// queries.  The hint must not include the /*+  */ delimiters -
 // they are supplied by the underlying query builder.
 D_INLINE void
 mysql_table_view_set_optimizer_hint(

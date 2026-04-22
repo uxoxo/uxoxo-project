@@ -1,0 +1,451 @@
+(* ========================================================================= *)
+(* uxoxo DSL Grammar                                                         *)
+(*                                                                           *)
+(* Formal grammar specification for the expression language embedded in     *)
+(* the uxoxo binding framework.  This document is the reference — the       *)
+(* hand-written parser (parse_dsl.hpp) implements it; any future parser      *)
+(* generator should produce a parser equivalent to it.                      *)
+(*                                                                           *)
+(* Format: ISO/IEC 14977 EBNF, with a small number of conventions described *)
+(* in the notation section below.                                           *)
+(*                                                                           *)
+(* Contents:                                                                 *)
+(*   1.  Notation                                                            *)
+(*   2.  Lexical grammar (tokens)                                            *)
+(*   3.  Syntactic grammar (expressions)                                     *)
+(*   4.  Precedence and associativity summary                                *)
+(*   5.  Disambiguation rules                                                *)
+(*   6.  Semantic notes                                                      *)
+(*                                                                           *)
+(* author:  Samuel 'teer' Neal-Blim                                          *)
+(* date:    2026.04.17                                                       *)
+(* ========================================================================= *)
+
+
+(* ========================================================================= *)
+(* 1.   NOTATION                                                             *)
+(* ========================================================================= *)
+
+(*
+  Standard ISO 14977 EBNF operators used here:
+
+    rule = production ;    (* rule definition *)
+    a, b                   (* concatenation *)
+    a | b                  (* alternation *)
+    [ a ]                  (* optional *)
+    { a }                  (* zero or more *)
+    ( a )                  (* grouping *)
+    "literal"              (* terminal literal *)
+    ? description ?        (* informal description of a terminal set *)
+
+  Conventions specific to this grammar:
+
+    - UPPER_CASE names are lexical tokens (defined in section 2).
+    - lower_case names are syntactic productions (defined in section 3).
+    - Keyword tokens are quoted literals ("where", etc.).
+    - Punctuation is quoted ("." "," "(" etc.).
+    - Whitespace is not a token — the lexer discards it between tokens
+      and it never appears in the syntactic grammar.
+    - The grammar does not use EBNF exception notation; where a
+      restriction is needed, it is stated in English alongside the rule.
+*)
+
+
+(* ========================================================================= *)
+(* 2.   LEXICAL GRAMMAR                                                      *)
+(* ========================================================================= *)
+
+(* ------------------------------------------------------------------------- *)
+(* 2.1  Character classes                                                    *)
+(* ------------------------------------------------------------------------- *)
+
+digit       = ? any character in the range '0'..'9' ? ;
+
+alpha       = ? any character in the ranges 'a'..'z' or 'A'..'Z' ? ;
+
+alnum       = alpha | digit ;
+
+
+(* ------------------------------------------------------------------------- *)
+(* 2.2  Whitespace                                                           *)
+(* ------------------------------------------------------------------------- *)
+
+whitespace  = ? space | tab | newline | carriage-return ? ;
+
+(* Whitespace is freely permitted between any two tokens and is      *)
+(* discarded by the lexer.  There are no comment syntaxes in v1.     *)
+
+
+(* ------------------------------------------------------------------------- *)
+(* 2.3  Literal tokens                                                       *)
+(* ------------------------------------------------------------------------- *)
+
+INT_LIT     = digit, { digit } ;
+
+(* A float requires at least one digit on each side of the decimal   *)
+(* point.  This keeps `a.b` unambiguous as a member access (the      *)
+(* lexer never considers `.b` the tail of a float) and `1.x` as      *)
+(* `1` `.` `x` (int then member access).                             *)
+FLOAT_LIT   = digit, { digit }, ".", digit, { digit } ;
+
+(* String literals use double quotes.  Recognized escape sequences:  *)
+(*   \" \\ \n \t \r \0                                               *)
+(* Any other backslash sequence is a lex error.  Unterminated        *)
+(* strings are a lex error.                                          *)
+STRING_LIT  = '"', { ? any character except '"' or '\' ? | escape }, '"' ;
+
+escape      = "\", ( '"' | "\" | "n" | "t" | "r" | "0" ) ;
+
+BOOL_LIT    = "true" | "false" ;
+
+
+(* ------------------------------------------------------------------------- *)
+(* 2.4  Identifiers and keywords                                             *)
+(* ------------------------------------------------------------------------- *)
+
+(* IDENT matches any word token that is not a reserved hard keyword. *)
+(* The lexer additionally tags soft-keyword words with their         *)
+(* keyword kind (KW_WHERE etc.), but those tokens behave as IDENT    *)
+(* in member-name position (see section 5.1).                        *)
+IDENT       = ( alpha | "_" ), { alnum | "_" } ;
+
+(* Reserved keyword words.  The lexer emits a dedicated token kind   *)
+(* for each instead of IDENT.                                        *)
+KW_WHERE    = "where" ;
+KW_SELECT   = "select" ;
+KW_COUNT    = "count" ;
+KW_ANY      = "any" ;
+KW_ALL      = "all" ;
+KW_AND      = "and" | "&&" ;    (* symbolic and word form both map *)
+KW_OR       = "or"  | "||" ;    (* to the same token kind         *)
+KW_NOT      = "not" | "!" ;
+
+
+(* ------------------------------------------------------------------------- *)
+(* 2.5  Punctuation and operators                                            *)
+(* ------------------------------------------------------------------------- *)
+
+PUNCT_DOT       = "." ;
+PUNCT_COMMA     = "," ;
+PUNCT_LPAREN    = "(" ;
+PUNCT_RPAREN    = ")" ;
+PUNCT_LBRACKET  = "[" ;
+PUNCT_RBRACKET  = "]" ;
+
+OP_PLUS         = "+" ;
+OP_MINUS        = "-" ;
+OP_STAR         = "*" ;
+OP_SLASH        = "/" ;
+OP_PERCENT      = "%" ;
+OP_EQ           = "==" ;
+OP_NE           = "!=" ;
+OP_LT           = "<" ;
+OP_LE           = "<=" ;
+OP_GT           = ">" ;
+OP_GE           = ">=" ;
+
+
+(* ------------------------------------------------------------------------- *)
+(* 2.6  Auxiliary productions                                                *)
+(* ------------------------------------------------------------------------- *)
+
+(* member_name — an identifier used in member-access position.       *)
+(* Accepts IDENT plus the soft keywords (see section 5.1).           *)
+(* Does NOT accept KW_TRUE / KW_FALSE — booleans are literal tokens, *)
+(* not keywords, and remain reserved in every context.               *)
+member_name = IDENT
+            | KW_WHERE  | KW_SELECT | KW_COUNT  | KW_ANY | KW_ALL
+            | KW_AND    | KW_OR     | KW_NOT ;
+
+
+(* ========================================================================= *)
+(* 3.   SYNTACTIC GRAMMAR                                                    *)
+(* ========================================================================= *)
+
+(* ------------------------------------------------------------------------- *)
+(* 3.1  Entry point                                                          *)
+(* ------------------------------------------------------------------------- *)
+
+(* A DSL expression is a single or_expr followed by end-of-stream.   *)
+(* The parser surface exposes two entry points:                      *)
+(*   parse_expression — accepts the full grammar below.              *)
+(*   parse_path       — accepts only the path subset (see 3.7).      *)
+expression      = or_expr ;
+
+
+(* ------------------------------------------------------------------------- *)
+(* 3.2  Operator expressions (stratified by precedence)                      *)
+(* ------------------------------------------------------------------------- *)
+
+(* All binary operators are left-associative.  The stratification    *)
+(* below encodes both precedence and left-associativity directly in  *)
+(* the grammar: each level defers to the next-tighter level for its  *)
+(* operands, and chains them with repetition.                        *)
+
+or_expr         = and_expr,        { KW_OR,  and_expr } ;
+
+and_expr        = equality_expr,   { KW_AND, equality_expr } ;
+
+equality_expr   = comparison_expr, { eq_op,  comparison_expr } ;
+
+comparison_expr = additive_expr,   { rel_op, additive_expr } ;
+
+additive_expr   = multiplicative_expr,
+                  { add_op, multiplicative_expr } ;
+
+multiplicative_expr
+                = unary_expr,      { mul_op, unary_expr } ;
+
+eq_op           = OP_EQ | OP_NE ;
+rel_op          = OP_LT | OP_LE | OP_GT | OP_GE ;
+add_op          = OP_PLUS | OP_MINUS ;
+mul_op          = OP_STAR | OP_SLASH | OP_PERCENT ;
+
+
+(* ------------------------------------------------------------------------- *)
+(* 3.3  Unary expressions                                                    *)
+(* ------------------------------------------------------------------------- *)
+
+(* Unary operators are right-associative and bind tighter than every *)
+(* binary operator but looser than postfix suffixes.                 *)
+unary_expr      = { OP_MINUS | KW_NOT }, postfix_expr ;
+
+
+(* ------------------------------------------------------------------------- *)
+(* 3.4  Postfix expressions: path + comprehension tail                       *)
+(* ------------------------------------------------------------------------- *)
+
+(* A postfix expression is a primary followed by any sequence of     *)
+(* member / index accesses (the "path tail"), optionally followed    *)
+(* by a chain of comprehension operators (the "comprehension tail"). *)
+(*                                                                   *)
+(* Path tails and comprehension tails can interleave only in that    *)
+(* order: path first, comprehensions second.  Once a comprehension   *)
+(* has been applied, no further member access on its result is       *)
+(* permitted without parenthesization:                               *)
+(*     (items where p count).max        (* rejected by the grammar *)*)
+(*     ((items where p count)).max      (* grammatical — parens    *)
+(*                                          restart the postfix   *) *)
+postfix_expr    = primary_expr, { path_suffix }, { comprehension } ;
+
+path_suffix     = member_suffix | index_suffix ;
+
+member_suffix   = PUNCT_DOT, member_name ;
+
+index_suffix    = PUNCT_LBRACKET, expression, PUNCT_RBRACKET ;
+
+
+(* ------------------------------------------------------------------------- *)
+(* 3.5  Comprehensions                                                       *)
+(* ------------------------------------------------------------------------- *)
+
+(* Comprehensions chain left-associatively:                          *)
+(*     xs where p select f count                                     *)
+(* parses as                                                         *)
+(*     (((xs where p) select f) count).                              *)
+(*                                                                   *)
+(* Body arities:                                                     *)
+(*     where  — body required                                        *)
+(*     select — body required                                        *)
+(*     count  — no body                                               *)
+(*     any    — body optional                                        *)
+(*     all    — body required                                        *)
+comprehension   = where_comp
+                | select_comp
+                | count_comp
+                | any_comp
+                | all_comp ;
+
+where_comp      = KW_WHERE,  comp_body ;
+select_comp     = KW_SELECT, comp_body ;
+count_comp      = KW_COUNT ;
+any_comp        = KW_ANY,   [ comp_body ] ;
+all_comp        = KW_ALL,    comp_body ;
+
+(* See section 5.2 for the body precedence restriction.              *)
+(* Formally the body is an expression of precedence level 3:         *)
+(*   logical-and and logical-or are NOT permitted as the top-level   *)
+(*   operator of a body; they must be parenthesized.                 *)
+comp_body       = comparison_expr ;
+
+
+(* ------------------------------------------------------------------------- *)
+(* 3.6  Primary expressions                                                  *)
+(* ------------------------------------------------------------------------- *)
+
+primary_expr    = IDENT
+                | literal
+                | PUNCT_LPAREN, expression, PUNCT_RPAREN ;
+
+literal         = INT_LIT
+                | FLOAT_LIT
+                | STRING_LIT
+                | BOOL_LIT ;
+
+
+(* ------------------------------------------------------------------------- *)
+(* 3.7  Path-only subset (parse_path entry point)                            *)
+(* ------------------------------------------------------------------------- *)
+
+(* parse_path accepts only expressions whose outer shape is a path:  *)
+(* an identifier followed by zero or more member/index suffixes.     *)
+(* The index body is still a full expression, so `nodes[i + 1]` is a *)
+(* valid path — only the top-level composition is restricted.        *)
+path_expr       = IDENT, { path_suffix } ;
+
+
+(* ========================================================================= *)
+(* 4.   PRECEDENCE AND ASSOCIATIVITY SUMMARY                                 *)
+(* ========================================================================= *)
+
+(*
+  Precedence levels (loosest to tightest).  All binary operators are
+  left-associative.  Unary operators are right-associative (nesting:
+  --x is -(-x), not (--)x).  Postfix operations are left-associative
+  (a.b.c is (a.b).c).
+
+    Level   Operators                           Associativity
+    -----   -----------------------             -------------
+      1     'or' '||'                           left
+      2     'and' '&&'                          left
+      3     '==' '!='                           left
+      4     '<' '<=' '>' '>='                   left
+      5     '+' '-'                             left
+      6     '*' '/' '%'                         left
+      7     unary '-' unary 'not' unary '!'     right  (prefix)
+      8     '.' '[' … ']'  (postfix)            left
+      9     comprehension tail                  left
+
+  Comprehensions attach as postfix elements tighter than level 8 but
+  cannot follow a path tail on the same chain — see section 3.4.
+*)
+
+
+(* ========================================================================= *)
+(* 5.   DISAMBIGUATION RULES                                                 *)
+(* ========================================================================= *)
+
+(* ------------------------------------------------------------------------- *)
+(* 5.1  Soft keywords                                                        *)
+(* ------------------------------------------------------------------------- *)
+
+(*
+  The tokens KW_WHERE, KW_SELECT, KW_COUNT, KW_ANY, KW_ALL, KW_AND,
+  KW_OR, and KW_NOT are reserved in operator and comprehension
+  positions only.  In member-name position (the identifier position
+  after PUNCT_DOT), they are accepted as identifier names.  This is
+  expressed in the grammar by the member_name production, which
+  accepts IDENT or any of those soft-keyword tokens.
+
+  KW_TRUE and KW_FALSE — more precisely the BOOL_LIT lexeme values —
+  are NOT soft.  They are literal tokens, not keywords, and accepting
+  them as names would introduce genuine ambiguity at expression level
+  (bare `true` could be the identifier or the literal).
+
+  Rationale: property names like `count`, `size`, `any`, `all` are
+  natural and occur throughout common domain types (containers,
+  collections, set-like structures).  Making them hard-reserved
+  would force domain authors to rename their properties.
+*)
+
+
+(* ------------------------------------------------------------------------- *)
+(* 5.2  Comprehension body precedence                                        *)
+(* ------------------------------------------------------------------------- *)
+
+(*
+  The body of a comprehension is parsed at precedence level 3
+  (comparisons and tighter).  Logical operators `and` / `or` are NOT
+  permitted as the top-level operator of a body without parentheses.
+
+  Rationale: given `xs where it > 5 count`, the straightforward
+  parse is `(xs where (it > 5)) count`.  If the body were parsed at
+  top precedence, `and`/`or` would greedily extend the body and
+  swallow the subsequent comprehension keyword; body-precedence = 3
+  prevents this without requiring lookahead.
+
+  Users who need logical combinations in a body parenthesize:
+
+      xs where (it.active and it.score > 10) count
+
+  This is a documented trade-off.  A future grammar could adopt a
+  different disambiguation strategy (e.g. require comprehensions to
+  be parenthesized, with `xs where p | count`) at the cost of a
+  syntactic break.
+*)
+
+
+(* ------------------------------------------------------------------------- *)
+(* 5.3  Comprehension-in-body restriction                                    *)
+(* ------------------------------------------------------------------------- *)
+
+(*
+  Within a comprehension body, nested postfix expressions do NOT
+  recognize comprehension keywords.  Concretely:
+
+      xs where it > 5 count
+
+  parses as (xs where (it > 5)) count, not as xs where (it > (5 count)).
+
+  The `allow_comprehension` flag in the reference implementation
+  (parse_dsl.hpp) threads this restriction through parse_postfix,
+  parse_unary, and parse_binary.  Parens and brackets reset the flag
+  to true so `(items count) + 1` works as an expression.
+
+  Formally: the comp_body production uses comparison_expr, which in
+  turn does not descend into a production that can recognize
+  comprehensions without a parenthesized reset.
+*)
+
+
+(* ------------------------------------------------------------------------- *)
+(* 5.4  The `it` identifier                                                  *)
+(* ------------------------------------------------------------------------- *)
+
+(*
+  The identifier `it` is syntactically an ordinary IDENT.  It acquires
+  a special meaning only at evaluation time, inside a comprehension
+  body: it refers to the current element of the iteration.  Outside a
+  comprehension body, `it` is resolved through the registry like any
+  other name.
+
+  The grammar says nothing about `it`.  Any reference to it in the
+  grammar would be a semantic rule, not a syntactic one.
+*)
+
+
+(* ========================================================================= *)
+(* 6.   SEMANTIC NOTES                                                       *)
+(* ========================================================================= *)
+
+(*
+  The grammar above specifies syntax only.  The following semantic
+  rules are enforced by the evaluator (evaluate.hpp), not by the
+  parser:
+
+  - Arithmetic operators are strict over numeric types: int+int
+    yields int, float+float yields float, mixed int+float is an
+    error.  String + string is concatenation (and is the only
+    overload of `+` besides numeric).
+
+  - Comparison operators permit mixed int/float via promotion to
+    double.  Bool comparisons support == and != only; ordered
+    comparisons on bool are an error.  Strings compare
+    lexicographically.
+
+  - Logical operators require both operands to be bool; no
+    implicit truthiness.  Short-circuit evaluation: `false and X`
+    does not evaluate X; `true or X` does not evaluate X.
+
+  - Unary minus requires a numeric operand; unary not requires a
+    bool operand.
+
+  - Index access `xs[i]` requires i to evaluate to an integer.
+    Indexing into a scalar property is an error.
+
+  - Comprehensions require their subject to evaluate to a sequence
+    (std::vector<std::any>).  `where` and `all` require the body
+    to evaluate to a bool per element.  `any` with a body requires
+    bool; `any` without a body returns true iff the sequence is
+    non-empty.
+*)

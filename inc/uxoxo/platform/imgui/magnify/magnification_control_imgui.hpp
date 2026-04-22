@@ -9,7 +9,7 @@
 * a `magnification_control_event` describing what changed during the
 * frame.
 *
-*   The renderer does not perform the actual zoom — it only mutates
+*   The renderer does not perform the actual zoom - it only mutates
 * the control's state.  The caller is responsible for observing the
 * control (typically through its on_change callback) and applying the
 * zoom factor to the target during the target's own render pass.
@@ -18,7 +18,7 @@
 *     The control's `_Scalar` is an arithmetic template parameter
 *   (defaults to double).  ImGui's slider widgets work in float, so
 *   the renderer reads the current value as float, presents the
-*   slider, and writes back via mc_set_zoom — which clamps to
+*   slider, and writes back via mc_set_zoom - which clamps to
 *   [min_zoom, max_zoom] and only fires on_change when the value
 *   actually changes.  Precision loss across the float round-trip
 *   only matters for sliders; programmatic mutations bypass it.

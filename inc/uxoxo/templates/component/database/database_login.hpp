@@ -71,7 +71,7 @@ NS_COMPONENT
 // ===============================================================================
 //   Bundled value types for composite fields whose logical unit is larger
 // than a single primitive.  Grouping them into one struct means one tag,
-// one bit, one slot — and disabled, still zero bytes.
+// one bit, one slot - and disabled, still zero bytes.
 
 // ssl_settings
 //   struct: SSL/TLS configuration bundle stored as a single field value.
@@ -384,7 +384,7 @@ private:
 // ===============================================================================
 //   Thin, statically-asserted setters that bundle the tag lookup with a
 // compile-time feature-bit check.  Equivalent to the old direct-mixin
-// API — callers who prefer direct access can use tc_get<tag>() instead.
+// API - callers who prefer direct access can use tc_get<tag>() instead.
 
 // dbl_set_host
 //   function: set the host text-input value (requires dlf_host).
@@ -597,7 +597,7 @@ dbl_toggle_remember_me(
 dbl_validate
   Validate every enabled input field and return true iff all pass.
 When URI mode is active, only the URI field is validated and the
-discrete target / identity fields are skipped — matching the
+discrete target / identity fields are skipped - matching the
 vendor contract that a URI, when provided, is the authoritative
 source of connection parameters.
 
@@ -658,7 +658,7 @@ field values, starting from vendor defaults and overlaying only the
 fields actually present in _Feat.  Disabled fields are elided at
 compile time via if constexpr and contribute no code.
 
-  URI mode is not handled specially here — the caller who activates
+  URI mode is not handled specially here - the caller who activates
 URI mode is expected to pass the raw URI string to the connection
 layer directly, bypassing connection_config.
 
@@ -751,7 +751,7 @@ dbl_reset_to_defaults(
 // ===============================================================================
 //   Structural predicates.  Because database_login derives from form
 // (which derives from composite), the composite's has_field<_Tag>()
-// static member provides per-slot presence queries for free — the
+// static member provides per-slot presence queries for free - the
 // trait layer only needs to confirm database-login-ness (db_type
 // constant + submittable-form surface) and then delegate.
 

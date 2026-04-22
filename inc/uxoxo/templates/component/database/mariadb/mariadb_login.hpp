@@ -15,7 +15,7 @@
 *
 *   The base identity + network + generic-target slots are inherited
 * intact from dbl_form_base<_Feat> via the form_append_slots_t utility
-* in database_login.hpp — so the existing dbl_tag::* accessors and
+* in database_login.hpp - so the existing dbl_tag::* accessors and
 * dbl_* / fm_* / tc_* free functions all work on mariadb_login
 * unchanged.
 *
@@ -188,7 +188,7 @@ namespace mdlf_tag
 // ===============================================================================
 //   The MariaDB vendor slots are appended to dbl_form_base<_Feat> via
 // the shared form_append_slots_t utility.  The resulting form<>
-// carries the union of base + vendor slots under a single _Feat —
+// carries the union of base + vendor slots under a single _Feat -
 // dlf_* bits gate the base slots, mdlf_* bits gate the vendor slots.
 
 NS_INTERNAL
@@ -291,8 +291,8 @@ struct mariadb_login : internal::mariadb_login_form_base<_Feat>
 private:
     /*
     apply_vendor_defaults_
-      Seeds enabled slots from the MariaDB vendor contract — port 3306,
-    charset "utf8mb4", default storage engine "InnoDB" — plus the base
+      Seeds enabled slots from the MariaDB vendor contract - port 3306,
+    charset "utf8mb4", default storage engine "InnoDB" - plus the base
     host / port defaults from vendor_traits<database_type::mariadb>.
     Only slots enabled by _Feat are touched; every other branch elides
     at compile time.
@@ -426,7 +426,7 @@ mdl_add_connect_attr(
 
 // mdl_validate
 //   function: validate every enabled input field and return true iff
-// all pass.  Same dispatch pattern as dbl_validate / ml_validate —
+// all pass.  Same dispatch pattern as dbl_validate / ml_validate -
 // URI-mode short-circuit plus fm_validate_with for the remaining
 // fields.
 template <unsigned _F>

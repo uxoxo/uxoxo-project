@@ -9,7 +9,7 @@
 * and design tools (rubber-band zoom, pixel-precision inspection).
 *
 *   Unlike color_sample and color_fill, the magnification control's
-* `value` is not a colour — it is a zoom factor.  The underlying
+* `value` is not a colour - it is a zoom factor.  The underlying
 * scalar type is a template parameter (defaulting to double) so that
 * fixed-point or lower-precision floats can be used on embedded
 * targets.
@@ -22,18 +22,18 @@
 * alongside it and additionally clamps into [min_zoom, max_zoom].
 *
 * Contents:
-*   1  DMagnificationMode  — enum: fullscreen / region / follow / fixed
-*   2  magnification_control<>  — struct template: the zoom control
+*   1  DMagnificationMode  - enum: fullscreen / region / follow / fixed
+*   2  magnification_control<>  - struct template: the zoom control
 *   3  Operations
-*       mc_zoom_in        — step up by `step`, clamped
-*       mc_zoom_out       — step down by `step`, clamped
-*       mc_set_zoom       — set zoom directly, clamped
-*       mc_reset_zoom     — reset to 1.0 (no magnification)
-*       mc_retarget       — point at a different UI element
-*       mc_set_focus      — set focus point within target
-*       mc_set_region     — set focus region dimensions
-*       mc_set_bounds     — adjust min_zoom / max_zoom
-*       mc_set_mode       — switch magnification mode
+*       mc_zoom_in        - step up by `step`, clamped
+*       mc_zoom_out       - step down by `step`, clamped
+*       mc_set_zoom       - set zoom directly, clamped
+*       mc_reset_zoom     - reset to 1.0 (no magnification)
+*       mc_retarget       - point at a different UI element
+*       mc_set_focus      - set focus point within target
+*       mc_set_region     - set focus region dimensions
+*       mc_set_bounds     - adjust min_zoom / max_zoom
+*       mc_set_mode       - switch magnification mode
 *
 *
 * path:      /inc/uxoxo/templates/component/magnification_control.hpp
@@ -65,15 +65,15 @@ NS_COMPONENT
 
 // DMagnificationMode
 //   enum: how the magnifier applies its zoom factor.
-//     fullscreen — scale the entire target uniformly from its centre.
-//     region     — scale only the rectangle (focus_x, focus_y,
+//     fullscreen - scale the entire target uniformly from its centre.
+//     region     - scale only the rectangle (focus_x, focus_y,
 //                  region_width, region_height) within the target.
 //                  Remainder of the target is rendered unscaled.
-//     follow     — scale a region around (focus_x, focus_y) whose
+//     follow     - scale a region around (focus_x, focus_y) whose
 //                  dimensions are region_width x region_height, and
 //                  move that region with the caller-supplied focus
 //                  point (e.g. cursor, active text field).
-//     fixed      — scale a fixed rectangle on-screen (renderer-
+//     fixed      - scale a fixed rectangle on-screen (renderer-
 //                  defined anchor).  Focus coordinates describe what
 //                  within the target is shown in that rectangle.
 enum class DMagnificationMode : std::uint8_t
@@ -96,27 +96,27 @@ enum class DMagnificationMode : std::uint8_t
 // of a target UI component.
 //
 //   Template parameters:
-//     _TargetRef  — type used to reference the target UI component.
-//     _Scalar     — numeric type for the zoom factor.  Defaults to
+//     _TargetRef  - type used to reference the target UI component.
+//     _Scalar     - numeric type for the zoom factor.  Defaults to
 //                   double.  Must be an arithmetic type with
 //                   well-defined comparison and arithmetic.
-//     _Labeled    — if true, mixes in a `label` string.
-//     _Clearable  — if true, mixes in a `default_value` of type
+//     _Labeled    - if true, mixes in a `label` string.
+//     _Clearable  - if true, mixes in a `default_value` of type
 //                   _Scalar.  clear() resets the zoom to that
 //                   value.  (Most consumers set default_value to
 //                   1.0 so that clear() = "no magnification".)
 //
 //   Interaction with shared operations:
-//     get_value    — returns the current zoom factor.
-//     set_value    — sets the zoom directly, WITHOUT clamping.  Use
+//     get_value    - returns the current zoom factor.
+//     set_value    - sets the zoom directly, WITHOUT clamping.  Use
 //                    mc_set_zoom if you want min/max enforcement.
 //                    Fires on_change.
-//     activate     — sets `active` (magnifier is currently applied).
-//     deactivate   — clears `active` (no zoom applied); also hides
+//     activate     - sets `active` (magnifier is currently applied).
+//     deactivate   - clears `active` (no zoom applied); also hides
 //                    the magnifier chrome because has_visible_v is
 //                    true.
-//     clear        — resets to default_value (requires _Clearable).
-//     commit       — invokes on_commit, typically used to "lock in"
+//     clear        - resets to default_value (requires _Clearable).
+//     commit       - invokes on_commit, typically used to "lock in"
 //                    a chosen zoom level.
 template <typename _TargetRef = void*,
           typename _Scalar    = double,
@@ -180,7 +180,7 @@ struct magnification_control
     // active
     //   member: whether magnification is currently being applied to
     // the target.  `false` means the target renders at 1.0 even if
-    // `value` is set to something else — essentially a bypass
+    // `value` is set to something else - essentially a bypass
     // switch.
     bool active = false;
 
@@ -295,7 +295,7 @@ void mc_zoom_out(magnification_control<_TargetRef,
 
 // mc_reset_zoom
 //   function: sets the zoom factor to 1.0 (no magnification).
-// Unlike the shared clear(), this does not require _Clearable —
+// Unlike the shared clear(), this does not require _Clearable -
 // the identity zoom is well-defined for any magnifier.
 template <typename _TargetRef,
           typename _Scalar,
