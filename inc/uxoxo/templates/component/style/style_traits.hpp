@@ -1,47 +1,56 @@
-// [uxoxo] ui_style_traits.hpp — Structural style detection for UI elements
-//
-//   A UI element is stylable if it exposes a defined set of presentation
-// parameters that can be externally modified without altering its structure
-// or behavior.
-//
-//   This header provides SFINAE-based detection of the style protocol on
-// arbitrary UI types. No base class, no tags, no registration — expose
-// the right members and the trait system classifies you automatically.
-// All detection uses clean_t<T>.
-//
-//   The style protocol is framework-agnostic: it detects the ability to
-// get, set, apply, and export style — not what that style contains. The
-// concrete property tags and value types are defined by the consumer.
-//
-// STRUCTURAL DETECTION CHEAT SHEET
-// ================================
-// Type Aliases You Provide           Traits Activated
-// ----------------------------------------------------------------
-// style_type                         has_style_type
-//
-// Methods You Provide                Traits Activated
-// ----------------------------------------------------------------
-// apply_style(style_type)            has_apply_style
-// get_style() const                  has_get_style
-// get<_Tag>() const                  has_style_property<T, _Tag>
-// set<_Tag>(value)                   has_mutable_style_property<T, _Tag>
-//
-// path:      /inc/uxoxo/ui_style_traits.hpp
-// link(s):   TBA
-// author(s): teer                                          date: 2025.06.08
+/*******************************************************************************
+* uxoxo [component]                                            style_traits.hpp
+*
+* Structural style detection for UI elements
+*   A UI element is stylable if it exposes a defined set of presentation
+* parameters that can be externally modified without altering its structure
+* or behavior.
+*
+*   This header provides SFINAE-based detection of the style protocol on
+* arbitrary UI types. No base class, no tags, no registration — expose
+* the right members and the trait system classifies you automatically.
+* All detection uses clean_t<T>.
+*
+*   The style protocol is framework-agnostic: it detects the ability to
+* get, set, apply, and export style — not what that style contains. The
+* concrete property tags and value types are defined by the consumer.
+*
+* STRUCTURAL DETECTION CHEAT SHEET
+* ================================
+* Type Aliases You Provide           Traits Activated
+* ----------------------------------------------------------------
+* style_type                         has_style_type
+*
+* Methods You Provide                Traits Activated
+* ----------------------------------------------------------------
+* apply_style(style_type)            has_apply_style
+* get_style() const                  has_get_style
+* get<_Tag>() const                  has_style_property<T, _Tag>
+* set<_Tag>(value)                   has_mutable_style_property<T, _Tag>
+*
+*
+* path:      /inc/uxoxo/templates/component/style/style_traits.hpp
+* link(s):   TBA
+* author(s): Samuel 'teer' Neal-Blim                        created: 2026.04.18
+*******************************************************************************/
 
-#ifndef UXOXO_UI_STYLE_TRAITS_HPP
-#define UXOXO_UI_STYLE_TRAITS_HPP
+#ifndef UXOXO_COMPONENT_STYLE_TRAITS_
+#define UXOXO_COMPONENT_STYLE_TRAITS_
 
+// std
 #include <cstddef>
 #include <type_traits>
-
-#include "uxoxo.hpp"
+// djinterp
+#include <djinterp/core/djinterp.hpp>
+#include <djinterp/core/meta/type_traits.hpp>
+// uxoxo
+#include "../../../uxoxo.hpp"
 
 
 NS_UXOXO
-NS_UI
-NS_TRAITS
+NS_COMPONENT
+
+using djinterp::clean_t;
 
 
 // =============================================================================
@@ -323,9 +332,8 @@ public:
 };
 
 
-NS_END  // traits
-NS_END  // ui
+NS_END  // component
 NS_END  // uxoxo
 
 
-#endif  // UXOXO_UI_STYLE_TRAITS_HPP
+#endif  // UXOXO_COMPONENT_STYLE_TRAITS_

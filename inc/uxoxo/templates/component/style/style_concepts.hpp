@@ -1,31 +1,37 @@
-// [uxoxo] ui_style_concepts.hpp — C++20 concepts for UI style detection
-//
-//   Concept wrappers over the SFINAE traits in ui_style_traits.hpp. These
-// provide constraint-based interfaces for use in requires-clauses and
-// template parameter constraints.
-//
-//   Requires __cpp_concepts >= 201907L (C++20). The entire file is
-// feature-gated and produces no definitions on older compilers.
-//
-// path:      /inc/uxoxo/ui_style_concepts.hpp
-// link(s):   TBA
-// author(s): teer                                          date: 2025.06.08
+/*******************************************************************************
+* uxoxo [component]                                          style_concepts.hpp
+*
+* C++20 concepts for UI style detection
+*   Concept wrappers over the SFINAE traits in ui_style_traits.hpp. These
+* provide constraint-based interfaces for use in requires-clauses and
+* template parameter constraints.
+*
+* Contents:
+*   1.  label_control struct
+*   2.  label-specific free functions (lb_append)
+*
+* path:      /inc/uxoxo/templates/component/style/style_concepts.hpp
+* link(s):   TBA
+* author(s): Samuel 'teer' Neal-Blim                        created: 2026.04.18
+*******************************************************************************/
 
-#ifndef UXOXO_UI_STYLE_CONCEPTS_HPP
-#define UXOXO_UI_STYLE_CONCEPTS_HPP
+#ifndef UXOXO_COMPONENT_STYLE_CONCEPTS_
+#define UXOXO_COMPONENT_STYLE_CONCEPTS_
 
+// std
 #include <type_traits>
-
-#include "uxoxo.hpp"
-#include "ui_style_traits.hpp"
+// djinterp
+#include <djinterp/core/djinterp.hpp>
+// uxoxo
+#include "../../../uxoxo.hpp"
 
 
 NS_UXOXO
-NS_UI
-NS_TRAITS
+NS_COMPONENT
 
-
-#if defined(__cpp_concepts) && __cpp_concepts >= 201907L
+// __cpp_concepts == 201507L  // older Concepts TS / experimental concepts
+// __cpp_concepts == 201907L  // C++20 concepts
+#if defined(D_ENV_CPP_FEATURE_LANG_CONCEPTS) && __cpp_concepts >= 201907L
 
 
 // =============================================================================
@@ -134,9 +140,8 @@ concept has_all_mutable_properties =
 #endif  // __cpp_concepts
 
 
-NS_END  // traits
-NS_END  // ui
+NS_END  // component
 NS_END  // uxoxo
 
 
-#endif  // UXOXO_UI_STYLE_CONCEPTS_HPP
+#endif  // UXOXO_COMPONENT_STYLE_CONCEPTS_

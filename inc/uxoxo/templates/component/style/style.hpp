@@ -1,52 +1,55 @@
-// [uxoxo] ui_style.hpp — Tag-driven style template for UI elements
-//
-//   Provides a generalized, framework-agnostic style representation
-// built on tagged properties. The consumer defines the property tags
-// and value types; this header provides the machinery to compose them
-// into a style, look them up at compile time, and satisfy the style
-// protocol detected by ui_style_traits.hpp.
-//
-//   No presentation semantics are prescribed — this header has no
-// concept of color, font, padding, or any other domain-specific axis.
-// Those are defined by the consumer via tag types.
-//
-// EXAMPLE USAGE
-// =============
-//   struct fg_tag  {};
-//   struct pad_tag {};
-//
-//   using my_style = uxoxo::ui::style<
-//       uxoxo::ui::property<fg_tag,  rgba>,
-//       uxoxo::ui::property<pad_tag, int>
-//   >;
-//
-//   my_style s;
-//   s.set<fg_tag>(rgba{255, 0, 0, 255});
-//   auto c = s.get<fg_tag>();
-//
-// PORTABILITY
-// ===========
-// C++20  : defaulted operator==, constexpr member functions
-// C++17  : full constexpr, fold expressions, inline variables
-// C++14  : constexpr constructors, variable templates
-// C++11  : basic struct, no constexpr member functions
-//
-// path:      /inc/uxoxo/ui_style.hpp
-// link(s):   TBA
-// author(s): teer                                          date: 2025.06.08
+/*******************************************************************************
+* uxoxo [component]                                                   style.hpp
+*
+* Tag-driven style template for UI elements
+*   Provides a generalized, framework-agnostic style representation
+* built on tagged properties. The consumer defines the property tags
+* and value types; this header provides the machinery to compose them
+* into a style, look them up at compile time, and satisfy the style
+* protocol detected by ui_style_traits.hpp.
+*
+*   No presentation semantics are prescribed — this header has no
+* concept of color, font, padding, or any other domain-specific axis.
+* Those are defined by the consumer via tag types.
+*
+* EXAMPLE USAGE
+* =============
+*   struct fg_tag  {};
+*   struct pad_tag {};
+*
+*   using my_style = uxoxo::ui::style<uxoxo::ui::property<fg_tag,  rgba>,
+*                                     uxoxo::ui::property<pad_tag, int>>;
+*
+*   my_style s;
+*   s.set<fg_tag>(rgba{255, 0, 0, 255});
+*   auto c = s.get<fg_tag>();
+*
+* PORTABILITY
+* ===========
+* C++20  : defaulted operator==, constexpr member functions
+* C++17  : full constexpr, fold expressions, inline variables
+* C++14  : constexpr constructors, variable templates
+* C++11  : basic struct, no constexpr member functions
+*
+*
+* path:      /inc/uxoxo/templates/component/style/style.hpp
+* link(s):   TBA
+* author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.08
+*******************************************************************************/
 
-#ifndef UXOXO_UI_STYLE_HPP
-#define UXOXO_UI_STYLE_HPP
+#ifndef UXOXO_COMPONENT_STYLE_
+#define UXOXO_COMPONENT_STYLE_
 
+// std
 #include <cstddef>
 #include <type_traits>
-
-#include "uxoxo.hpp"
+// uxoxo
+#include "../../../uxoxo.hpp"
 #include "ui_style_traits.hpp"
 
 
 NS_UXOXO
-NS_UI
+NS_COMPONENT
 
 
 // =============================================================================
@@ -228,19 +231,19 @@ public:
     constexpr style() = default;
 
     constexpr style(
-            const style& _other
-        ) = default;
+        const style& _other
+    ) = default;
 
     constexpr style(
-            style&& _other
-        ) = default;
+        style&& _other
+    ) = default;
 
     // value-initialization constructor
     constexpr explicit style(
-            const _Properties&... _props
-        ) noexcept
-            : _Properties(_props)...
-        {}
+        const _Properties&... _props
+    ) noexcept
+        : _Properties(_props)...
+    {}
 
     // -----------------------------------------------------------------
     // assignment
@@ -364,11 +367,11 @@ public:
         return false;
     }
 
-    constexpr style()                          = default;
-    constexpr style(const style&)              = default;
-    constexpr style(style&&)                   = default;
-    style& operator=(const style&)             = default;
-    style& operator=(style&&)                  = default;
+    constexpr style()              = default;
+    constexpr style(const style&)  = default;
+    constexpr style(style&&)       = default;
+    style& operator=(const style&) = default;
+    style& operator=(style&&)      = default;
 
     void
     apply_style(
@@ -436,8 +439,8 @@ using style_property_value_t =
     typename style_property_value<_Style, _Tag>::type;
 
 
-NS_END  // ui
+NS_END  // component
 NS_END  // uxoxo
 
 
-#endif  // UXOXO_UI_STYLE_HPP
+#endif  // UXOXO_COMPONENT_STYLE_
