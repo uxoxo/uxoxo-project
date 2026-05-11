@@ -36,7 +36,7 @@
 *
 * path:      /inc/uxoxo/platform/imgui/imgui_wysiwyg.hpp
 * link(s):   TBA
-* author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.14
+* author(s): Samuel 'teer' Neal-Blim                        created: 2026.04.14
 *******************************************************************************/
 
 #ifndef UXOXO_IMGUI_WYSIWYG_
@@ -54,13 +54,12 @@
 // djinterp
 #include <djinterp/core/djinterp.hpp>
 // uxoxo
-#include "../../uxoxo.hpp"
-#include "../../core/wysiwyg/wysiwyg_editor.hpp"
-#include "../../core/tree/ui_tree.hpp"
+#include "../../../uxoxo.hpp"
+#include "../../../core/wysiwyg/wysiwyg_editor.hpp"
+#include "../../../core/tree/ui_tree.hpp"
 
 
 NS_UXOXO
-NS_PLATFORM
 NS_IMGUI
 
 
@@ -68,7 +67,7 @@ NS_IMGUI
 using djinterp::node_id;
 using djinterp::null_node;
 
-using uxoxo::ui_tree::complete_ui_tree;
+using uxoxo::complete_ui_tree;
 
 using uxoxo::wysiwyg::edit_overlay;
 using uxoxo::wysiwyg::hit_provider;
@@ -80,9 +79,9 @@ using uxoxo::wysiwyg::DInteractionMode;
 using uxoxo::wysiwyg::DHandleKind;
 
 
-// =============================================================================
+// ===========================================================================
 //  1.  IMGUI HIT PROVIDER
-// =============================================================================
+// ===========================================================================
 
 // imgui_hit_provider
 //   class: concrete hit_provider backed by a per-frame rect map.
@@ -285,9 +284,9 @@ imgui_hit_provider::rect_count() const noexcept
 }
 
 
-// =============================================================================
+// ===========================================================================
 //  2.  IMGUI OVERLAY STYLE
-// =============================================================================
+// ===========================================================================
 
 // imgui_overlay_style
 //   struct: visual constants for overlay drawing.
@@ -333,9 +332,9 @@ struct imgui_overlay_style
 };
 
 
-// =============================================================================
+// ===========================================================================
 //  3.  IMGUI EDIT OVERLAY
-// =============================================================================
+// ===========================================================================
 
 // imgui_edit_overlay
 //   class: concrete edit_overlay that draws via ImDrawList.
@@ -349,7 +348,7 @@ template<typename _TreeType>
 class imgui_edit_overlay final : public edit_overlay<_TreeType>
 {
     static_assert(
-        uxoxo::ui_tree::is_complete_ui_tree_v<_TreeType>,
+        uxoxo::is_complete_ui_tree_v<_TreeType>,
         "_TreeType must satisfy the complete ui_tree interface.");
 
 public:
@@ -357,8 +356,7 @@ public:
         : m_draw_list(nullptr),
           m_primary(null_node),
           m_property_editor_open(false)
-    {
-    }
+    {};
 
     ~imgui_edit_overlay() override = default;
 
@@ -656,9 +654,9 @@ private:
 };
 
 
-// =============================================================================
+// ===========================================================================
 //  4.  IMGUI WYSIWYG CONTEXT
-// =============================================================================
+// ===========================================================================
 
 // imgui_wysiwyg_context
 //   class: convenience aggregator owning the hit provider, overlay,
@@ -672,7 +670,7 @@ template<typename _TreeType>
 class imgui_wysiwyg_context
 {
     static_assert(
-        uxoxo::ui_tree::is_complete_ui_tree_v<_TreeType>,
+        uxoxo::is_complete_ui_tree_v<_TreeType>,
         "_TreeType must satisfy the complete ui_tree interface.");
 
 public:
@@ -789,7 +787,6 @@ private:
 
 
 NS_END  // imgui
-NS_END  // platform
 NS_END  // uxoxo
 
 

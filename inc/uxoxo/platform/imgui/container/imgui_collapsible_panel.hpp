@@ -1,5 +1,5 @@
 /*******************************************************************************
-* uxoxo [imgui]                                           collapsible_panel.hpp
+* uxoxo [imgui]                                     imgui_collapsible_panel.hpp
 *
 * ImGui backend for the collapsible_panel template component:
 *   A Dear ImGui rendering adapter for the vendor-agnostic
@@ -8,27 +8,23 @@
 * syncs user-driven open/close transitions back into the panel's
 * `.expanded` flag (firing on_change when cpf_change_callback is
 * enabled).
-*
 *   Two entry points are provided:
-*
-*     render_header(panel)          — renders only the header row;
+*     render_header(panel)          - renders only the header row;
 *                                      returns true if the caller
 *                                      should draw the body on this
 *                                      frame (visible && expanded).
 *                                      Useful for callers that need
 *                                      full control over body layout.
-*
-*     render(panel, body_fn)        — renders header AND, if the
+*     render(panel, body_fn)        - renders header AND, if the
 *                                      panel is currently open,
 *                                      auto-indents and invokes
 *                                      body_fn(panel.body).
-*
-*   Feature-flag handling:
+* Feature-flag handling:
 *   Every optional mixin member (.label, .summary, .on_change) is
 * accessed behind `if constexpr (_Features & cpf_*)`, so even a
-* cpf_none-instantiated panel compiles and renders — it just
+* cpf_none-instantiated panel compiles and renders - it just
 * shows an unlabeled header (disambiguated by the panel's memory
-* address via ImGui::PushID).
+* address via scoped_id).
 *
 *   Animation:
 *   ImGui::CollapsingHeader does not animate its collapse / expand
@@ -37,19 +33,27 @@
 * animated body reveal should render the body conditionally on
 * animation_progress > 0 and scale / fade accordingly.
 *
+*   Migration note (2026.05.08): the manual PushStyleColor /
+* PopStyleColor (header tint), BeginDisabled / EndDisabled, and
+* PushID / PopID triplet are now expressed as RAII guards from
+* imgui_scope.hpp.  The conditional header tint is handled by
+* constructing an empty scoped_color and calling .push() under the
+* same condition; the destructor's pop count matches whatever was
+* pushed.
+*
 * Contents:
-*   1  Emphasis → ImVec4 mapping
-*   2  render_header  — header-only
-*   3  render         — header + body callable
+*   1  Emphasis -> ImVec4 mapping
+*   2  render_header  - header-only
+*   3  render         - header + body callable
 *
 *
-* path:      /inc/uxoxo/platform/imgui/container/collapsible_panel.hpp
+* path:      /inc/uxoxo/platform/imgui/container/imgui_collapsible_panel.hpp
 * link(s):   TBA
-* author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.18
+* author(s): Samuel 'teer' Neal-Blim                        created: 2026.04.18
 *******************************************************************************/
 
-#ifndef  UXOXO_IMGUI_COMPONENT_COLLAPSIBLE_PANEL_
-#define  UXOXO_IMGUI_COMPONENT_COLLAPSIBLE_PANEL_ 1
+#ifndef  UXOXO_COMPONENT_IMGUI_COLLAPSIBLE_PANEL_
+#define  UXOXO_COMPONENT_IMGUI_COLLAPSIBLE_PANEL_ 1
 
 // std
 #include <string>
@@ -62,16 +66,22 @@
 #include "../../../uxoxo.hpp"
 #include "../../../templates/component/component_types.hpp"
 #include "../../../templates/component/container/collapsible_panel.hpp"
+#include "../core/imgui_scope.hpp"
 
 
 NS_UXOXO
-NS_PLATFORM
 NS_IMGUI
 
 
-// ===============================================================================
-//  1  EMPHASIS → IMVEC4 MAPPING
-// ===============================================================================
+// ===========================================================================
+//  1  EMPHASIS -> IMVEC4 MAPPING
+// ===========================================================================
+//   Component-specific mapping from DEmphasis to a header tint suitable
+// for ImGuiCol_Header.  Distinct from emphasis_color() in imgui_style.hpp
+// (which targets foreground text) because header backgrounds want softer
+// alpha values than label text.  Local to this renderer; not promoted
+// to the palette because no other component currently consumes a
+// "header tint" channel.
 
 // emphasis_to_header_tint
 //   function: translates a DEmphasis value from the vendor-agnostic
@@ -100,22 +110,24 @@ emphasis_to_header_tint(component::DEmphasis _e) noexcept
 
 
 
-// ===============================================================================
+// ===========================================================================
 //  2  RENDER HEADER
-// ===============================================================================
+// ===========================================================================
 
 // render_header
 //   function: draws the panel's header row via ImGui::CollapsingHeader
 // and reconciles any user-driven open/close transition with the
 // panel's `.expanded` flag.  Returns true if the caller should draw
 // the body this frame (panel.visible && panel.expanded); false
-// otherwise.  Does not render the body — callers are free to wrap
+// otherwise.  Does not render the body - callers are free to wrap
 // their body in Indent/Unindent, BeginChild, or any other ImGui
 // construct they prefer.
-template <typename _Body,
-          unsigned _Features>
+template<typename _Body,
+         unsigned _Features>
 bool render_header(component::collapsible_panel<_Body, _Features>& _p)
 {
+    bool reported;
+
     // invisible panels draw nothing and consume no frame budget
     if (!_p.visible)
     {
@@ -136,7 +148,7 @@ bool render_header(component::collapsible_panel<_Body, _Features>& _p)
 
     if constexpr ((_Features & component::cpf_summary) != 0u)
     {
-        // only show the summary while collapsed — an expanded panel
+        // only show the summary while collapsed - an expanded panel
         // already reveals its body, rendering the summary redundant
         if (!_p.expanded && !_p.summary.empty())
         {
@@ -149,58 +161,41 @@ bool render_header(component::collapsible_panel<_Body, _Features>& _p)
         }
     }
 
-    // -- style scope --------------------------------------------------
-    //   Push emphasis tint only for non-default emphasis so the style
-    // stack stays shallow for the common case.
+    // -- guarded ImGui interaction ------------------------------------
+    //   RAII guards mirror the original push order exactly: header
+    // tint (conditional), disabled scope (from structural traits),
+    // identity scope.  Destructors fire in reverse so PopID precedes
+    // EndDisabled which precedes PopStyleColor - matching the manual
+    // pre-migration sequence.
 
-    const bool is_styled = (_p.emph != component::DEmphasis::normal);
-
-    if (is_styled)
     {
-        ImGui::PushStyleColor(ImGuiCol_Header,
-                              emphasis_to_header_tint(_p.emph));
-    }
+        // conditional emphasis tint - empty guard accumulates the push
+        // when emphasis is non-default
+        scoped_color color_guard;
 
-    // disabled panels are rendered through ImGui's BeginDisabled/
-    // EndDisabled pair so interactions are suppressed and the widget
-    // draws with the themed disabled alpha
-    const bool is_disabled = !_p.enabled;
+        if (_p.emph != component::DEmphasis::normal)
+        {
+            color_guard.push(ImGuiCol_Header,
+                             emphasis_to_header_tint(_p.emph));
+        }
 
-    if (is_disabled)
-    {
-        ImGui::BeginDisabled();
-    }
+        scoped_disabled disabled = make_disabled_scope(_p);
 
-    // -- identity -----------------------------------------------------
-    //   ImGui identifies widgets by label-derived hash.  The panel
-    // may not carry a label (cpf_labeled unset) or two panels may
-    // share a label, so disambiguate using the panel's address.
+        // ImGui identifies widgets by label-derived hash.  The panel
+        // may not carry a label (cpf_labeled unset) or two panels may
+        // share a label, so disambiguate using the panel's address.
+        scoped_id id(static_cast<const void*>(&_p));
 
-    ImGui::PushID(static_cast<const void*>(&_p));
+        // ImGuiCond_Always forces ImGui's stored open state to match
+        // our model every frame.  User clicks still register because
+        // CollapsingHeader processes input AFTER reading the forced
+        // state, and its return value reflects the post-click state.
+        ImGui::SetNextItemOpen(_p.expanded, ImGuiCond_Always);
 
-    // -- state sync (model -> imgui) ----------------------------------
-    //   ImGuiCond_Always forces ImGui's stored open state to match
-    // our model every frame.  User clicks still register because
-    // CollapsingHeader processes input AFTER reading the forced
-    // state, and its return value reflects the post-click state.
+        const char* const imgui_label =
+            label.empty() ? "##collapsible_panel" : label.c_str();
 
-    ImGui::SetNextItemOpen(_p.expanded, ImGuiCond_Always);
-
-    const char* const imgui_label =
-        label.empty() ? "##collapsible_panel" : label.c_str();
-    const bool reported =
-        ImGui::CollapsingHeader(imgui_label);
-
-    ImGui::PopID();
-
-    if (is_disabled)
-    {
-        ImGui::EndDisabled();
-    }
-
-    if (is_styled)
-    {
-        ImGui::PopStyleColor();
+        reported = ImGui::CollapsingHeader(imgui_label);
     }
 
     // -- state sync (imgui -> model) ----------------------------------
@@ -227,9 +222,9 @@ bool render_header(component::collapsible_panel<_Body, _Features>& _p)
 
 
 
-// ===============================================================================
+// ===========================================================================
 //  3  RENDER
-// ===============================================================================
+// ===========================================================================
 
 // render
 //   function: composes render_header with an auto-indented body
@@ -241,11 +236,12 @@ bool render_header(component::collapsible_panel<_Body, _Features>& _p)
 //   The indent() / unindent() bracket matches ImGui's CollapsingHeader
 // convention: the widget itself does not indent its children, so the
 // adapter does it explicitly for visual consistency with TreeNode.
-template <typename _Body,
-          unsigned _Features,
-          typename _BodyFn>
-void render(component::collapsible_panel<_Body, _Features>& _p,
-            _BodyFn&&                                       _body_fn)
+template<typename _Body,
+         unsigned _Features,
+         typename _BodyFn>
+void render(
+    component::collapsible_panel<_Body, _Features>& _p,
+    _BodyFn&&                                       _body_fn)
 {
     // bail before touching the indent stack if the header isn't open
     if (!render_header(_p))
@@ -262,8 +258,7 @@ void render(component::collapsible_panel<_Body, _Features>& _p,
 
 
 NS_END  // imgui
-NS_END  // platform
 NS_END  // uxoxo
 
 
-#endif  // UXOXO_IMGUI_COMPONENT_COLLAPSIBLE_PANEL_
+#endif  // UXOXO_COMPONENT_IMGUI_COLLAPSIBLE_PANEL_

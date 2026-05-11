@@ -26,7 +26,7 @@
 *
 *   All UI state lives in property_value entries on these nodes.
 * Visibility, position, size, dock mode, and enabled state are all
-* tree properties — not separate structs.  The frame loop reads from
+* tree properties - not separate structs.  The frame loop reads from
 * the tree; user interactions write mutations back.
 *
 *   Structure:
@@ -40,7 +40,7 @@
 *
 * path:      /inc/uxoxo/platform/imgui/tree/imgui_ui_tree.hpp
 * link(s):   TBA
-* author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.15
+* author(s): Samuel 'teer' Neal-Blim                        created: 2026.04.15
 *******************************************************************************/
 
 #ifndef UXOXO_IMGUI_COMPONENT_UI_TREE_
@@ -59,87 +59,88 @@
 
 
 NS_UXOXO
-NS_PLATFORM
 NS_IMGUI
 
 
 // -- type imports -----------------------------------------------------------
-using uxoxo::ui_tree::ui_tree;
-using uxoxo::ui_tree::ui_payload;
-using uxoxo::ui_tree::mutation;
-using uxoxo::ui_tree::DConstraintKind;
-using uxoxo::ui_tree::DMutationResult;
-using uxoxo::ui_tree::property_value;
+using uxoxo::ui_tree;
+using uxoxo::ui_payload;
+using uxoxo::mutation;
+using uxoxo::DConstraintKind;
+using uxoxo::DMutationResult;
+using uxoxo::property_value;
 using djinterp::node_id;
 using djinterp::null_node;
 
 
-// =============================================================================
+// ===========================================================================
 //  1.  TAG CONSTANTS
-// =============================================================================
+// ===========================================================================
 
 namespace imgui_tags
 {
-    D_INLINE constexpr const char* app_root       = "app_root";
-    D_INLINE constexpr const char* menu_bar       = "menu_bar";
-    D_INLINE constexpr const char* menu           = "menu";
-    D_INLINE constexpr const char* menu_item      = "menu_item";
-    D_INLINE constexpr const char* separator      = "separator";
-    D_INLINE constexpr const char* toolbar        = "toolbar";
-    D_INLINE constexpr const char* toolbar_button = "toolbar_button";
-    D_INLINE constexpr const char* workspace      = "workspace";
-    D_INLINE constexpr const char* panel          = "panel";
-    D_INLINE constexpr const char* console        = "console";
-    D_INLINE constexpr const char* status_bar     = "status_bar";
+    inline constexpr const char* app_root       = "app_root";
+    inline constexpr const char* menu_bar       = "menu_bar";
+    inline constexpr const char* menu           = "menu";
+    inline constexpr const char* menu_item      = "menu_item";
+    inline constexpr const char* separator      = "separator";
+    inline constexpr const char* toolbar        = "toolbar";
+    inline constexpr const char* toolbar_button = "toolbar_button";
+    inline constexpr const char* workspace      = "workspace";
+    inline constexpr const char* panel          = "panel";
+    inline constexpr const char* console        = "console";
+    inline constexpr const char* status_bar     = "status_bar";
 
 }   // namespace imgui_tags
 
 
-// =============================================================================
+// ===========================================================================
 //  2.  PROPERTY KEY CONSTANTS
-// =============================================================================
+// ===========================================================================
 
 namespace imgui_props
 {
     // -- shared layout properties ----------------------------------------
-    D_INLINE constexpr const char* title      = "title";
-    D_INLINE constexpr const char* label      = "label";
-    D_INLINE constexpr const char* visible    = "visible";
-    D_INLINE constexpr const char* enabled    = "enabled";
-    D_INLINE constexpr const char* x          = "x";
-    D_INLINE constexpr const char* y          = "y";
-    D_INLINE constexpr const char* width      = "width";
-    D_INLINE constexpr const char* height     = "height";
+    inline constexpr const char* title      = "title";
+    inline constexpr const char* label      = "label";
+    inline constexpr const char* visible    = "visible";
+    inline constexpr const char* enabled    = "enabled";
+    inline constexpr const char* x          = "x";
+    inline constexpr const char* y          = "y";
+    inline constexpr const char* width      = "width";
+    inline constexpr const char* height     = "height";
 
     // -- toolbar / button ------------------------------------------------
-    D_INLINE constexpr const char* action     = "action";
-    D_INLINE constexpr const char* toggled    = "toggled";
-    D_INLINE constexpr const char* shortcut   = "shortcut";
-    D_INLINE constexpr const char* tooltip    = "tooltip";
+    inline constexpr const char* action     = "action";
+    inline constexpr const char* toggled    = "toggled";
+    inline constexpr const char* shortcut   = "shortcut";
+    inline constexpr const char* tooltip    = "tooltip";
 
     // -- console ---------------------------------------------------------
-    D_INLINE constexpr const char* dock       = "dock";
-    D_INLINE constexpr const char* dock_ratio = "dock_ratio";
+    inline constexpr const char* dock       = "dock";
+    inline constexpr const char* dock_ratio = "dock_ratio";
 
     // -- action values ---------------------------------------------------
-    D_INLINE constexpr const char* act_toggle_console = "toggle_console";
-    D_INLINE constexpr const char* act_undo           = "undo";
-    D_INLINE constexpr const char* act_redo           = "redo";
-    D_INLINE constexpr const char* act_clear_history  = "clear_history";
-    D_INLINE constexpr const char* act_quit           = "quit";
-    D_INLINE constexpr const char* act_new_tree       = "new_tree";
+    inline constexpr const char* act_toggle_console = "toggle_console";
+    inline constexpr const char* act_undo           = "undo";
+    inline constexpr const char* act_redo           = "redo";
+    inline constexpr const char* act_clear_history  = "clear_history";
+    inline constexpr const char* act_quit           = "quit";
+    inline constexpr const char* act_new_tree       = "new_tree";
+    inline constexpr const char* act_db_connect     = "db_connect";
+    inline constexpr const char* act_db_disconnect  = "db_disconnect";
 
     // -- dock mode values ------------------------------------------------
-    D_INLINE constexpr const char* dock_bottom   = "bottom";
-    D_INLINE constexpr const char* dock_top      = "top";
-    D_INLINE constexpr const char* dock_floating = "floating";
+    inline constexpr const char* dock_bottom   = "bottom";
+    inline constexpr const char* dock_top      = "top";
+    inline constexpr const char* dock_floating = "floating";
 
 }   // namespace imgui_props
 
 
-// =============================================================================
+// ===========================================================================
 //  3.  IMGUI LAYOUT IDS
-// =============================================================================
+// ===========================================================================
 
 // imgui_layout_ids
 //   struct: node identifiers returned by the ImGui layout builder.
@@ -154,12 +155,15 @@ struct imgui_layout_ids
     node_id menu_file          = null_node;
     node_id menu_edit          = null_node;
     node_id menu_view          = null_node;
+    node_id menu_database      = null_node;
     node_id item_new_tree      = null_node;
     node_id item_quit          = null_node;
     node_id item_undo          = null_node;
     node_id item_redo          = null_node;
     node_id item_clear_history = null_node;
     node_id item_toggle_console= null_node;
+    node_id item_db_connect    = null_node;
+    node_id item_db_disconnect = null_node;
 
     // workspace
     node_id workspace          = null_node;
@@ -175,9 +179,9 @@ struct imgui_layout_ids
 };
 
 
-// =============================================================================
+// ===========================================================================
 //  4.  BUILD IMGUI LAYOUT
-// =============================================================================
+// ===========================================================================
 
 NS_INTERNAL
 
@@ -185,7 +189,7 @@ NS_INTERNAL
     //   function: inserts a child node under a parent and returns its
     // node_id.  Sets tag, label, constraint, and can_receive_children
     // on the new node's payload.
-    D_INLINE node_id
+    inline node_id
     insert_child(
         ui_tree&           _tree,
         node_id            _parent,
@@ -221,7 +225,7 @@ NS_INTERNAL
 
     // insert_separator
     //   function: inserts a separator child node.
-    D_INLINE node_id
+    inline node_id
     insert_separator(
         ui_tree& _tree,
         node_id  _parent
@@ -253,7 +257,7 @@ Return:
     an imgui_layout_ids struct with node ids for every significant
     node in the layout.
 */
-D_INLINE imgui_layout_ids
+inline imgui_layout_ids
 build_imgui_layout(
     ui_tree& _tree,
     double   _inspector_width = 280.0,
@@ -284,7 +288,7 @@ build_imgui_layout(
     // -- File menu -------------------------------------------------------
     ids.menu_file = internal::insert_child(
         _tree, ids.menu_bar,
-        imgui_tags::menu, "File",
+        imgui_tags::menu, "&File",
         DConstraintKind::fixed, true);
 
     ids.item_new_tree = internal::insert_child(
@@ -314,7 +318,7 @@ build_imgui_layout(
     // -- Edit menu -------------------------------------------------------
     ids.menu_edit = internal::insert_child(
         _tree, ids.menu_bar,
-        imgui_tags::menu, "Edit",
+        imgui_tags::menu, "&Edit",
         DConstraintKind::fixed, true);
 
     ids.item_undo = internal::insert_child(
@@ -356,7 +360,7 @@ build_imgui_layout(
     // -- View menu -------------------------------------------------------
     ids.menu_view = internal::insert_child(
         _tree, ids.menu_bar,
-        imgui_tags::menu, "View",
+        imgui_tags::menu, "&View",
         DConstraintKind::fixed, true);
 
     ids.item_toggle_console = internal::insert_child(
@@ -370,6 +374,40 @@ build_imgui_layout(
         std::string("~");
     _tree.payload(ids.item_toggle_console).properties[imgui_props::enabled] =
         true;
+
+    // -- Database menu ---------------------------------------------------
+    //   Connect / Disconnect are the only entries for now.  Both start
+    // with their feature-appropriate enabled state: Connect is enabled
+    // (we begin disconnected) and Disconnect is disabled.  The main loop
+    // toggles these two in lockstep whenever the connection state
+    // changes, mirroring the sync_undo_redo_enabled() pattern used for
+    // the Edit menu.
+    ids.menu_database = internal::insert_child(
+        _tree, ids.menu_bar,
+        imgui_tags::menu, "&Database",
+        DConstraintKind::fixed, true);
+
+    ids.item_db_connect = internal::insert_child(
+        _tree, ids.menu_database,
+        imgui_tags::menu_item, "&Connect...",
+        DConstraintKind::required, false);
+
+    _tree.payload(ids.item_db_connect).properties[imgui_props::action] =
+        std::string(imgui_props::act_db_connect);
+    _tree.payload(ids.item_db_connect).properties[imgui_props::shortcut] =
+        std::string("Alt+D");
+    _tree.payload(ids.item_db_connect).properties[imgui_props::enabled] =
+        true;
+
+    ids.item_db_disconnect = internal::insert_child(
+        _tree, ids.menu_database,
+        imgui_tags::menu_item, "&Disconnect",
+        DConstraintKind::required, false);
+
+    _tree.payload(ids.item_db_disconnect).properties[imgui_props::action] =
+        std::string(imgui_props::act_db_disconnect);
+    _tree.payload(ids.item_db_disconnect).properties[imgui_props::enabled] =
+        false;
 
     // =====================================================================
     //  WORKSPACE
@@ -460,7 +498,6 @@ build_imgui_layout(
 
 
 NS_END  // imgui
-NS_END  // platform
 NS_END  // uxoxo
 
 

@@ -2,129 +2,117 @@
 * uxoxo [imgui]                                     imgui_stacked_view_draw.hpp
 *
 * ImGui renderer for the `stacked_view` container:
-*   Renders only the child at the currently selected index.  Out-of-range,
-* negative, or empty-stack cases draw nothing — no placeholder, no warning.
-* Navigation between pages is driven externally (a button, menu_bar, state
-* machine, etc.) and the stacked_view's `page_changed` signal is emitted by
-* that driver, not by this renderer.  This module is pure presentation.
+*   Renders only the page at the currently selected index.  Out-of-range
+* or empty-stack cases draw nothing - no placeholder, no warning.
+* Navigation between pages is driven externally (a button, menu_bar,
+* state machine, etc.) and the stacked_view's `on_select` and
+* `on_change` callbacks are fired by that driver, not by this
+* renderer.  This module is pure presentation.
 *
-*   The caller supplies a `node_render_fn` callback that knows how to
-* dispatch over a node's component variant.  Keeping the recursion through
-* a callback decouples this module from the broader render pipeline and
-* makes it usable both inside the framework's component_registry-based
-* renderer and in standalone test harnesses.
+*   The caller supplies a `_render_fn` callable that knows how to draw
+* a single page.  Keeping rendering through a callback decouples this
+* module from the broader render pipeline and makes it usable both
+* inside the framework's component_registry-based renderer and in
+* standalone test harnesses.
 *
-*   This header also defines `node_render_fn`, the shared child-render
-* callback type reused by `imgui_frame_draw.hpp` and any other container
-* drawer that recurses into children.
+*   The function is a template over the stacked_view's _PageFeat,
+* _CtrlFeat, and _Icon parameters.  The callback receives a
+* `const stacked_page<_PageFeat, _Icon>&` matching the view's
+* instantiation.
+*
+*   ImGui ID scoping: the renderer pushes the view's address as an
+* ImGui ID before invoking the callback so that sibling
+* stacked_views in the same window don't collide on the widget
+* identities used inside their page bodies.
 *
 *
 * path:      /inc/uxoxo/platform/imgui/container/stacked/
                  imgui_stacked_view_draw.hpp
 * link(s):   TBA
-* author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.17
+* author(s): Samuel 'teer' Neal-Blim                        created: 2026.04.17
 *******************************************************************************/
 
 #ifndef  UXOXO_IMGUI_COMPONENT_STACKED_VIEW_DRAW_
 #define  UXOXO_IMGUI_COMPONENT_STACKED_VIEW_DRAW_ 1
 
 // std
-#include <cstddef>
-#include <functional>
+#include <utility>
 // imgui
 #include <imgui.h>
 // djinterp
 #include <djinterp/core/djinterp.hpp>
 // uxoxo
 #include "../../../../uxoxo.hpp"
-#include "../../../../templates/component/components.hpp"
+#include "../../../../templates/component/container/stacked/stacked_view.hpp"
 
 
 NS_UXOXO
-NS_PLATFORM
 NS_IMGUI
 
 
-// ===============================================================================
-//  I.   SHARED CALLBACK TYPE
-// ===============================================================================
-
-// node_render_fn
-//   type: callback invoked to render a single child node.  The integrating
-// layer (typically the component_registry dispatcher) supplies an
-// implementation that visits the node's component variant and dispatches
-// to the appropriate draw handler.  Shared across all container drawers
-// in this directory.
-using node_render_fn = std::function<void(const node&)>;
-
-
-// ===============================================================================
-//  II.  PUBLIC DRAW FUNCTION
-// ===============================================================================
+// =============================================================================
+//  1  PUBLIC DRAW FUNCTION
+// =============================================================================
 
 /*
 imgui_draw_stacked_view
-  Renders a stacked_view by drawing only the child at the currently
-selected index.  Safe against: empty children, negative or out-of-range
-selected index, and null child entries.  No border, no chrome — the
-stacked_view is purely a page-switching container; any visible framing
-is the job of a surrounding `frame` or `panel`.
+  Renders a stacked_view by drawing only the page at the currently
+  selected index.  Safe against empty page lists and out-of-range
+  selected indices - both produce a silent no-op.  No border, no
+  chrome - the stacked_view is purely a page-switching container;
+  any visible framing is the job of a surrounding `frame` or
+  `panel`.
+
+  The view's address is pushed onto the ImGui ID stack for the
+  duration of the callback so sibling stacked_views in the same
+  window don't collide on the widget identities used inside their
+  page bodies.
 
 Parameter(s):
   _sv:        the stacked_view to render.
-  _render_fn: callback invoked on the child node corresponding to the
-              current selection.  If null, or if no child is eligible,
-              the callback is not invoked.
+  _render_fn: callable invoked on the page corresponding to the
+              current selection.  Called as
+              _render_fn(_sv.pages[_sv.selected]) and receives a
+              `const stacked_page<_PageFeat, _Icon>&`.
 Return:
   none.
 */
-inline void
+template <unsigned _PageFeat,
+          unsigned _CtrlFeat,
+          typename _Icon,
+          typename _RenderFn>
+void
 imgui_draw_stacked_view(
-    const stacked_view&   _sv,
-    const node_render_fn& _render_fn
+    const component::stacked_view<_PageFeat, _CtrlFeat, _Icon>& _sv,
+    _RenderFn&&                                                 _render_fn
 )
 {
-    std::size_t count;
-    std::size_t idx;
-
-    // parameter validation
-    if (!_render_fn)
+    // empty stack - draw nothing
+    if (_sv.pages.empty())
     {
         return;
     }
 
-    // initialize
-    count = _sv.children.size();
-
-    // empty stack — draw nothing
-    if (count == 0)
+    // out-of-range selected index - draw nothing.  `selected` is
+    // unsigned, so no negative-value check is required.
+    if (_sv.selected >= _sv.pages.size())
     {
         return;
     }
 
-    // negative or out-of-range index — draw nothing
-    if ( (_sv.selected < 0) ||
-         (static_cast<std::size_t>(_sv.selected) >= count) )
-    {
-        return;
-    }
+    // scope a fresh ImGui ID region so sibling stacked_views don't
+    // collide on widget identities inside their page bodies
+    ImGui::PushID(static_cast<const void*>(&_sv));
 
-    idx = static_cast<std::size_t>(_sv.selected);
+    std::forward<_RenderFn>(_render_fn)(_sv.pages[_sv.selected]);
 
-    // null child — draw nothing
-    if (!_sv.children[idx])
-    {
-        return;
-    }
-
-    _render_fn(*_sv.children[idx]);
+    ImGui::PopID();
 
     return;
 }
 
 
 NS_END  // imgui
-NS_END  // platform
 NS_END  // uxoxo
 
 

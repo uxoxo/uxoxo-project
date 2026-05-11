@@ -19,7 +19,7 @@
 *
 *   The draw function mutates the view's navigation, selection, collapse,
 * check, rename, and context state in response to ImGui input.  It does
-* NOT mutate the node _Data — that flows through the callbacks so the
+* NOT mutate the node _Data - that flows through the callbacks so the
 * application retains control.
 *
 *   Structure:
@@ -33,7 +33,7 @@
 *
 * path:      /inc/uxoxo/platform/imgui/tree/imgui_tree_draw.hpp
 * link(s):   TBA
-* author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.12
+* author(s): Samuel 'teer' Neal-Blim                        created: 2026.04.12
 *******************************************************************************/
 
 #ifndef UXOXO_IMGUI_COMPONENT_TREE_DRAW_
@@ -59,16 +59,15 @@
 
 
 NS_UXOXO
-NS_PLATFORM
 NS_IMGUI
 
 using uxoxo::component::tree_node;
 using uxoxo::component::tree_view;
 
 
-// =============================================================================
+// ===========================================================================
 //  1.  IMGUI TREE STYLE
-// =============================================================================
+// ===========================================================================
 
 // imgui_tree_style
 //   struct: visual constants for tree rendering.
@@ -127,9 +126,9 @@ struct imgui_tree_style
 };
 
 
-// =============================================================================
+// ===========================================================================
 //  2.  IMGUI TREE CALLBACKS
-// =============================================================================
+// ===========================================================================
 
 // imgui_tree_callbacks
 //   struct: application-provided callables for data extraction, icon
@@ -167,9 +166,9 @@ struct imgui_tree_callbacks
 };
 
 
-// =============================================================================
+// ===========================================================================
 //  3.  INTERNAL HELPERS
-// =============================================================================
+// ===========================================================================
 
 NS_INTERNAL
 
@@ -213,7 +212,7 @@ build_ancestor_mask(
 
         if (d <= depth)
         {
-            // found a node at or above our depth — it means our
+            // found a node at or above our depth - it means our
             // ancestor at depth d has more children
             if (d < D_MAX_TREE_DEPTH)
             {
@@ -528,9 +527,9 @@ draw_context_menu_items(
 NS_END  // internal
 
 
-// =============================================================================
+// ===========================================================================
 //  3.  IMGUI DRAW TREE VIEW
-// =============================================================================
+// ===========================================================================
 
 /*
 imgui_draw_tree_view
@@ -1122,7 +1121,6 @@ imgui_draw_tree_view(
 
 
 NS_END  // imgui
-NS_END  // platform
 NS_END  // uxoxo
 
 

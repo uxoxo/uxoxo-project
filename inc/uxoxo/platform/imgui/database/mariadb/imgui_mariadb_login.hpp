@@ -1,5 +1,5 @@
-/*******************************************************************************
-* uxoxo [component]                                     mariadb_login_imgui.hpp
+/******************************************************************************
+* uxoxo [imgui]                                        imgui_mariadb_login.hpp
 *
 * Dear ImGui renderer for mariadb_login:
 *   Vendor-specialized imgui renderer layered on top of
@@ -10,29 +10,26 @@
 *       compression, multi_statement, local_infile, connect_attrs).
 *     - MariaDB-specific slots (default storage engine, Galera
 *       settings).
-*
 *   Zero duplication with database_login_imgui: the shared sub-widget
 * helpers (dbl_imgui_render_ssl_settings, dbl_imgui_render_connect_attrs,
 * dbl_imgui_render_port) are invoked directly by their canonical names.
-*
 *   Zero overhead: every mdlf_* block is guarded by `if constexpr
 * (has_...)` against mariadb_login<_F>::has_*, so disabled slots emit
 * no code.
-*
 * Contents:
-*   1  vendor-widget helpers (galera_settings)
-*   2  vendor-slot renderer (mdlf_* surface)
-*   3  render() overload for mariadb_login
-*   4  render_form() overload for mariadb_login
+*   1.  vendor-widget helpers (galera_settings)
+*   2.  vendor-slot renderer (mdlf_* surface)
+*   3.  render() overload for mariadb_login
+*   4.  render_form() overload for mariadb_login
 *
 *
-* path:      /inc/uxoxo/component/mariadb_login_imgui.hpp
+* path:      /inc/uxoxo/platform/imgui/database/mariadb/imgui_mariadb_login.hpp
 * link(s):   TBA
-* author(s): Samuel 'teer' Neal-Blim                         date: 2026.04.19
-*******************************************************************************/
+* author(s): Samuel 'teer' Neal-Blim                          date: 2026.04.19
+******************************************************************************/
 
-#ifndef  UXOXO_COMPONENT_MARIADB_LOGIN_IMGUI_
-#define  UXOXO_COMPONENT_MARIADB_LOGIN_IMGUI_ 1
+#ifndef  UXOXO_COMPONENT_IMGUI_MARIADB_LOGIN_
+#define  UXOXO_COMPONENT_IMGUI_MARIADB_LOGIN_ 1
 
 // std
 #include <string>
@@ -40,17 +37,21 @@
 #include <imgui.h>
 #include <misc/cpp/imgui_stdlib.h>
 // uxoxo
-#include <uxoxo>
-#include <uxoxo/component/mariadb_login.hpp>
-#include <uxoxo/component/database_login_imgui.hpp>
+#include "../../../../uxoxo.hpp"
+#include "../../../../templates/component/database/mariadb/mariadb_login.hpp"
+#include "../database_login_imgui.hpp"
 
 
 NS_UXOXO
-NS_COMPONENT
+NS_IMGUI
+
+
+// resolve component types brought in via mariadb_login.hpp
+using uxoxo::component::mariadb_login;
 
 
 // ===============================================================================
-//  1  VENDOR-WIDGET HELPERS
+//  1.  VENDOR-WIDGET HELPERS
 // ===============================================================================
 
 // mariadb_login_imgui_config
@@ -95,11 +96,8 @@ mdl_imgui_render_galera_settings(
     return edited;
 }
 
-
-
-
 // ===============================================================================
-//  2  VENDOR-SLOT RENDERER
+//  2.  VENDOR-SLOT RENDERER
 // ===============================================================================
 //   Renders only the mdlf_* surface.  Intended to be called after
 // dbl_imgui_render_base_slots when a caller wants explicit control
@@ -200,11 +198,8 @@ mdl_imgui_render_vendor_slots(
     return edited;
 }
 
-
-
-
 // ===============================================================================
-//  3  RENDER OVERLOAD FOR mariadb_login
+//  3.  RENDER OVERLOAD FOR mariadb_login
 // ===============================================================================
 
 // mdl_imgui_render
@@ -231,11 +226,8 @@ mdl_imgui_render(
     return edited;
 }
 
-
-
-
 // ===============================================================================
-//  4  FORM SHELL
+//  4.  FORM SHELL
 // ===============================================================================
 
 /*
@@ -298,7 +290,7 @@ mdl_imgui_render_form(
 
         if (ImGui::Button(label))
         {
-            const bool ok = ( !_cfg.base.validate_on_submit ||
+            const bool ok = ( !(_cfg.base.validate_on_submit) ||
                               mdl_validate(_mdl) );
 
             if (ok)
@@ -335,8 +327,8 @@ mdl_imgui_render_form(
 }
 
 
-NS_END  // component
+NS_END  // imgui
 NS_END  // uxoxo
 
 
-#endif  // UXOXO_COMPONENT_MARIADB_LOGIN_IMGUI_
+#endif  // UXOXO_COMPONENT_IMGUI_MARIADB_LOGIN_

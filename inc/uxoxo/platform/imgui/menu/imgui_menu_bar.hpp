@@ -1,5 +1,5 @@
 /*******************************************************************************
-* uxoxo [imgui]                                         imgui_menu_bar_draw.hpp
+* uxoxo [imgui]                                              imgui_menu_bar.hpp
 *
 *   Dear ImGui draw handler for the menu_bar component.  Renders a
 * horizontal menu bar using ImGui::BeginMainMenuBar / BeginMenuBar,
@@ -22,23 +22,35 @@
 *   Both delegate to a shared implementation that recursively renders
 * menus and menu items.
 *
+*   Migration note (2026.05.08): the local `imgui_menu_style` namespace
+* (header_text, disabled_text, shortcut_text, check_mark) is removed
+* in favor of palette tags from imgui_palette.hpp.  Manual conditional
+* PushStyleColor / PopStyleColor for the disabled-text override is
+* now expressed as a scoped_color guard scoped to the loop iteration,
+* eliminating the dual pop sites in the previous code (one inside
+* the submenu branch, one at the iteration tail).  Namespace nesting
+* is also normalized from NS_UXOXO/NS_COMPONENT/NS_IMGUI to
+* NS_UXOXO/NS_IMGUI to match the rest of the platform layer; the
+* required component types are introduced via using-declarations.
+*
 *   Structure:
-*     1.  style constants
-*     2.  internal helpers (recursive menu/item rendering)
-*     3.  imgui_draw_main_menu_bar
-*     4.  imgui_draw_menu_bar
+*     1.  internal helpers (recursive menu/item rendering)
+*     2.  imgui_draw_main_menu_bar
+*     3.  imgui_draw_menu_bar
+*     4.  standalone menu popup
+*     5.  context menu popup
 *
 *   REQUIRES: C++17 or later.  Dear ImGui headers must be included
 * before this header.
 *
 *
-* path:      /inc/uxoxo/platform/imgui/menu/imgui_menu_bar_draw.hpp
+* path:      /inc/uxoxo/platform/imgui/menu/imgui_menu_bar.hpp
 * link(s):   TBA
-* author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.10
+* author(s): Samuel 'teer' Neal-Blim                        created: 2026.04.10
 *******************************************************************************/
 
-#ifndef UXOXO_IMGUI_COMPONENT_MENU_BAR_DRAW_
-#define UXOXO_IMGUI_COMPONENT_MENU_BAR_DRAW_ 1
+#ifndef UXOXO_COMPONENT_IMGUI_MENU_BAR_
+#define UXOXO_COMPONENT_IMGUI_MENU_BAR_ 1
 
 // std
 #include <cstddef>
@@ -53,29 +65,19 @@
 #include "../../../templates/component/menu/menu.hpp"
 #include "../../../templates/component/menu/menu_bar.hpp"
 #include "../../../templates/render_context.hpp"
+#include "../core/imgui_palette.hpp"
+#include "../core/imgui_scope.hpp"
 
 
 NS_UXOXO
-NS_COMPONENT
 NS_IMGUI
 
-// =============================================================================
-//  1.  STYLE CONSTANTS
-// =============================================================================
 
-namespace imgui_menu_style
-{
-    D_INLINE const ImVec4 header_text     = ImVec4(0.55f, 0.58f, 0.65f, 1.0f);
-    D_INLINE const ImVec4 disabled_text   = ImVec4(0.40f, 0.40f, 0.43f, 0.70f);
-    D_INLINE const ImVec4 shortcut_text   = ImVec4(0.50f, 0.50f, 0.55f, 1.0f);
-    D_INLINE const ImVec4 check_mark      = ImVec4(0.40f, 0.72f, 0.45f, 1.0f);
+using uxoxo::component::render_context;
 
-}   // namespace imgui_menu_style
-
-
-// =============================================================================
-//  2.  INTERNAL HELPERS
-// =============================================================================
+// ===========================================================================
+//  1.  INTERNAL HELPERS
+// ===========================================================================
 
 NS_INTERNAL
 
@@ -148,8 +150,8 @@ NS_INTERNAL
     template<typename _Menu>
     bool
     imgui_draw_menu_items(
-        _Menu&      _menu,
-        bool&       _interacted
+        _Menu& _menu,
+        bool&  _interacted
     )
     {
         using item_type = typename _Menu::value_type;
@@ -164,25 +166,31 @@ NS_INTERNAL
                 continue;
             }
 
-            // group header
+            // group header — palette-tinted text, scoped to the draw
             if (item.is_header())
             {
-                ImGui::PushStyleColor(ImGuiCol_Text,
-                                      imgui_menu_style::header_text);
+                scoped_color header_color {
+                    { ImGuiCol_Text,
+                          palette::get<palette::text_header_tag>() }
+                };
 
                 std::string label = imgui_menu_item_label(item);
                 ImGui::TextUnformatted(label.c_str());
 
-                ImGui::PopStyleColor();
-
                 continue;
             }
 
-            // disabled text color
+            // disabled text color — scope spans the entire item
+            // render so both the submenu and plain-item branches
+            // share a single push/pop pair (replaces the dual-pop
+            // structure in the pre-migration code).
+            scoped_color disabled_color;
+
             if (!item.enabled)
             {
-                ImGui::PushStyleColor(ImGuiCol_Text,
-                                      imgui_menu_style::disabled_text);
+                disabled_color.push(
+                    ImGuiCol_Text,
+                    palette::get<palette::text_disabled_tag>());
             }
 
             // submenu
@@ -199,11 +207,6 @@ NS_INTERNAL
                                               _interacted);
 
                         ImGui::EndMenu();
-                    }
-
-                    if (!item.enabled)
-                    {
-                        ImGui::PopStyleColor();
                     }
 
                     continue;
@@ -237,11 +240,6 @@ NS_INTERNAL
                 {
                     _interacted = true;
                 }
-            }
-
-            if (!item.enabled)
-            {
-                ImGui::PopStyleColor();
             }
         }
 
@@ -324,9 +322,9 @@ NS_INTERNAL
 NS_END  // internal
 
 
-// =============================================================================
-//  3.  IMGUI DRAW MAIN MENU BAR
-// =============================================================================
+// ===========================================================================
+//  2.  IMGUI DRAW MAIN MENU BAR
+// ===========================================================================
 //   Renders the menu bar at the top of the viewport using
 // ImGui::BeginMainMenuBar.
 
@@ -340,6 +338,8 @@ imgui_draw_main_menu_bar(
     render_context& _ctx
 )
 {
+    bool interacted;
+
     (void)_ctx;
 
     if (_bar.empty())
@@ -347,7 +347,7 @@ imgui_draw_main_menu_bar(
         return false;
     }
 
-    bool interacted = false;
+    interacted = false;
 
     if (ImGui::BeginMainMenuBar())
     {
@@ -360,9 +360,9 @@ imgui_draw_main_menu_bar(
 }
 
 
-// =============================================================================
-//  4.  IMGUI DRAW MENU BAR (window-level)
-// =============================================================================
+// ===========================================================================
+//  3.  IMGUI DRAW MENU BAR (window-level)
+// ===========================================================================
 //   Renders the menu bar inside an ImGui window that has the
 // ImGuiWindowFlags_MenuBar flag.
 
@@ -377,6 +377,8 @@ imgui_draw_menu_bar(
     render_context& _ctx
 )
 {
+    bool interacted;
+
     (void)_ctx;
 
     if (_bar.empty())
@@ -384,7 +386,7 @@ imgui_draw_menu_bar(
         return false;
     }
 
-    bool interacted = false;
+    interacted = false;
 
     if (ImGui::BeginMenuBar())
     {
@@ -397,9 +399,9 @@ imgui_draw_menu_bar(
 }
 
 
-// =============================================================================
-//  5.  STANDALONE MENU POPUP
-// =============================================================================
+// ===========================================================================
+//  4.  STANDALONE MENU POPUP
+// ===========================================================================
 //   Renders a menu as a standalone popup (e.g. right-click context
 // menu).  The caller is responsible for calling ImGui::OpenPopup
 // with the provided id.
@@ -429,9 +431,9 @@ imgui_draw_menu_popup(
 }
 
 
-// =============================================================================
-//  6.  CONTEXT MENU POPUP
-// =============================================================================
+// ===========================================================================
+//  5.  CONTEXT MENU POPUP
+// ===========================================================================
 //   Convenience wrapper that opens a popup on right-click and
 // renders a menu inside it.
 
@@ -461,8 +463,7 @@ imgui_draw_context_menu(
 
 
 NS_END  // imgui
-NS_END  // component
 NS_END  // uxoxo
 
 
-#endif  // UXOXO_IMGUI_COMPONENT_MENU_BAR_DRAW_
+#endif  // UXOXO_COMPONENT_IMGUI_MENU_BAR_

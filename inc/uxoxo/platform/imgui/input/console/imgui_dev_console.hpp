@@ -1,5 +1,5 @@
-/*******************************************************************************
-* uxoxo [imgui]                                      imgui_dev_console_draw.hpp
+/******************************************************************************
+* uxoxo [imgui]                                          imgui_dev_console.hpp
 *
 *   Dear ImGui draw handler for the dev_console component.  Renders the
 * console as a dockable/hideable ImGui window containing:
@@ -17,26 +17,62 @@
 * The console window itself can be toggled by a configurable key
 * (default: backtick/tilde) or by calling imgui_console_toggle().
 *
+*   Two layout modes are supported (selected via imgui_console_view_state.layout):
+*
+*     window         the console is wrapped in its own ImGui::Begin /
+*                    ImGui::End window, with optional docking to top /
+*                    bottom / full overlay.  Default mode; suitable for
+*                    Quake-style overlay consoles, debug panes, or
+*                    popouts.  Output pane fills available vertical
+*                    space minus the input bar.
+*     inline_widget  the console emits its widgets at the current ImGui
+*                    cursor position with no surrounding window.  The
+*                    caller owns the surrounding container - typically a
+*                    toolbar BeginChild or a full window split.  The
+*                    input bar fills the available horizontal space; the
+*                    output pane (when shown) is drawn at a configurable
+*                    fixed height (output_pane_height /
+*                    output_pane_min_height fields).  This is the mode
+*                    used to embed a console as a toolbar widget.
+*
+*   Initial visibility for both the console as a whole and the output
+* pane is data-driven through the view state - set vs.open = false to
+* boot with the console hidden, vs.show_output = false to boot with
+* the output pane collapsed.  Both can be toggled at runtime.
+*
+*   Migration note (2026.05.08): the local `imgui_console_style`
+* namespace has been trimmed.  Color slots that match shared palette
+* tags (window_bg, window_border, color_normal, color_info,
+* color_warning, color_error, color_debug, color_success, color_muted,
+* color_highlight) now resolve to `palette::` tags from
+* imgui_palette.hpp.  Console-specific surfaces (output pane, input
+* bar, prompt, submit button, autosuggest dropdown, autocomplete
+* ghost) and sizing constants stay local because they have no
+* consumer outside the dev console renderer.  No behavioural change.
+*
 *   Structure:
 *     1.  style constants
 *     2.  imgui_console_view_state (runtime visibility/dock state)
-*     3.  output pane rendering
-*     4.  input bar rendering
-*     5.  autosuggest dropdown rendering
-*     6.  imgui_draw_dev_console (main entry point)
-*     7.  toggle key handler
+*     3.  internal helpers
+*     4.  output pane rendering
+*     5.  input bar rendering
+*     6.  autosuggest dropdown rendering
+*     7.  log level selector
+*     8.  shared body renderer
+*     9.  imgui_draw_dev_console (main entry point)
+*     10. toggle key handler
 *
 *   REQUIRES: C++17 or later.  Dear ImGui headers must be included
 * before this header.
 *
 *
-* path:      /inc/uxoxo/platform/imgui/input/console/imgui_dev_console_draw.hpp
+* path:      /inc/uxoxo/platform/imgui/input/console/imgui_dev_console.hpp
 * link(s):   TBA
-* author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.10
-*******************************************************************************/
+* author(s): Samuel 'teer' Neal-Blim                       created: 2026.04.10
+******************************************************************************/
 
-#ifndef UXOXO_IMGUI_COMPONENT_DEV_CONSOLE_DRAW_
-#define UXOXO_IMGUI_COMPONENT_DEV_CONSOLE_DRAW_ 1
+#ifndef UXOXO_IMGUI_COMPONENT_DEV_CONSOLE_
+#define UXOXO_IMGUI_COMPONENT_DEV_CONSOLE_ 1
 
 // std
 #include <algorithm>
@@ -54,79 +90,78 @@
 #include "../../../../templates/component/input/console/dev_console.hpp"
 #include "../../../../templates/component/output/text_output.hpp"
 #include "../../../../templates/component/button/button.hpp"
+#include "../core/imgui_palette.hpp"
 
 
 NS_UXOXO
-NS_COMPONENT
 NS_IMGUI
 
-// =============================================================================
-//  1.  STYLE CONSTANTS
-// =============================================================================
 
+using uxoxo::component::log_level;
+using uxoxo::component::output_color_tag;
+using uxoxo::component::render_context;
+
+// ===========================================================================
+//  1.  STYLE CONSTANTS
+// ===========================================================================
+
+//   Migration note (2026.05.08): values matching shared palette tags
+// (window_bg, window_border, color_normal, color_info, color_warning,
+// color_error, color_debug, color_success, color_highlight,
+// color_muted) are now drawn from `palette::` (imgui_palette.hpp).
+// Console-specific surfaces (output pane, input bar, prompt, submit
+// button, autosuggest dropdown, autocomplete ghost) and sizing
+// constants stay local because they have no consumer outside the
+// dev console renderer.
 namespace imgui_console_style
 {
     // window
-    D_INLINE const ImVec4 window_bg       = ImVec4(0.10f, 0.10f, 0.12f, 0.94f);
-    D_INLINE const ImVec4 window_border   = ImVec4(0.22f, 0.22f, 0.26f, 0.80f);
-    D_INLINE constexpr float min_height   = 120.0f;
+    inline constexpr float min_height   = 120.0f;
 
-    // output pane
-    D_INLINE const ImVec4 output_bg       = ImVec4(0.08f, 0.08f, 0.10f, 1.0f);
-    D_INLINE const ImVec4 output_border   = ImVec4(0.18f, 0.18f, 0.22f, 0.60f);
+    // output pane - console-local
+    inline const ImVec4 output_bg       = ImVec4(0.08f, 0.08f, 0.10f, 1.0f);
+    inline const ImVec4 output_border   = ImVec4(0.18f, 0.18f, 0.22f, 0.60f);
 
-    // output line colors by output_color_tag
-    D_INLINE const ImVec4 color_normal    = ImVec4(0.80f, 0.80f, 0.82f, 1.0f);
-    D_INLINE const ImVec4 color_info      = ImVec4(0.55f, 0.75f, 0.95f, 1.0f);
-    D_INLINE const ImVec4 color_warning   = ImVec4(0.95f, 0.80f, 0.30f, 1.0f);
-    D_INLINE const ImVec4 color_error     = ImVec4(0.95f, 0.35f, 0.30f, 1.0f);
-    D_INLINE const ImVec4 color_debug     = ImVec4(0.55f, 0.55f, 0.58f, 1.0f);
-    D_INLINE const ImVec4 color_success   = ImVec4(0.35f, 0.80f, 0.45f, 1.0f);
-    D_INLINE const ImVec4 color_muted     = ImVec4(0.45f, 0.45f, 0.50f, 1.0f);
-    D_INLINE const ImVec4 color_highlight = ImVec4(1.00f, 1.00f, 0.60f, 1.0f);
+    // input bar - console-local
+    inline const ImVec4 input_bg        = ImVec4(0.12f, 0.12f, 0.14f, 1.0f);
+    inline const ImVec4 input_border    = ImVec4(0.25f, 0.25f, 0.30f, 0.80f);
+    inline const ImVec4 prompt_color    = ImVec4(0.45f, 0.65f, 0.90f, 1.0f);
 
-    // input bar
-    D_INLINE const ImVec4 input_bg        = ImVec4(0.12f, 0.12f, 0.14f, 1.0f);
-    D_INLINE const ImVec4 input_border    = ImVec4(0.25f, 0.25f, 0.30f, 0.80f);
-    D_INLINE const ImVec4 prompt_color    = ImVec4(0.45f, 0.65f, 0.90f, 1.0f);
+    // submit button - console-local accent
+    inline const ImVec4 submit_bg       = ImVec4(0.22f, 0.45f, 0.65f, 1.0f);
+    inline const ImVec4 submit_hover    = ImVec4(0.28f, 0.52f, 0.75f, 1.0f);
+    inline const ImVec4 submit_active   = ImVec4(0.18f, 0.38f, 0.55f, 1.0f);
 
-    // submit button
-    D_INLINE const ImVec4 submit_bg       = ImVec4(0.22f, 0.45f, 0.65f, 1.0f);
-    D_INLINE const ImVec4 submit_hover    = ImVec4(0.28f, 0.52f, 0.75f, 1.0f);
-    D_INLINE const ImVec4 submit_active   = ImVec4(0.18f, 0.38f, 0.55f, 1.0f);
+    // autosuggest dropdown - console-local
+    inline const ImVec4 suggest_bg      = ImVec4(0.14f, 0.14f, 0.17f, 0.96f);
+    inline const ImVec4 suggest_sel     = ImVec4(0.22f, 0.40f, 0.65f, 0.70f);
+    inline const ImVec4 suggest_text    = ImVec4(0.75f, 0.75f, 0.78f, 1.0f);
+    inline const ImVec4 suggest_border  = ImVec4(0.25f, 0.25f, 0.30f, 0.80f);
 
-    // autosuggest dropdown
-    D_INLINE const ImVec4 suggest_bg      = ImVec4(0.14f, 0.14f, 0.17f, 0.96f);
-    D_INLINE const ImVec4 suggest_sel     = ImVec4(0.22f, 0.40f, 0.65f, 0.70f);
-    D_INLINE const ImVec4 suggest_text    = ImVec4(0.75f, 0.75f, 0.78f, 1.0f);
-    D_INLINE const ImVec4 suggest_border  = ImVec4(0.25f, 0.25f, 0.30f, 0.80f);
+    // autocomplete ghost - console-local
+    inline const ImVec4 ghost_text      = ImVec4(0.40f, 0.45f, 0.55f, 0.70f);
 
-    // autocomplete ghost
-    D_INLINE const ImVec4 ghost_text      = ImVec4(0.40f, 0.45f, 0.55f, 0.70f);
-
-    // log level combo
-    D_INLINE constexpr float level_combo_width = 90.0f;
-
-    // buffer sizes
-    D_INLINE constexpr std::size_t input_buf_size = 4096;
-
-    // default toggle key
-    D_INLINE constexpr ImGuiKey toggle_key = ImGuiKey_GraveAccent;
+    // sizing - no palette equivalents
+    inline constexpr float level_combo_width = 90.0f;
+    inline constexpr std::size_t input_buf_size = 4096;
+    inline constexpr ImGuiKey toggle_key = ImGuiKey_GraveAccent;
 
 }   // namespace imgui_console_style
 
 
-// =============================================================================
+// ===========================================================================
 //  2.  IMGUI CONSOLE VIEW STATE
-// =============================================================================
+// ===========================================================================
 //   Runtime state controlling which features are visible and how
 // the console window is docked.  This is renderer-side state, NOT
-// part of the framework-agnostic dev_console — it lives alongside
+// part of the framework-agnostic dev_console - it lives alongside
 // the console as a companion struct, similar to
 // database_table_state.
 
 // imgui_console_dock
-//   enum: docking position for the console window.
+//   enum: docking position for the console window.  Only consulted
+// when the layout mode is `window`; ignored in `inline_widget` mode
+// (the surrounding container does the positioning).
 enum class imgui_console_dock : std::uint8_t
 {
     floating,       // free-floating ImGui window
@@ -135,18 +170,62 @@ enum class imgui_console_dock : std::uint8_t
     full            // full viewport overlay (half-life style)
 };
 
+// imgui_console_layout
+//   enum: how the console widgets are emitted into the ImGui frame.
+// Toggled by setting view_state.layout; both modes honor the same
+// per-feature flags (show_output, show_history, etc).
+enum class imgui_console_layout : std::uint8_t
+{
+    window,         // wrap the console in its own ImGui::Begin /
+                    //   ImGui::End window.  Honors `dock` for window
+                    //   positioning.  Output pane fills available
+                    //   vertical space.  This is the default and
+                    //   matches the original behavior.
+    inline_widget   // emit the console widgets at the current ImGui
+                    //   cursor position with no surrounding window.
+                    //   The caller owns the surrounding container
+                    //   (typically a toolbar BeginChild or a full
+                    //   window split).  The input bar fills the
+                    //   available horizontal space, so the console
+                    //   transparently expands to fit a toolbar of
+                    //   any width.  Output pane uses
+                    //   output_pane_height / output_pane_min_height.
+};
+
 // imgui_console_view_state
 //   struct: per-instance renderer state for a dev_console.
 struct imgui_console_view_state
 {
-    // window visibility (toggled by key or button)
+    // -- layout -------------------------------------------------------
+    //   `layout` selects between the windowed (default) and inline
+    // (toolbar-embedded) draw paths.  `dock` is consulted only when
+    // layout is `window`.
+    imgui_console_layout layout     = imgui_console_layout::window;
+    imgui_console_dock   dock       = imgui_console_dock::floating;
+    float                dock_ratio = 0.40f;    // fraction of viewport
+
+    // -- inline-mode output pane sizing -------------------------------
+    //   In windowed mode the output pane fills the remaining vertical
+    // space inside the window.  In inline_widget mode there is no
+    // window, so the output pane needs an explicit height; these
+    // fields supply it.  output_pane_height is the current/initial
+    // height in pixels; output_pane_min_height is the floor below
+    // which the pane will not shrink even if the surrounding container
+    // is squeezed.
+    float                output_pane_height     = 160.0f;
+    float                output_pane_min_height =  40.0f;
+
+    // -- window visibility (toggled by key or button) -----------------
+    //   When false, imgui_draw_dev_console is a no-op.  Use this for
+    // "console initially hidden" - set false at construction, then
+    // toggle with the `~` key (via imgui_console_handle_toggle_key)
+    // or programmatically via imgui_console_toggle.
     bool open = true;
 
-    // docking
-    imgui_console_dock dock       = imgui_console_dock::floating;
-    float              dock_ratio = 0.40f;    // fraction of viewport
-
-    // per-feature visibility (runtime overrides)
+    // -- per-feature visibility (runtime overrides) -------------------
+    //   show_output controls whether the scrollback pane is rendered;
+    // set false for "output initially hidden" (the input bar still
+    // draws, the pane just collapses).
     bool show_output      = true;
     bool show_suggest     = true;
     bool show_complete    = true;
@@ -154,48 +233,48 @@ struct imgui_console_view_state
     bool show_submit_btn  = true;
     bool show_log_levels  = true;
 
-    // per-feature enable (runtime overrides)
+    // -- per-feature enable (runtime overrides) -----------------------
     bool enable_suggest   = true;
     bool enable_complete  = true;
     bool enable_history   = true;
 
-    // input focus management
+    // -- input focus management ---------------------------------------
     bool focus_input      = false;    // set true to force focus next frame
     bool was_just_opened  = false;    // true on the frame after toggle-open
 };
 
 
-// =============================================================================
+// ===========================================================================
 //  3.  INTERNAL HELPERS
-// =============================================================================
+// ===========================================================================
 
 NS_INTERNAL
 
     // imgui_console_color_for_tag
     //   function: maps an output_color_tag to an ImVec4 color.
-    D_INLINE ImVec4
+    inline ImVec4
     imgui_console_color_for_tag(
         output_color_tag _tag
     )
     {
         switch (_tag)
         {
-            case output_color_tag::info:      return imgui_console_style::color_info;
-            case output_color_tag::warning:   return imgui_console_style::color_warning;
-            case output_color_tag::error:     return imgui_console_style::color_error;
-            case output_color_tag::debug:     return imgui_console_style::color_debug;
-            case output_color_tag::success:   return imgui_console_style::color_success;
-            case output_color_tag::muted:     return imgui_console_style::color_muted;
-            case output_color_tag::highlight: return imgui_console_style::color_highlight;
+            case output_color_tag::info:      return palette::get<palette::console_info_tag>();
+            case output_color_tag::warning:   return palette::get<palette::console_warning_tag>();
+            case output_color_tag::error:     return palette::get<palette::console_error_tag>();
+            case output_color_tag::debug:     return palette::get<palette::console_debug_tag>();
+            case output_color_tag::success:   return palette::get<palette::console_success_tag>();
+            case output_color_tag::muted:     return palette::get<palette::text_muted_tag>();
+            case output_color_tag::highlight: return palette::get<palette::console_highlight_tag>();
             case output_color_tag::normal:
-            default:                          return imgui_console_style::color_normal;
+            default:                          return palette::get<palette::console_normal_tag>();
         }
     }
 
     // imgui_console_apply_dock_position
     //   function: sets ImGui window position and size based on
     // dock mode before ImGui::Begin.
-    D_INLINE void
+    inline void
     imgui_console_apply_dock_position(
         const imgui_console_view_state& _vs,
         const render_context&           _ctx
@@ -246,9 +325,9 @@ NS_INTERNAL
 NS_END  // internal
 
 
-// =============================================================================
+// ===========================================================================
 //  4.  OUTPUT PANE RENDERING
-// =============================================================================
+// ===========================================================================
 
 // imgui_draw_console_output
 //   function: draws the scrollable output pane.
@@ -289,7 +368,7 @@ imgui_draw_console_output(
         for (const auto& line : output.lines)
         {
             // color per line
-            ImVec4 color = imgui_console_style::color_normal;
+            ImVec4 color = palette::get<palette::console_normal_tag>();
 
             if constexpr (std::remove_reference_t<decltype(output)>::has_color)
             {
@@ -327,9 +406,9 @@ imgui_draw_console_output(
 }
 
 
-// =============================================================================
+// ===========================================================================
 //  5.  INPUT BAR RENDERING
-// =============================================================================
+// ===========================================================================
 
 // imgui_draw_console_input_bar
 //   function: draws the input line with prompt, text field, and
@@ -442,7 +521,7 @@ imgui_draw_console_input_bar(
                     }
                     else
                     {
-                        // past newest — restore saved input
+                        // past newest - restore saved input
                         _data->DeleteChars(0, _data->BufTextLen);
                         _data->InsertChars(
                             0,
@@ -462,7 +541,7 @@ imgui_draw_console_input_bar(
                          history_callback,
                          &hctx))
     {
-        // enter pressed — submit
+        // enter pressed - submit
         std::string cmd = input_buf;
 
         if (!cmd.empty())
@@ -526,9 +605,9 @@ imgui_draw_console_input_bar(
 }
 
 
-// =============================================================================
+// ===========================================================================
 //  6.  AUTOSUGGEST DROPDOWN RENDERING
-// =============================================================================
+// ===========================================================================
 
 // imgui_draw_console_suggestions
 //   function: draws the autosuggest dropdown below the input bar.
@@ -666,9 +745,9 @@ imgui_draw_console_suggestions(
 }
 
 
-// =============================================================================
+// ===========================================================================
 //  7.  LOG LEVEL SELECTOR
-// =============================================================================
+// ===========================================================================
 
 // imgui_draw_console_log_level_combo
 //   function: draws a log level filter combo box.
@@ -742,14 +821,176 @@ imgui_draw_console_log_level_combo(
 }
 
 
-// =============================================================================
-//  8.  MAIN ENTRY POINT
-// =============================================================================
+// ===========================================================================
+//  8.  SHARED BODY RENDERER
+// ===========================================================================
+//   The body widgets (log level combo, clear button, output pane,
+// input bar, suggestion dropdown) are identical between windowed and
+// inline layout modes - the only thing that changes is whether a
+// surrounding ImGui::Begin / ImGui::End wraps them, and how the
+// output pane is sized vertically.  Factoring them out into a single
+// helper keeps the two layout paths in lockstep.
+
+NS_INTERNAL
+
+    // imgui_draw_dev_console_body
+    //   function: emits the inner widgets of the console at the
+    // current ImGui cursor.  Caller controls the surrounding
+    // container (window, child, toolbar, etc.).
+    //
+    //   When _inline_layout is true, the output pane uses the
+    // explicit pixel height supplied via vs.output_pane_height
+    // (clamped to vs.output_pane_min_height); when false, the output
+    // pane fills the remaining vertical space inside the parent
+    // window.  Returns true if the user interacted (submitted, clicked
+    // submit, or accepted a suggestion).
+    template<typename _Console>
+    bool
+    imgui_draw_dev_console_body(
+        _Console&                 _dc,
+        imgui_console_view_state& _vs,
+        bool                      _inline_layout
+    )
+    {
+        bool interacted = false;
+
+        // -----------------------------------------------------------------
+        //  log level combo (top bar)
+        // -----------------------------------------------------------------
+        imgui_draw_console_log_level_combo(_dc, _vs);
+
+        // optional: clear button
+        if constexpr (_Console::has_output)
+        {
+            if (_vs.show_output)
+            {
+                if constexpr (_Console::has_log_levels)
+                {
+                    if (_vs.show_log_levels)
+                    {
+                        ImGui::SameLine();
+                    }
+                }
+
+                if (ImGui::SmallButton("Clear"))
+                {
+                    dc_clear_output(_dc);
+                    interacted = true;
+                }
+            }
+        }
+
+        // -----------------------------------------------------------------
+        //  output pane
+        // -----------------------------------------------------------------
+        //   The pane only draws when the console has the output
+        // feature compiled in AND the renderer is currently showing
+        // it (vs.show_output).  Two height modes:
+        //
+        //     inline_layout = false  fill the remaining vertical
+        //                            space in the surrounding window,
+        //                            minus a reservation for the
+        //                            input bar and (if present) the
+        //                            log level combo.
+        //
+        //     inline_layout = true   use the configured pixel height
+        //                            from vs.output_pane_height,
+        //                            clamped to vs.output_pane_min_height.
+        if constexpr (_Console::has_output)
+        {
+            if (_vs.show_output)
+            {
+                float output_height = 0.0f;
+
+                if (_inline_layout)
+                {
+                    output_height = _vs.output_pane_height;
+
+                    if (output_height < _vs.output_pane_min_height)
+                    {
+                        output_height = _vs.output_pane_min_height;
+                    }
+                }
+                else
+                {
+                    // compute output pane height: all available
+                    // space minus input bar (~26px) and log level
+                    // combo if visible
+                    float reserved =
+                        ImGui::GetTextLineHeightWithSpacing() + 12.0f;
+
+                    if constexpr (_Console::has_log_levels)
+                    {
+                        if (_vs.show_log_levels)
+                        {
+                            reserved +=
+                                ImGui::GetTextLineHeightWithSpacing() + 4.0f;
+                        }
+                    }
+
+                    output_height =
+                        ImGui::GetContentRegionAvail().y - reserved;
+
+                    if (output_height < _vs.output_pane_min_height)
+                    {
+                        output_height = _vs.output_pane_min_height;
+                    }
+                }
+
+                imgui_draw_console_output(_dc, _vs, output_height);
+            }
+        }
+
+        // -----------------------------------------------------------------
+        //  input bar
+        // -----------------------------------------------------------------
+        //   Separator before the input bar gives a visual divider
+        // between scrollback and the prompt; in inline mode it also
+        // separates the console from whatever toolbar widgets sit
+        // alongside it.
+        ImGui::Separator();
+
+        if (imgui_draw_console_input_bar(_dc, _vs))
+        {
+            interacted = true;
+        }
+
+        // -----------------------------------------------------------------
+        //  autosuggest dropdown
+        // -----------------------------------------------------------------
+        if (imgui_draw_console_suggestions(_dc, _vs))
+        {
+            interacted = true;
+        }
+
+        return interacted;
+    }
+
+NS_END  // internal
+
+
+// ===========================================================================
+//  9.  MAIN ENTRY POINT
+// ===========================================================================
 
 // imgui_draw_dev_console
-//   function: renders a dev_console as a dockable ImGui window.
-// The console can be toggled open/closed via the view state.
-// Returns true if any user interaction occurred.
+//   function: renders a dev_console using the layout mode selected by
+// vs.layout (window or inline_widget).  Returns true if any user
+// interaction occurred.
+//
+//   layout = window         the console is drawn in its own
+//                           ImGui::Begin / ImGui::End window,
+//                           positioned via vs.dock.  Backwards-
+//                           compatible with all prior calling code.
+//
+//   layout = inline_widget  the console widgets are emitted at the
+//                           caller's current ImGui cursor with no
+//                           window wrapper.  Use this when embedding
+//                           the console inside a toolbar, split view,
+//                           or any custom container - the caller has
+//                           already opened the parent window /
+//                           BeginChild / etc.  The input bar fills
+//                           the available horizontal space.
 template<typename _Console>
 bool
 imgui_draw_dev_console(
@@ -764,6 +1005,32 @@ imgui_draw_dev_console(
         return false;
     }
 
+    // -----------------------------------------------------------------
+    //  inline layout: no window wrapper, draw at current cursor
+    // -----------------------------------------------------------------
+    //   The caller owns the surrounding container (toolbar, split
+    // view, etc.) so we skip the dock positioning, the styled Begin/
+    // End pair, and any window-level state syncing.  The body
+    // renderer fills the available width naturally because every
+    // sized widget inside it queries GetContentRegionAvail().x.
+    if (_vs.layout == imgui_console_layout::inline_widget)
+    {
+        // focus input on first frame after opening
+        if (_vs.was_just_opened)
+        {
+            _vs.focus_input      = true;
+            _vs.was_just_opened  = false;
+        }
+
+        return internal::imgui_draw_dev_console_body(
+            _dc,
+            _vs,
+            /*_inline_layout=*/true);
+    }
+
+    // -----------------------------------------------------------------
+    //  windowed layout (default)
+    // -----------------------------------------------------------------
     bool interacted = false;
 
     // apply dock positioning
@@ -783,9 +1050,9 @@ imgui_draw_dev_console(
 
     // window style
     ImGui::PushStyleColor(ImGuiCol_WindowBg,
-                          imgui_console_style::window_bg);
+                          palette::get<palette::window_bg_tag>());
     ImGui::PushStyleColor(ImGuiCol_Border,
-                          imgui_console_style::window_border);
+                          palette::get<palette::window_border_tag>());
 
     bool window_open = _vs.open;
 
@@ -809,74 +1076,11 @@ imgui_draw_dev_console(
         _vs.was_just_opened  = false;
     }
 
-    // -----------------------------------------------------------------
-    //  log level combo (top bar)
-    // -----------------------------------------------------------------
-    imgui_draw_console_log_level_combo(_dc, _vs);
-
-    // optional: clear button
-    if constexpr (_Console::has_output)
-    {
-        if (_vs.show_output)
-        {
-            if constexpr (_Console::has_log_levels)
-            {
-                if (_vs.show_log_levels)
-                {
-                    ImGui::SameLine();
-                }
-            }
-
-            if (ImGui::SmallButton("Clear"))
-            {
-                dc_clear_output(_dc);
-                interacted = true;
-            }
-        }
-    }
-
-    // -----------------------------------------------------------------
-    //  output pane
-    // -----------------------------------------------------------------
-    if constexpr (_Console::has_output)
-    {
-        // compute output pane height: all available space minus
-        // input bar (~26px) and suggestion dropdown if visible
-        float reserved = ImGui::GetTextLineHeightWithSpacing() + 12.0f;
-
-        // account for log level combo height if shown
-        if constexpr (_Console::has_log_levels)
-        {
-            if (_vs.show_log_levels)
-            {
-                reserved += ImGui::GetTextLineHeightWithSpacing() + 4.0f;
-            }
-        }
-
-        float output_height = ImGui::GetContentRegionAvail().y - reserved;
-
-        if (output_height < 40.0f)
-        {
-            output_height = 40.0f;
-        }
-
-        imgui_draw_console_output(_dc, _vs, output_height);
-    }
-
-    // -----------------------------------------------------------------
-    //  input bar
-    // -----------------------------------------------------------------
-    ImGui::Separator();
-
-    if (imgui_draw_console_input_bar(_dc, _vs))
-    {
-        interacted = true;
-    }
-
-    // -----------------------------------------------------------------
-    //  autosuggest dropdown
-    // -----------------------------------------------------------------
-    if (imgui_draw_console_suggestions(_dc, _vs))
+    // body widgets
+    if (internal::imgui_draw_dev_console_body(
+            _dc,
+            _vs,
+            /*_inline_layout=*/false))
     {
         interacted = true;
     }
@@ -888,13 +1092,13 @@ imgui_draw_dev_console(
 }
 
 
-// =============================================================================
-//  9.  TOGGLE KEY HANDLER
-// =============================================================================
+// ===========================================================================
+//  10. TOGGLE KEY HANDLER
+// ===========================================================================
 
 // imgui_console_toggle
 //   function: toggles the console open/closed.
-D_INLINE void
+inline void
 imgui_console_toggle(
     imgui_console_view_state& _vs
 )
@@ -913,7 +1117,7 @@ imgui_console_toggle(
 //   function: checks if the configured toggle key was pressed
 // and toggles the console.  Call once per frame, outside the
 // console window.  Returns true if the key was consumed.
-D_INLINE bool
+inline bool
 imgui_console_handle_toggle_key(
     imgui_console_view_state& _vs,
     ImGuiKey                  _key = imgui_console_style::toggle_key
@@ -931,7 +1135,7 @@ imgui_console_handle_toggle_key(
 
 // imgui_console_set_dock
 //   function: changes the docking mode.
-D_INLINE void
+inline void
 imgui_console_set_dock(
     imgui_console_view_state& _vs,
     imgui_console_dock        _dock,
@@ -945,8 +1149,7 @@ imgui_console_set_dock(
 }
 
 NS_END  // imgui
-NS_END  // component
 NS_END  // uxoxo
 
 
-#endif  // UXOXO_IMGUI_COMPONENT_DEV_CONSOLE_DRAW_
+#endif  // UXOXO_IMGUI_COMPONENT_DEV_CONSOLE_

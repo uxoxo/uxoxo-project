@@ -1,5 +1,5 @@
-/*******************************************************************************
-* uxoxo [imgui]                                               imgui_popover.hpp
+/******************************************************************************
+* uxoxo [imgui]                                              imgui_popover.hpp
 *
 * ImGui backend for popover<>:
 *   Renders popover<_Content, _Source, _Features, _Policy> as an ImGui
@@ -31,7 +31,7 @@
 *
 *   Input routing model:
 *     ImGui is immediate-mode and focus-sensitive.  An autocomplete
-*   popover usually lives BELOW a focused text input — the text input
+*   popover usually lives BELOW a focused text input - the text input
 *   owns focus, the popover is drawn but does not steal it.  To make
 *   this work, popover_render applies `NoFocusOnAppearing` and does
 *   NOT process keyboard input itself.  The caller drives navigation
@@ -40,7 +40,7 @@
 *   drop_* / content-specific verbs.
 *
 *     Context-menu style popovers (right-click menus, standalone
-*   pickers) WILL take focus — the renderer the caller passes in is
+*   pickers) WILL take focus - the renderer the caller passes in is
 *   free to call Begin/End child widgets that grab focus, and
 *   popover_handle_nav_keys can be called unconditionally.
 *
@@ -65,11 +65,11 @@
 *
 * path:      /inc/uxoxo/platform/imgui/popover/imgui_popover.hpp
 * link(s):   TBA
-* author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.18
-*******************************************************************************/
+* author(s): Samuel 'teer' Neal-Blim                       created: 2026.04.18
+******************************************************************************/
 
-#ifndef  UXOXO_IMGUI_COMPONENT_POPOVER_DRAW_
-#define  UXOXO_IMGUI_COMPONENT_POPOVER_DRAW_ 1
+#ifndef  UXOXO_COMPONENT_IMGUI_POPOVER_
+#define  UXOXO_COMPONENT_IMGUI_POPOVER_ 1
 
 // std
 #include <algorithm>
@@ -90,12 +90,16 @@
 
 
 NS_UXOXO
-NS_COMPONENT
 NS_IMGUI
 
-// ===============================================================================
+
+// resolve component types brought in via popover.hpp / drop_container.hpp
+using uxoxo::component::DPopoverDirection;
+using uxoxo::component::DPopoverAlignment;
+
+// ===========================================================================
 //  1  PLACEMENT HELPERS
-// ===============================================================================
+// ===========================================================================
 //   Internal math shared by the main render function.  These are
 // `inline` so the header is self-contained and ODR-safe.
 
@@ -222,7 +226,7 @@ resolve_automatic_direction(
         if (space_left  >= _estimated_w) return DPopoverDirection::left;
     }
 
-    // second pass: no hint fit — pick the direction with the most space
+    // second pass: no hint fit - pick the direction with the most space
     float             best_space = space_down;
     DPopoverDirection best_dir   = DPopoverDirection::down;
 
@@ -250,9 +254,9 @@ resolve_automatic_direction(
 
 
 
-// ===============================================================================
+// ===========================================================================
 //  2  CORE RENDER
-// ===============================================================================
+// ===========================================================================
 
 // popover_render
 //   function: draws `_pop` as an ImGui window anchored against the
@@ -265,7 +269,7 @@ resolve_automatic_direction(
 //     - active is synced to ImGui::IsWindowFocused() for the popover
 //     - visible may be flipped to false via popover_dismiss when
 //       pf_dismissable is set AND (Esc pressed | click outside)
-template <typename      _Content,
+template<typename      _Content,
           typename      _Source,
           std::uint32_t _Features,
           typename      _Policy,
@@ -290,7 +294,7 @@ popover_render(
 
     if (dir == DPopoverDirection::automatic)
     {
-        // estimate size for automatic resolution — use explicit hints
+        // estimate size for automatic resolution - use explicit hints
         // when provided, else a sensible default based on row count
         const float row_h = ImGui::GetFrameHeightWithSpacing();
         const float est_h = (_pop.desired_height > 0)
@@ -381,7 +385,7 @@ popover_render(
     }
 
     // ------------------------------------------------------------
-    // 5. stable ID — anchor_id is the user's disambiguator
+    // 5. stable ID - anchor_id is the user's disambiguator
     // ------------------------------------------------------------
     //   If the user didn't set one, fall back to the popover's
     // address; not ideal for stable IDs across frames with moving
@@ -393,11 +397,11 @@ popover_render(
             : std::string("##popover_") + _pop.anchor_id;
 
     // ------------------------------------------------------------
-    // 6. draw — remember rect for outside-click detection
+    // 6. draw - remember rect for outside-click detection
     // ------------------------------------------------------------
     //   `was_drawn` tracks whether Begin returned true.  When false
     // (window clipped / fully obscured), win_pos and win_size stay
-    // zero and the click-outside check below must be skipped —
+    // zero and the click-outside check below must be skipped -
     // otherwise every click outside the anchor would dismiss a
     // popover that's merely hidden behind another window.
     ImVec2 win_pos   (0.0f, 0.0f);
@@ -458,7 +462,7 @@ popover_render(
     // 8. click-outside dismissal (dismissable popovers only)
     // ------------------------------------------------------------
     //   Triggered on a fresh mouse-down that is both outside the
-    // popover's rect AND outside the anchor's rect — clicking the
+    // popover's rect AND outside the anchor's rect - clicking the
     // anchor is a toggle gesture, not a dismissal.  Skipped when
     // the window wasn't drawn this frame (see `was_drawn` note).
     if constexpr ((_Features & pf_dismissable) != 0)
@@ -494,15 +498,15 @@ popover_render(
 
 
 
-// ===============================================================================
+// ===========================================================================
 //  3  ANCHOR-TO-LAST-ITEM CONVENIENCE
-// ===============================================================================
+// ===========================================================================
 
 // popover_render_at_last_item
 //   function: convenience overload that pulls the anchor rectangle
 // from the last ImGui item drawn.  Call immediately after the
 // anchor widget (Button, InputText, etc.) has been drawn.
-template <typename      _Content,
+template<typename      _Content,
           typename      _Source,
           std::uint32_t _Features,
           typename      _Policy,
@@ -527,9 +531,9 @@ popover_render_at_last_item(
 
 
 
-// ===============================================================================
+// ===========================================================================
 //  4  NAV KEY FORWARDING (drop_container content)
-// ===============================================================================
+// ===========================================================================
 
 NS_INTERNAL
 
@@ -538,11 +542,12 @@ NS_INTERNAL
     // (has both `.items` and `.highlighted` data members).  Used
     // to gate popover_handle_nav_keys so it only compiles for
     // compatible content types.
-    template <typename, typename = void>
+    template<typename _Type,
+              typename = void>
     struct has_drop_nav_shape : std::false_type
     {};
 
-    template <typename _Type>
+    template<typename _Type>
     struct has_drop_nav_shape<_Type, std::void_t<
         decltype(std::declval<_Type&>().items),
         decltype(std::declval<_Type&>().highlighted)
@@ -557,10 +562,10 @@ NS_INTERNAL
 // the drop_* free functions.  SFINAE-gated: only compiles when
 // `_Content` looks like a drop_container.
 //
-//   The caller decides when to invoke this — typically after the
+//   The caller decides when to invoke this - typically after the
 // focused textbox has processed its own key bindings.  No-op when
 // `!pop.visible`.
-template <typename      _Content,
+template<typename      _Content,
           typename      _Source,
           std::uint32_t _Features,
           typename      _Policy,
@@ -621,15 +626,15 @@ popover_handle_nav_keys(
 
 
 
-// ===============================================================================
+// ===========================================================================
 //  5  CANNED CONTENT RENDERERS
-// ===============================================================================
+// ===========================================================================
 
 // render_drop_container
 //   function: renders a drop_container<_Item, _F> as a vertical list
 // of ImGui::Selectable rows.  The highlighted item is drawn as
 // selected.  Clicking a row sets it as highlighted and fires
-// drop_select — which invokes on_select if installed.  The rendered
+// drop_select - which invokes on_select if installed.  The rendered
 // rows live inside a BeginChild sized by max_visible_rows so the
 // list scrolls internally instead of ballooning the outer window.
 //
@@ -641,7 +646,7 @@ popover_handle_nav_keys(
 //   When the highlighted index changes (detected by a navigation
 // key this frame), the list auto-scrolls to keep the highlighted
 // row in view via ImGui::SetScrollHereY.
-template <typename      _Item,
+template<typename      _Item,
           std::uint32_t _F,
           typename      _Labeler>
 void
@@ -659,7 +664,7 @@ render_drop_container(
         return;
     }
 
-    // sized scroll region — keeps outer window from growing unbounded
+    // sized scroll region - keeps outer window from growing unbounded
     const float row_h = ImGui::GetFrameHeightWithSpacing();
     const float child_h =
         (_dc.max_visible_rows > 0)
@@ -719,7 +724,7 @@ render_drop_container(
 //   function: overload for drop_container<std::string> that uses
 // the string itself as the label.  Spares the caller from writing
 // a one-line lambda for the most common case.
-template <std::uint32_t _F>
+template<std::uint32_t _F>
 void
 render_drop_container(
     drop_container<std::string, _F>& _dc
@@ -736,8 +741,7 @@ render_drop_container(
 
 
 NS_END  // imgui
-NS_END  // component
 NS_END  // uxoxo
 
 
-#endif  // UXOXO_IMGUI_COMPONENT_POPOVER_DRAW_
+#endif  // UXOXO_COMPONENT_IMGUI_POPOVER_

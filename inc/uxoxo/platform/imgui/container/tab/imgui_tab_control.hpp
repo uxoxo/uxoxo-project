@@ -1,5 +1,5 @@
 /*******************************************************************************
-* uxoxo [imgui]                                      imgui_tab_control_draw.hpp
+* uxoxo [imgui]                                           imgui_tab_control.hpp
 *
 *   Dear ImGui draw handler for the tab_control component.  Renders a
 * tab bar with full support for the tab_control feature set:
@@ -20,6 +20,15 @@
 * with rotated labels.  Horizontal placements (top/bottom) render
 * the standard ImGui-style tab strip.
 *
+*   Migration note (2026.05.08): the local `imgui_tab_style` namespace
+* has been trimmed.  Color slots that exactly match shared palette
+* tags (bar_bg, bar_border, tab_hover, tab_text_disabled, badge_text,
+* badge_radius) are pulled from `palette::` (imgui_palette.hpp).
+* Tab-specific colors (tab_bg, tab_selected, tab_disabled, the close-
+* button trio, pinned_marker, drag_line, add_btn_*) and all sizing
+* constants stay local because they have no consumer outside the tab
+* surface and have a distinct visual identity from generic buttons.
+* No behavioural change.
 *   Structure:
 *     1.  style constants
 *     2.  internal helpers (tab measurement, label composition)
@@ -34,13 +43,13 @@
 * before this header.
 *
 *
-* path:      /inc/uxoxo/platform/imgui/container/tab/imgui_tab_control_draw.hpp
+* path:      /inc/uxoxo/platform/imgui/container/tab/imgui_tab_control.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                      date: 2026.04.15
 *******************************************************************************/
 
-#ifndef UXOXO_COMPONENT_IMGUI_TAB_CONTROL_DRAW_
-#define UXOXO_COMPONENT_IMGUI_TAB_CONTROL_DRAW_ 1
+#ifndef UXOXO_COMPONENT_IMGUI_TAB_CONTROL_
+#define UXOXO_COMPONENT_IMGUI_TAB_CONTROL_ 1
 
 // std
 #include <algorithm>
@@ -58,42 +67,48 @@
 #include "../../../../uxoxo.hpp"
 #include "../../../../templates/component/container/tab/tab_control.hpp"
 #include "../../../../templates/render_context.hpp"
+#include "../../core/imgui_button_helpers.hpp"
+#include "../../core/imgui_palette.hpp"
+#include "../../core/imgui_scope.hpp"
 
 
 NS_UXOXO
-NS_COMPONENT
 NS_IMGUI
 
+using uxoxo::component::render_context;
+using uxoxo::component::tab_placement;
 
-// =============================================================================
+
+// ===========================================================================
 //  1.  STYLE CONSTANTS
-// =============================================================================
+// ===========================================================================
+
+//   Migration note (2026.05.08): values that match palette tags
+// (bar_bg, bar_border, tab_hover, tab_text_disabled, badge_text,
+// badge_radius) have been removed from this namespace and are now
+// pulled from `palette::` (imgui_palette.hpp).  Tab-specific colors
+// (tab_bg, tab_selected, close_*, pinned_marker, drag_line,
+// add_btn_*) and all sizing constants stay here because they have
+// no consumer outside the tab control surface.
 
 namespace imgui_tab_style
 {
-    // tab bar background
-    D_INLINE const ImVec4 bar_bg           = ImVec4(0.13f, 0.14f, 0.17f, 1.0f);
-    D_INLINE const ImVec4 bar_border       = ImVec4(0.22f, 0.23f, 0.26f, 1.0f);
-
-    // tab defaults
+    // tab fill — distinct from the toolbar's btn_bg (slightly darker)
     D_INLINE const ImVec4 tab_bg           = ImVec4(0.18f, 0.19f, 0.22f, 1.0f);
-    D_INLINE const ImVec4 tab_hover        = ImVec4(0.28f, 0.30f, 0.36f, 1.0f);
     D_INLINE const ImVec4 tab_selected     = ImVec4(0.22f, 0.45f, 0.68f, 1.0f);
     D_INLINE const ImVec4 tab_disabled     = ImVec4(0.14f, 0.15f, 0.17f, 0.60f);
 
-    // text
+    // text — tab-specific contrast curve, distinct from btn_text
     D_INLINE const ImVec4 tab_text         = ImVec4(0.75f, 0.76f, 0.79f, 1.0f);
-    D_INLINE const ImVec4 tab_text_selected= ImVec4(1.00f, 1.00f, 1.00f, 1.0f);
-    D_INLINE const ImVec4 tab_text_disabled= ImVec4(0.45f, 0.45f, 0.48f, 0.70f);
+    D_INLINE const ImVec4 tab_text_selected = ImVec4(1.00f, 1.00f, 1.00f, 1.0f);
 
-    // close button
+    // close button — its own micro-palette
     D_INLINE const ImVec4 close_bg         = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
     D_INLINE const ImVec4 close_bg_hover   = ImVec4(0.72f, 0.26f, 0.26f, 0.85f);
     D_INLINE const ImVec4 close_text       = ImVec4(0.80f, 0.80f, 0.82f, 0.80f);
 
-    // badge
+    // badge fill — tab badges use a redder hue than the shared palette
     D_INLINE const ImVec4 badge_bg         = ImVec4(0.72f, 0.25f, 0.25f, 1.0f);
-    D_INLINE const ImVec4 badge_text       = ImVec4(1.00f, 1.00f, 1.00f, 1.0f);
 
     // pinned marker
     D_INLINE const ImVec4 pinned_marker    = ImVec4(0.95f, 0.75f, 0.20f, 1.0f);
@@ -105,7 +120,7 @@ namespace imgui_tab_style
     D_INLINE const ImVec4 add_btn_text     = ImVec4(0.60f, 0.65f, 0.72f, 1.0f);
     D_INLINE const ImVec4 add_btn_hover    = ImVec4(0.28f, 0.30f, 0.36f, 1.0f);
 
-    // sizing
+    // sizing — tab geometry; not promoted to the shared palette
     D_INLINE constexpr float tab_height    = 26.0f;
     D_INLINE constexpr float tab_v_width   = 28.0f;    // vertical-placement width
     D_INLINE constexpr float tab_padding_x = 10.0f;
@@ -114,15 +129,14 @@ namespace imgui_tab_style
     D_INLINE constexpr float scroll_arrow_w = 20.0f;
     D_INLINE constexpr float add_btn_w      = 24.0f;
     D_INLINE constexpr float overflow_btn_w = 24.0f;
-    D_INLINE constexpr float badge_radius   = 8.0f;
     D_INLINE constexpr float drag_line_thk  = 2.0f;
 
 }   // namespace imgui_tab_style
 
 
-// =============================================================================
+// ===========================================================================
 //  2.  INTERNAL HELPERS
-// =============================================================================
+// ===========================================================================
 
 NS_INTERNAL
 
@@ -210,7 +224,7 @@ NS_INTERNAL
         {
             if (_tab.badge_visible)
             {
-                width += (2.0f * imgui_tab_style::badge_radius) +
+                width += (2.0f * palette::get<palette::badge_radius_tag>()) +
                          imgui_tab_style::tab_padding_x;
             }
         }
@@ -289,7 +303,7 @@ NS_INTERNAL
                 return;
             }
 
-            const float r = imgui_tab_style::badge_radius;
+            const float r = palette::get<palette::badge_radius_tag>();
 
             ImVec2 center(_tab_max.x - r - 4.0f,
                           _tab_min.y + r + 2.0f);
@@ -320,7 +334,7 @@ NS_INTERNAL
             dl->AddText(
                 text_pos,
                 ImGui::ColorConvertFloat4ToU32(
-                    imgui_tab_style::badge_text),
+                    palette::get<palette::badge_text_tag>()),
                 buf);
 
             return;
@@ -365,9 +379,9 @@ NS_INTERNAL
 
 
 
-// =============================================================================
+// ===========================================================================
 //  3.  SINGLE TAB RENDERING
-// =============================================================================
+// ===========================================================================
 
     // imgui_draw_tab_button
     //   helper: renders one tab as a selectable button.  Handles
@@ -409,7 +423,7 @@ NS_INTERNAL
             ImGui::PushStyleColor(ImGuiCol_ButtonActive,
                                   imgui_tab_style::tab_disabled);
             ImGui::PushStyleColor(ImGuiCol_Text,
-                                  imgui_tab_style::tab_text_disabled);
+                                  palette::get<palette::btn_text_disabled_tag>());
             color_pushes = 4;
         }
         else if (is_selected)
@@ -451,7 +465,7 @@ NS_INTERNAL
             }
 
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-                                  imgui_tab_style::tab_hover);
+                                  palette::get<palette::btn_hover_tag>());
             ImGui::PushStyleColor(ImGuiCol_ButtonActive,
                                   imgui_tab_style::tab_bg);
             ImGui::PushStyleColor(ImGuiCol_Text,
@@ -686,9 +700,9 @@ NS_INTERNAL
 
 
 
-// =============================================================================
+// ===========================================================================
 //  4.  HORIZONTAL TAB BAR
-// =============================================================================
+// ===========================================================================
 
     // imgui_draw_tabs_horizontal
     //   helper: renders tabs in a single horizontal row (or wrapped
@@ -909,9 +923,9 @@ NS_INTERNAL
 
 
 
-// =============================================================================
+// ===========================================================================
 //  5.  VERTICAL TAB BAR
-// =============================================================================
+// ===========================================================================
 
     // imgui_draw_tabs_vertical
     //   helper: renders tabs in a vertical stack (left or right
@@ -1007,9 +1021,9 @@ NS_INTERNAL
 
 
 
-// =============================================================================
+// ===========================================================================
 //  6.  RENAME POPUP
-// =============================================================================
+// ===========================================================================
 
     // imgui_draw_tab_rename_popup
     //   helper: when _tc.renaming is true, renders an inline text
@@ -1108,9 +1122,9 @@ NS_END  // internal
 
 
 
-// =============================================================================
+// ===========================================================================
 //  7.  IMGUI DRAW TAB CONTROL
-// =============================================================================
+// ===========================================================================
 
 // imgui_draw_tab_control
 //   function: renders a tab_control using Dear ImGui.  Dispatches
@@ -1170,7 +1184,7 @@ imgui_draw_tab_control(
 
     // frame background
     ImGui::PushStyleColor(ImGuiCol_ChildBg,
-                          imgui_tab_style::bar_bg);
+                          palette::get<palette::toolbar_bg_tag>());
 
     // frame rounding and spacing
     ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding,   4.0f);
@@ -1211,9 +1225,9 @@ imgui_draw_tab_control(
 
 
 
-// =============================================================================
+// ===========================================================================
 //  8.  KEYBOARD INPUT
-// =============================================================================
+// ===========================================================================
 
 // imgui_tab_control_handle_input
 //   function: handles keyboard navigation for the tab control.
@@ -1321,9 +1335,8 @@ imgui_tab_control_handle_input(
 }
 
 
-NS_END
-NS_END  // component
+NS_END  // imgui
 NS_END  // uxoxo
 
 
-#endif  // UXOXO_COMPONENT_IMGUI_TAB_CONTROL_DRAW_
+#endif  // UXOXO_COMPONENT_IMGUI_TAB_CONTROL_

@@ -1,5 +1,5 @@
-/*******************************************************************************
-* uxoxo [component]                                       mysql_login_imgui.hpp
+/******************************************************************************
+* uxoxo [imgui]                                          imgui_mysql_login.hpp
 *
 * Dear ImGui renderer for mysql_login:
 *   Vendor-specialized imgui renderer layered on top of
@@ -27,13 +27,13 @@
 *   4  render_form() overload for mysql_login
 *
 *
-* path:      /inc/uxoxo/component/mysql_login_imgui.hpp
+* path:      /inc/uxoxo/platform/imgui/database/mysql/imgui_mysql_login.hpp
 * link(s):   TBA
-* author(s): Samuel 'teer' Neal-Blim                         date: 2026.04.19
-*******************************************************************************/
+* author(s): Samuel 'teer' Neal-Blim                          date: 2026.04.19
+******************************************************************************/
 
-#ifndef  UXOXO_COMPONENT_MYSQL_LOGIN_IMGUI_
-#define  UXOXO_COMPONENT_MYSQL_LOGIN_IMGUI_ 1
+#ifndef  UXOXO_COMPONENT_IMGUI_MYSQL_LOGIN_
+#define  UXOXO_COMPONENT_IMGUI_MYSQL_LOGIN_ 1
 
 // std
 #include <cstddef>
@@ -51,7 +51,11 @@
 
 
 NS_UXOXO
-NS_COMPONENT
+NS_IMGUI
+
+
+// resolve component types brought in via mysql_login.hpp
+using uxoxo::component::mysql_login;
 
 
 // ===============================================================================
@@ -146,13 +150,13 @@ ml_imgui_render_mysql_ssl_settings(
                          items,
                          IM_ARRAYSIZE(items)))
         {
-            _s.mode  = static_cast<djinterp::db::mysql_ssl_mode>(current);
+            _s.mode  = static_cast<djinterp::database::mysql_ssl_mode>(current);
             edited   = true;
         }
 
         // -- paths & tls strings --------------------------------------
         const bool paths_enabled =
-            ( _s.mode != djinterp::db::mysql_ssl_mode::disabled );
+            ( _s.mode != djinterp::database::mysql_ssl_mode::disabled );
 
         ImGui::BeginDisabled(!paths_enabled);
 
@@ -468,8 +472,8 @@ ml_imgui_render_form(
 }
 
 
-NS_END  // component
+NS_END  // imgui
 NS_END  // uxoxo
 
 
-#endif  // UXOXO_COMPONENT_MYSQL_LOGIN_IMGUI_
+#endif  // UXOXO_COMPONENT_IMGUI_MYSQL_LOGIN_

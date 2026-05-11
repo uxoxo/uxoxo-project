@@ -13,8 +13,8 @@
 * receives a user_id and the pane's content rect, and is responsible
 * for drawing the content however it sees fit.
 *
-*   All interactive behaviour — drag-to-resize, hover cursor, double-
-* click dispatch — is driven through the template's own free functions
+*   All interactive behaviour - drag-to-resize, hover cursor, double-
+* click dispatch - is driven through the template's own free functions
 * (spl_begin_drag, spl_update_drag, spl_handle_double_click, etc.) so
 * the drag state, constraints, snap points, and callbacks all go
 * through the canonical code paths.
@@ -27,7 +27,7 @@
 *
 * path:      /inc/uxoxo/ui/imgui/imgui_split_view_draw.hpp
 * link(s):   TBA
-* author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.17
+* author(s): Samuel 'teer' Neal-Blim                        created: 2026.04.17
 *******************************************************************************/
 
 #ifndef  UXOXO_IMGUI_COMPONENT_SPLIT_VIEW_DRAW_
@@ -48,13 +48,12 @@
 
 
 NS_UXOXO
-NS_PLATFORM
 NS_IMGUI
 
 
-// ===============================================================================
+// ===========================================================================
 //  I.   RENDER CALLBACK TYPE
-// ===============================================================================
+// ===========================================================================
 
 // split_pane_render_fn
 //   type: callback invoked once per pane.  The integrating layer
@@ -67,9 +66,9 @@ using split_pane_render_fn =
     std::function<void(std::size_t user_id, ImVec2 size)>;
 
 
-// ===============================================================================
+// ===========================================================================
 //  II.  STYLE CONSTANTS
-// ===============================================================================
+// ===========================================================================
 
 // D_SPLIT_SEPARATOR_THICKNESS
 //   constant: pixel thickness of the visible separator line drawn at
@@ -79,13 +78,13 @@ using split_pane_render_fn =
 // D_SPLIT_MIN_PANE_EXTENT
 //   constant: minimum main-axis size of a pane for which BeginChild
 // will be issued.  Below this the pane is skipped (no child frame
-// created) — ImGui's BeginChild does not accept sub-pixel sizes.
+// created) - ImGui's BeginChild does not accept sub-pixel sizes.
 #define D_SPLIT_MIN_PANE_EXTENT         1.0f
 
 
-// ===============================================================================
+// ===========================================================================
 //  III. INTERNAL HELPERS
-// ===============================================================================
+// ===========================================================================
 
 NS_INTERNAL
 
@@ -174,9 +173,9 @@ NS_INTERNAL
 NS_END  // internal
 
 
-// ===============================================================================
+// ===========================================================================
 //  IV.  PUBLIC DRAW FUNCTION
-// ===============================================================================
+// ===========================================================================
 
 /*
 imgui_draw_split_view
@@ -205,7 +204,7 @@ Parameter(s):
 Return:
   none.
 */
-template <unsigned _PF, unsigned _CF>
+template<unsigned _PF, unsigned _CF>
 void
 imgui_draw_split_view(
     split_view<_PF, _CF>&       _sv,
@@ -249,7 +248,7 @@ imgui_draw_split_view(
         }
     }
 
-    // clear hover state — it's re-set below if a splitter is hovered
+    // clear hover state - it's re-set below if a splitter is hovered
     if constexpr (has_sf(_CF, sf_drag_state))
     {
         if (_sv.mode != split_drag_mode::dragging)
@@ -360,7 +359,7 @@ imgui_draw_split_view(
                 }
             }
 
-            // drag begin — InvisibleButton becomes active on press
+            // drag begin - InvisibleButton becomes active on press
             if constexpr (has_sf(_CF, sf_drag_state))
             {
                 if ( (active) &&
@@ -455,7 +454,6 @@ imgui_draw_split_view(
 
 
 NS_END  // imgui
-NS_END  // platform
 NS_END  // uxoxo
 
 

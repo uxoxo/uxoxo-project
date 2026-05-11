@@ -1,5 +1,5 @@
 /*******************************************************************************
-* uxoxo [component]                              magnification_control_imgui.hpp
+* uxoxo [component]                             imgui_magnification_control.hpp
 *
 * ImGui backend for magnification_control:
 *   A free function `render(magnification_control&)` that draws the
@@ -27,13 +27,13 @@
 *     - <imgui.h> for the core API.
 *
 *
-* path:      /inc/uxoxo/component/imgui/magnification_control_imgui.hpp
+* path:      /inc/uxoxo/component/imgui/imgui_magnification_control.hpp
 * link(s):   TBA
-* author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.20
+* author(s): Samuel 'teer' Neal-Blim                        created: 2026.04.20
 *******************************************************************************/
 
-#ifndef  UXOXO_COMPONENT_MAGNIFICATION_CONTROL_IMGUI_
-#define  UXOXO_COMPONENT_MAGNIFICATION_CONTROL_IMGUI_ 1
+#ifndef  UXOXO_COMPONENT_IMGUI_MAGNIFICATION_CONTROL_
+#define  UXOXO_COMPONENT_IMGUI_MAGNIFICATION_CONTROL_ 1
 
 // std
 #include <type_traits>
@@ -43,37 +43,54 @@
 #include <djinterp/core/djinterp.hpp>
 // uxoxo
 #include "../../../uxoxo.hpp"
-#include "../magnification_control.hpp"
+#include "../../../templates/component/magnify/magnification_control.hpp"
+#include "../../../platform/imgui/core/imgui_render_event.hpp"
 
 
 NS_UXOXO
-NS_COMPONENT
+NS_IMGUI
 
 
-// ===============================================================================
+using uxoxo::component::magnification_control;
+
+
+// ===========================================================================
 //  1  EVENT STRUCT
-// ===============================================================================
+// ===========================================================================
 
 // magnification_control_event
 //   struct: per-frame event report from rendering a magnification_control.
 // All flags default to false.
-struct magnification_control_event
+//
+//   Inherits the shared render_event base (committed, dismissed,
+// changed, focus_*, any_change) so generic event-handling code can
+// probe for activity without knowing the concrete event type.  None
+// of the magnification-specific flags collide with base names —
+// `focus_changed` here is the magnifier's focal POINT (x/y mutation),
+// distinct from the base's `focus_gained` / `focus_lost` which track
+// keyboard / pointer focus state.
+//
+//   Migration note (2026.05.08): renderer now also populates the
+// base `changed` flag (OR of every magnification-specific *_changed
+// flag and the button events) and calls summarise() at end-of-frame
+// so any_change reflects the full event surface.
+struct magnification_control_event : render_event
 {
     bool zoom_changed   = false;  // value mutated this frame
     bool zoomed_in      = false;  // zoom-in button fired
     bool zoomed_out     = false;  // zoom-out button fired
     bool reset          = false;  // reset button fired
     bool mode_changed   = false;  // mode was changed
-    bool focus_changed  = false;  // focus point was changed
+    bool focus_changed  = false;  // focal POINT was changed (NOT UI focus)
     bool region_changed = false;  // region dimensions were changed
 };
 
 
 
 
-// ===============================================================================
+// ===========================================================================
 //  2  RENDER
-// ===============================================================================
+// ===========================================================================
 
 /*
 render
@@ -97,7 +114,7 @@ Return:
   A magnification_control_event describing what changed during the
   frame.
 */
-template <typename _TargetRef,
+template<typename _TargetRef,
           typename _Scalar,
           bool     _Labeled,
           bool     _Clearable>
@@ -241,12 +258,28 @@ render(
         evt.zoom_changed = true;
     }
 
+    // -- populate the shared render_event base ----------------------
+    //   `changed` is the OR of every magnification-specific surface
+    // that mutated state this frame.  zoomed_in / zoomed_out / reset
+    // imply zoom_changed but are kept distinct so callers can tell
+    // a button fire from a slider drag; the base just wants the
+    // aggregate signal.
+    evt.changed = ( (evt.zoom_changed)   ||
+                    (evt.zoomed_in)      ||
+                    (evt.zoomed_out)     ||
+                    (evt.reset)          ||
+                    (evt.mode_changed)   ||
+                    (evt.focus_changed)  ||
+                    (evt.region_changed) );
+
+    summarise(evt);
+
     return evt;
 }
 
 
-NS_END  // component
+NS_END  // imgui
 NS_END  // uxoxo
 
 
-#endif  // UXOXO_COMPONENT_MAGNIFICATION_CONTROL_IMGUI_
+#endif  // UXOXO_COMPONENT_IMGUI_MAGNIFICATION_CONTROL_

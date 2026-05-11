@@ -50,12 +50,16 @@
 // djinterp
 #include <djinterp/core/djinterp.hpp>
 // uxoxo
-#include <uxoxo>
-#include <uxoxo/component/database_login.hpp>
+#include "../../../uxoxo.hpp"
+#include "../../../templates/component/database/database_login.hpp"
 
 
 NS_UXOXO
-NS_COMPONENT
+NS_IMGUI
+
+
+// resolve component types brought in via database_login.hpp
+using uxoxo::component::database_login;
 
 
 // ===============================================================================
@@ -96,9 +100,6 @@ struct database_login_imgui_config
     bool        validate_on_submit   = true;
 };
 
-
-
-
 // ===============================================================================
 //  2  SUB-WIDGET HELPERS
 // ===============================================================================
@@ -109,7 +110,7 @@ struct database_login_imgui_config
 // dbl_imgui_render_ssl_settings
 //   function: renders an ssl_settings aggregate inside a collapsing
 // header.  Returns true if any field was edited this frame.
-inline bool
+D_INLINE bool
 dbl_imgui_render_ssl_settings(
     ssl_settings& _s,
     const char*   _header_label = "SSL / TLS"
@@ -480,7 +481,7 @@ dbl_imgui_render_base_slots(
 // Returns true if any field was edited this frame.  Does not draw a
 // submit button or error area; use dbl_imgui_render_form() for the
 // full shell.
-template <djinterp::db::database_type _V,
+template <djinterp::database::database_type _V,
           unsigned                    _F>
 bool
 dbl_imgui_render(
@@ -543,7 +544,7 @@ Return:
         true AND on_submit was invoked this frame;
   false otherwise.
 */
-template <djinterp::db::database_type _V,
+template <djinterp::database::database_type _V,
           unsigned                    _F>
 bool
 dbl_imgui_render_form(
@@ -621,6 +622,30 @@ dbl_imgui_render_form(
     return submitted;
 }
 
+
+NS_END  // imgui
+NS_END  // uxoxo
+
+
+// =============================================================================
+//  BACKWARD-COMPAT BRIDGE
+// =============================================================================
+//   The renderer's canonical home is `uxoxo::imgui` (was
+// `uxoxo::component` in the pre-step-7 layout).  The bridge below
+// re-exports each public symbol back into the original namespace so
+// existing call sites continue to compile.
+
+NS_UXOXO
+NS_COMPONENT
+
+using uxoxo::imgui::database_login_imgui_config;
+using uxoxo::imgui::dbl_imgui_render_ssl_settings;
+using uxoxo::imgui::dbl_imgui_render_uri_settings;
+using uxoxo::imgui::dbl_imgui_render_connect_attrs;
+using uxoxo::imgui::dbl_imgui_render_port;
+using uxoxo::imgui::dbl_imgui_render_base_slots;
+using uxoxo::imgui::dbl_imgui_render;
+using uxoxo::imgui::dbl_imgui_render_form;
 
 NS_END  // component
 NS_END  // uxoxo

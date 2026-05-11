@@ -1,10 +1,9 @@
-/*******************************************************************************
-* uxoxo [imgui]                                            imgui_table_draw.hpp
+/******************************************************************************
+* uxoxo [imgui]                                                imgui_table.hpp
 *
 *   Dear ImGui draw handler for the table_view component.  Translates the
 * framework-agnostic table_view struct into ImGui::BeginTable / EndTable
 * draw calls with full support for:
-*
 *   - header / footer / total row regions with distinct styling
 *   - merged cell spans
 *   - column resizing, sorting, visibility
@@ -13,28 +12,35 @@
 *   - row striping and grid lines
 *   - keyboard navigation (arrow keys, page up/down, home/end)
 *   - scroll synchronisation between table_view and ImGui clipper
-*
-*   This module exposes a single entry point, imgui_draw_table_view, which
+* 
+* This module exposes a single entry point, imgui_draw_table_view, which
 * is registered with the imgui_renderer's component registry.  It may also
 * be called directly.
-*
+*   Migration note (2026.05.08): the local `imgui_table_style` namespace
+* has been trimmed.  Color slots that match shared palette tags
+* (header_bg, footer_bg, total_bg, data_bg_even, data_bg_odd,
+* cursor_border, selection_bg, edit_bg, edit_border, sort_active,
+* grid_alpha, header_text, data_text) now resolve to `palette::` tags
+* from imgui_palette.hpp.  The two table-specific text colors
+* (footer_text, total_text) and the edit-buffer sizing constant stay
+* local because they have no consumer outside this file and a distinct
+* visual identity.  No behavioural change.
 *   Structure:
 *     1.  style constants
 *     2.  internal helpers (region colors, cell rendering)
 *     3.  imgui_draw_table_view (main entry point)
 *     4.  keyboard input handler
-*
 *   REQUIRES: C++17 or later.  Dear ImGui headers must be included before
 * this header.
 *
 *
-* path:      /inc/uxoxo/platform/imgui/table/imgui_table_draw.hpp
+* path:      /inc/uxoxo/platform/imgui/table/imgui_table.hpp
 * link(s):   TBA
-* author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.10
-*******************************************************************************/
+* author(s): Samuel 'teer' Neal-Blim                       created: 2026.04.10
+******************************************************************************/
 
-#ifndef UXOXO_IMGUI_COMPONENT_TABLE_DRAW_
-#define UXOXO_IMGUI_COMPONENT_TABLE_DRAW_ 1
+#ifndef UXOXO_COMPONENT_IMGUI_TABLE_
+#define UXOXO_COMPONENT_IMGUI_TABLE_ 1
 
 // std
 #include <algorithm>
@@ -49,10 +55,11 @@
 #include "../../../uxoxo.hpp"
 #include "../../../templates/component/table/table_view.hpp"
 #include "../../../templates/renderer.hpp"
+#include "../core/imgui_palette.hpp"
+#include "../core/imgui_scope.hpp"
 
 
 NS_UXOXO
-NS_PLATFORM
 NS_IMGUI
 
 using djinterp::sort_order;
@@ -62,52 +69,37 @@ using uxoxo::component::cell_role;
 using uxoxo::component::render_context;
 using uxoxo::component::table_view;
 
-// =============================================================================
+// ===========================================================================
 //  1.  STYLE CONSTANTS
-// =============================================================================
+// ===========================================================================
 //   Default colors for table regions.  These are ImVec4 (r,g,b,a) values
 // matching ImGui's color format.  A concrete application can override these
 // by setting them before calling imgui_draw_table_view if a theming system
 // is added later.
 
+//   Migration note (2026.05.08): values matching shared palette tags
+// (header_bg, footer_bg, total_bg, data_bg_even, data_bg_odd,
+// cursor_border, selection_bg, edit_bg, edit_border, sort_active,
+// grid_alpha, header_text, data_text) are now drawn from `palette::`
+// (imgui_palette.hpp).  Two text colors (footer_text, total_text) and
+// one sizing constant (edit_buffer_capacity) remain local because
+// they have no consumer outside the table renderer and a distinct
+// visual identity (footer muted, total amber-gold).
 namespace imgui_table_style
 {
-    // region background colors
-    D_INLINE const ImVec4 header_bg     = ImVec4(0.18f, 0.20f, 0.25f, 1.0f);
-    D_INLINE const ImVec4 footer_bg     = ImVec4(0.16f, 0.18f, 0.22f, 1.0f);
-    D_INLINE const ImVec4 total_bg      = ImVec4(0.22f, 0.24f, 0.28f, 1.0f);
-    D_INLINE const ImVec4 data_bg_even  = ImVec4(0.12f, 0.12f, 0.14f, 1.0f);
-    D_INLINE const ImVec4 data_bg_odd   = ImVec4(0.14f, 0.14f, 0.16f, 1.0f);
+    // text colors - table-specific, kept local
+    D_INLINE const ImVec4 total_text  = ImVec4(0.90f, 0.82f, 0.55f, 1.0f);
+    D_INLINE const ImVec4 footer_text = ImVec4(0.65f, 0.65f, 0.68f, 1.0f);
 
-    // text colors
-    D_INLINE const ImVec4 header_text   = ImVec4(0.85f, 0.87f, 0.90f, 1.0f);
-    D_INLINE const ImVec4 data_text     = ImVec4(0.78f, 0.78f, 0.80f, 1.0f);
-    D_INLINE const ImVec4 total_text    = ImVec4(0.90f, 0.82f, 0.55f, 1.0f);
-    D_INLINE const ImVec4 footer_text   = ImVec4(0.65f, 0.65f, 0.68f, 1.0f);
-
-    // cursor and selection
-    D_INLINE const ImVec4 cursor_border = ImVec4(0.40f, 0.65f, 1.00f, 0.90f);
-    D_INLINE const ImVec4 selection_bg  = ImVec4(0.25f, 0.42f, 0.70f, 0.35f);
-
-    // editing
-    D_INLINE const ImVec4 edit_bg       = ImVec4(0.10f, 0.10f, 0.12f, 1.0f);
-    D_INLINE const ImVec4 edit_border   = ImVec4(0.50f, 0.75f, 1.00f, 0.80f);
-
-    // sort indicator
-    D_INLINE const ImVec4 sort_active   = ImVec4(0.60f, 0.80f, 1.00f, 1.0f);
-
-    // grid line
-    D_INLINE const float  grid_alpha    = 0.12f;
-
-    // edit buffer max size
+    // edit buffer max size - sizing constant, no palette equivalent
     D_INLINE constexpr std::size_t edit_buffer_capacity = 4096;
 
 }   // namespace imgui_table_style
 
 
-// =============================================================================
+// ===========================================================================
 //  2.  INTERNAL HELPERS
-// =============================================================================
+// ===========================================================================
 
 NS_INTERNAL
 
@@ -123,23 +115,23 @@ NS_INTERNAL
         switch (_region)
         {
             case cell_region::header:
-                return imgui_table_style::header_bg;
+                return palette::get<palette::table_header_bg_tag>();
 
             case cell_region::footer:
-                return imgui_table_style::footer_bg;
+                return palette::get<palette::table_footer_bg_tag>();
 
             case cell_region::total:
-                return imgui_table_style::total_bg;
+                return palette::get<palette::table_total_bg_tag>();
 
             case cell_region::data:
             default:
             {
                 if (_stripe && ((_row & 1) == 0))
                 {
-                    return imgui_table_style::data_bg_even;
+                    return palette::get<palette::table_data_bg_even_tag>();
                 }
 
-                return imgui_table_style::data_bg_odd;
+                return palette::get<palette::table_data_bg_odd_tag>();
             }
         }
     }
@@ -154,7 +146,7 @@ NS_INTERNAL
         switch (_region)
         {
             case cell_region::header:
-                return imgui_table_style::header_text;
+                return palette::get<palette::text_header_tag>();
 
             case cell_region::footer:
                 return imgui_table_style::footer_text;
@@ -164,7 +156,7 @@ NS_INTERNAL
 
             case cell_region::data:
             default:
-                return imgui_table_style::data_text;
+                return palette::get<palette::text_body_tag>();
         }
     }
 
@@ -219,9 +211,9 @@ NS_INTERNAL
 NS_END  // internal
 
 
-// =============================================================================
+// ===========================================================================
 //  3.  IMGUI DRAW TABLE VIEW
-// =============================================================================
+// ===========================================================================
 
 // imgui_draw_table_view
 //   function: renders a table_view using Dear ImGui.  Call within an
@@ -348,7 +340,7 @@ imgui_draw_table_view(
 
             // draw header with sort indicator
             ImGui::PushStyleColor(ImGuiCol_Text,
-                                  imgui_table_style::header_text);
+                                  palette::get<palette::text_header_tag>());
 
             if ( (c < _table_view.columns.size()) &&
                  (_table_view.columns[c].sortable) )
@@ -451,7 +443,7 @@ imgui_draw_table_view(
                 ImGui::TableSetBgColor(
                     ImGuiTableBgTarget_CellBg,
                     ImGui::GetColorU32(
-                        imgui_table_style::selection_bg));
+                        palette::get<palette::selection_bg_tag>()));
             }
 
             // ---------------------------------------------------------
@@ -461,10 +453,10 @@ imgui_draw_table_view(
             {
                 ImGui::PushStyleColor(
                     ImGuiCol_FrameBg,
-                    imgui_table_style::edit_bg);
+                    palette::get<palette::table_edit_bg_tag>());
                 ImGui::PushStyleColor(
                     ImGuiCol_Border,
-                    imgui_table_style::edit_border);
+                    palette::get<palette::table_edit_border_tag>());
 
                 // size the input to fill the cell
                 ImGui::SetNextItemWidth(-FLT_MIN);
@@ -492,14 +484,14 @@ imgui_draw_table_view(
                                      imgui_table_style::edit_buffer_capacity,
                                      input_flags))
                 {
-                    // enter pressed — commit
+                    // enter pressed - commit
                     _table_view.edit_buffer = edit_buf;
                     table_view_commit_edit(_table_view);
                     interacted = true;
                 }
                 else if (ImGui::IsKeyPressed(ImGuiKey_Escape))
                 {
-                    // escape — cancel
+                    // escape - cancel
                     table_view_cancel_edit(_table_view);
                     interacted = true;
                 }
@@ -543,14 +535,14 @@ imgui_draw_table_view(
                 }
             }
 
-            // clickable cell — selectable for cursor + selection
+            // clickable cell - selectable for cursor + selection
             ImGui::PushID(static_cast<int>(r * _table_view.num_columns + c));
 
             if (ImGui::Selectable(text.c_str(),
                                   is_cursor,
                                   ImGuiSelectableFlags_SpanAllColumns))
             {
-                // click — move cursor
+                // click - move cursor
                 _table_view.cursor = { r, c };
                 table_view_select_at_cursor(_table_view);
                 interacted = true;
@@ -582,7 +574,7 @@ imgui_draw_table_view(
                     rmin,
                     rmax,
                     ImGui::GetColorU32(
-                        imgui_table_style::cursor_border),
+                        palette::get<palette::cursor_border_tag>()),
                     0.0f,
                     0,
                     2.0f);
@@ -607,9 +599,9 @@ imgui_draw_table_view(
 }
 
 
-// =============================================================================
+// ===========================================================================
 //  4.  KEYBOARD INPUT HANDLER
-// =============================================================================
+// ===========================================================================
 
 // imgui_table_view_handle_input
 //   function: processes keyboard input for table navigation and
@@ -737,8 +729,7 @@ imgui_table_view_handle_input(
 
 
 NS_END  // imgui
-NS_END  // platform
 NS_END  // uxoxo
 
 
-#endif  // UXOXO_IMGUI_COMPONENT_TABLE_DRAW_
+#endif  // UXOXO_COMPONENT_IMGUI_TABLE_

@@ -1,5 +1,5 @@
-/*******************************************************************************
-* uxoxo [component]                                          combo_box_imgui.hpp
+/******************************************************************************
+* uxoxo [component]                                        imgui_combo_box.hpp
 *
 * ImGui backend for combo_box:
 *   A single free function `render(combo_box&)` that fully drives the
@@ -10,14 +10,12 @@
 * cmb_set_filter_text, cmb_apply_filter, cmb_commit_highlighted,
 * cmb_close, ...), and returns a `combo_box_event` struct describing
 * what happened during the frame.
-*
 *   Consumers may inspect the event or ignore it — the box itself is
 * always left in the correct post-interaction state, with on_change
 * and on_commit callbacks fired exactly as they would be for direct
 * cmb_* calls.  The event struct exists to spare callers from
 * manually diffing pre- and post-render state when they only want
 * to know "was something committed this frame?".
-*
 *   Layout strategy:
 *     - The anchor is rendered as an ImGui::Button whose label is
 *       derived from the current selection (or the edit buffer for
@@ -45,13 +43,13 @@
 *       ImGui::InputText, used by the edit and filter inputs.
 *
 *
-* path:      /inc/uxoxo/templates/component/imgui/combo_box_imgui.hpp
+* path:      /inc/uxoxo/platform/imgui/imgui_combo_box.hpp
 * link(s):   TBA
-* author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.20
-*******************************************************************************/
+* author(s): Samuel 'teer' Neal-Blim                          date: 2026.04.20
+******************************************************************************/
 
-#ifndef  UXOXO_COMPONENT_COMBO_BOX_IMGUI_
-#define  UXOXO_COMPONENT_COMBO_BOX_IMGUI_ 1
+#ifndef  UXOXO_COMPONENT_IMGUI_COMBO_BOX_
+#define  UXOXO_COMPONENT_IMGUI_COMBO_BOX_ 1
 
 // std
 #include <cstddef>
@@ -66,11 +64,16 @@
 #include <djinterp/core/djinterp.hpp>
 // uxoxo
 #include "../../../uxoxo.hpp"
-#include "../combo_box.hpp"
+#include "../../../templates/component/combo_box/combo_box.hpp"
+#include "../../../platform/imgui/core/imgui_render_event.hpp"
 
 
 NS_UXOXO
-NS_COMPONENT
+NS_IMGUI
+
+
+// resolve component types brought in via combo_box.hpp
+using uxoxo::component::combo_box;
 
 
 // ===============================================================================
@@ -83,19 +86,33 @@ NS_COMPONENT
 // no_selection sentinel.  Callers may inspect any subset of fields or
 // ignore the entire struct — the box's own state is the source of
 // truth.
-struct combo_box_event
+//
+//   Inherits the shared render_event base (committed, dismissed,
+// changed, focus_*, any_change), so generic callers can probe
+// "did anything happen this frame?" without knowing the concrete
+// event type.  The combo-specific fields below carry the finer-
+// grained semantics that the base cannot express:
+//     - `opened` / `closed`: panel-state transitions, distinct from
+//       the base's `dismissed` (which means closed-without-commit).
+//     - `selection_changed` / `filter_changed` / `edit_changed`:
+//       which input surface produced the value mutation.  The base's
+//       `changed` is the OR of all three.
+//     - `committed_index`: the slot that committed, or the
+//       no_selection sentinel.
+//
+//   Migration note (2026.05.08): the previous standalone `committed`
+// member is now inherited from render_event.  Same name, same
+// semantics, no caller breakage; the renderer still writes
+// `evt.committed = true` and the read paths are identical.
+struct combo_box_event : render_event
 {
     bool        opened            = false;  // panel transitioned closed->open
     bool        closed            = false;  // panel transitioned open->closed
-    bool        committed         = false;  // single-select commit fired
     bool        selection_changed = false;  // value mutated this frame
     bool        filter_changed    = false;  // filter text edited this frame
     bool        edit_changed      = false;  // edit buffer edited this frame
     std::size_t committed_index   = static_cast<std::size_t>(-1);
 };
-
-
-
 
 // ===============================================================================
 //  2  ITEM LABEL HELPERS
@@ -140,9 +157,6 @@ NS_INTERNAL
     }
 
 NS_END  // internal
-
-
-
 
 // ===============================================================================
 //  3  RENDER  (with explicit label extractor)
@@ -453,11 +467,24 @@ render(
         evt.selection_changed = true;
     }
 
+    // -- populate the shared render_event base ----------------------
+    //   `changed` is the OR of every value-mutation surface so generic
+    // callers can probe "value moved this frame" with a single read.
+    // `dismissed` is "closed without a commit" - panel transitioned
+    // closed and no commit fired this frame; this differs from the
+    // combo-specific `closed` (which fires for both commit-driven and
+    // user-driven closes).  summarise() then ORs the base flags into
+    // any_change.
+    evt.changed   = ( (evt.selection_changed) ||
+                      (evt.filter_changed)    ||
+                      (evt.edit_changed) );
+    evt.dismissed = ( (evt.closed) &&
+                      (!evt.committed) );
+
+    summarise(evt);
+
     return evt;
 }
-
-
-
 
 // ===============================================================================
 //  4  RENDER  (no-extractor overload)
@@ -500,8 +527,8 @@ render(
 }
 
 
-NS_END  // component
+NS_END  // imgui
 NS_END  // uxoxo
 
 
-#endif  // UXOXO_COMPONENT_COMBO_BOX_IMGUI_
+#endif  // UXOXO_COMPONENT_IMGUI_COMBO_BOX_

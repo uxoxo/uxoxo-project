@@ -6,7 +6,7 @@
 * edges (top/bottom/left/right), aligned along that edge per title_align.
 * For horizontal placements (top/bottom) the title is rendered with normal
 * ImGui text.  For vertical placements (left/right) the title is rendered
-* as stacked characters — one character per line — because ImGui has no
+* as stacked characters - one character per line - because ImGui has no
 * rotated-text primitive.  Stacking produces readable, predictable output
 * in any font and avoids pulling in a text-rotation dependency.
 *
@@ -16,14 +16,14 @@
 * QGroupBox, HTML fieldset+legend, and the vast majority of native
 * "group box" widgets.  When the title is empty, the border is drawn as
 * an unbroken rectangle.  When show_border is false, the title alone is
-* drawn — no surrounding line.
+* drawn - no surrounding line.
 *
 *   Since `frame` no longer owns a child list, this renderer exposes
 * three complementary entry points for attaching content:
 *
 *     imgui_frame_begin / imgui_frame_end
 *       Paired begin/end calls with a state struct passed between.
-*       Use when content cannot be wrapped in a lambda — stateful
+*       Use when content cannot be wrapped in a lambda - stateful
 *       flow, early-return, interspersed draw calls.
 *
 *     imgui_draw_frame
@@ -54,7 +54,7 @@
 *
 * path:      /inc/uxoxo/platform/imgui/container/frame/imgui_frame_draw.hpp
 * link(s):   TBA
-* author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.19
+* author(s): Samuel 'teer' Neal-Blim                        created: 2026.04.19
 *******************************************************************************/
 
 #ifndef  UXOXO_IMGUI_COMPONENT_FRAME_DRAW_
@@ -75,7 +75,6 @@
 
 
 NS_UXOXO
-NS_PLATFORM
 NS_IMGUI
 
 
@@ -94,9 +93,9 @@ using component::frf_hover_state;
 using component::frf_tooltip;
 
 
-// ===============================================================================
+// ===========================================================================
 //  I.   STYLE CONSTANTS
-// ===============================================================================
+// ===========================================================================
 
 // D_FRAME_TITLE_INSET_PAD
 //   constant: horizontal (or cross-axis) gap in pixels between the title
@@ -125,9 +124,9 @@ using component::frf_tooltip;
 #define D_FRAME_COLLAPSED_PAD           4.0f
 
 
-// ===============================================================================
+// ===========================================================================
 //  II.  INTERNAL HELPERS
-// ===============================================================================
+// ===========================================================================
 
 NS_INTERNAL
 
@@ -327,7 +326,7 @@ NS_INTERNAL
             return;
         }
 
-        // unbroken rectangle — simplest case
+        // unbroken rectangle - simplest case
         if (!_has_notch)
         {
             _dl->AddRect(_min, _max, _color, 0.0f,
@@ -459,7 +458,7 @@ NS_INTERNAL
                 break;
         }
 
-        // clamp — a title wider than the edge shouldn't wrap backward
+        // clamp - a title wider than the edge shouldn't wrap backward
         if (offset < 0.0f)
         {
             offset = 0.0f;
@@ -471,9 +470,9 @@ NS_INTERNAL
 NS_END  // internal
 
 
-// ===============================================================================
+// ===========================================================================
 //  III. DRAW STATE
-// ===============================================================================
+// ===========================================================================
 //   State produced by imgui_frame_begin and consumed by imgui_frame_end.
 // The state carries just enough layout information for end to correctly
 // reserve outer layout space and balance the BeginChild / EndChild pair
@@ -493,16 +492,16 @@ struct imgui_frame_draw_state
 };
 
 
-// ===============================================================================
+// ===========================================================================
 //  IV.  BEGIN / END
-// ===============================================================================
+// ===========================================================================
 
 /*
 imgui_frame_begin
   Begins a frame render.  Computes the layout, draws the border and
 title chrome, updates feature-gated state (hovered, collapsible
-toggle), optionally shows a tooltip, and — unless the frame is
-invisible or collapsed — opens a BeginChild scope for the inner
+toggle), optionally shows a tooltip, and - unless the frame is
+invisible or collapsed - opens a BeginChild scope for the inner
 content region.  The caller then draws content inside the child
 scope and calls imgui_frame_end with the returned state.
 
@@ -524,7 +523,7 @@ Return:
   An imgui_frame_draw_state carrying layout information for the
   matching imgui_frame_end call.
 */
-template <unsigned _F>
+template<unsigned _F>
 imgui_frame_draw_state
 imgui_frame_begin(
     frame<_F>& _fr
@@ -557,7 +556,7 @@ imgui_frame_begin(
     bool                   is_collapsed;
     bool                   hovered_now;
 
-    // invisible frame — return sentinel, matching end is a no-op
+    // invisible frame - return sentinel, matching end is a no-op
     if (!_fr.visible)
     {
         st.outer_origin = ImVec2(0.0f, 0.0f);
@@ -568,7 +567,7 @@ imgui_frame_begin(
         return st;
     }
 
-    // initialize — scope-wide layout geometry
+    // initialize - scope-wide layout geometry
     outer_origin   = ImGui::GetCursorScreenPos();
     outer_avail    = ImGui::GetContentRegionAvail();
     dl             = ImGui::GetWindowDrawList();
@@ -824,7 +823,7 @@ imgui_frame_begin(
                 title_rect_max.x - title_rect_min.x,
                 title_rect_max.y - title_rect_min.y);
 
-            // clamp — InvisibleButton rejects zero / negative sizes
+            // clamp - InvisibleButton rejects zero / negative sizes
             if (btn_size.x < 1.0f)
             {
                 btn_size.x = 1.0f;
@@ -857,7 +856,7 @@ imgui_frame_begin(
     }
     else if constexpr (frame<_F>::has_tooltip)
     {
-        // tooltip without a stored hover flag — still need the test
+        // tooltip without a stored hover flag - still need the test
         hovered_now = ImGui::IsMouseHoveringRect(border_min, border_max);
     }
 
@@ -885,7 +884,7 @@ imgui_frame_begin(
         inner_size   = ImVec2(outer_avail.x - inset_left - inset_right,
                               outer_avail.y - inset_top  - inset_bot);
 
-        // clamp — BeginChild rejects zero / negative sizes
+        // clamp - BeginChild rejects zero / negative sizes
         if (inner_size.x < 1.0f)
         {
             inner_size.x = 1.0f;
@@ -906,7 +905,7 @@ imgui_frame_begin(
         }
         else
         {
-            // BeginChild returned false — EndChild still required
+            // BeginChild returned false - EndChild still required
             st.child_begun = true;
         }
     }
@@ -937,7 +936,7 @@ imgui_frame_end(
 {
     ImVec2 reserve_size;
 
-    // invisible frame — begin returned a sentinel, nothing to close
+    // invisible frame - begin returned a sentinel, nothing to close
     if (!_state.visible)
     {
         return;
@@ -964,7 +963,7 @@ imgui_frame_end(
         // along the title's edge, and just enough on the perpendicular
         // axis to contain the collapsed chrome.  We don't know the
         // title edge here without re-deriving it, so we fall back to
-        // a single line of ImGui content height — this is a safe
+        // a single line of ImGui content height - this is a safe
         // underestimate that lets collapsed frames stack neatly.
         reserve_size = ImVec2(
             _state.outer_avail.x,
@@ -982,9 +981,9 @@ imgui_frame_end(
 }
 
 
-// ===============================================================================
+// ===========================================================================
 //  V.   CALLBACK CONVENIENCE
-// ===============================================================================
+// ===========================================================================
 
 /*
 imgui_draw_frame
@@ -993,10 +992,10 @@ imgui_frame_end.  Invokes `_content` between them for the frame's
 interior.  When the frame is invisible or collapsed, the content
 callable is not invoked.
 
-  `_content` is any nullary callable — lambda, function pointer,
+  `_content` is any nullary callable - lambda, function pointer,
 functor.  Exceptions propagate out of `_content`; in that case the
 begin/end pair is still balanced by imgui_frame_end being called
-after the throw (which this wrapper does not guarantee — prefer
+after the throw (which this wrapper does not guarantee - prefer
 imgui_frame_scope for exception-safe rendering).
 
 Parameter(s):
@@ -1006,7 +1005,7 @@ Parameter(s):
 Return:
   none.
 */
-template <unsigned _F,
+template<unsigned _F,
           typename _ContentFn>
 void
 imgui_draw_frame(
@@ -1041,7 +1040,7 @@ Parameter(s):
 Return:
   none.
 */
-template <unsigned _F>
+template<unsigned _F>
 void
 imgui_draw_frame(
     frame<_F>& _fr
@@ -1056,18 +1055,18 @@ imgui_draw_frame(
 }
 
 
-// ===============================================================================
+// ===========================================================================
 //  VI.  RAII SCOPE
-// ===============================================================================
+// ===========================================================================
 
 // imgui_frame_scope
 //   class: RAII wrapper that calls imgui_frame_begin in its
 // constructor and imgui_frame_end in its destructor.  Provides
-// exception-safe frame rendering — if the content draw throws, the
+// exception-safe frame rendering - if the content draw throws, the
 // destructor still balances the begin/end pair.  Non-copyable,
 // non-movable; intended to live on the stack for the duration of
 // the content scope.
-template <unsigned _F>
+template<unsigned _F>
 class imgui_frame_scope
 {
 public:
@@ -1118,7 +1117,6 @@ private:
 
 
 NS_END  // imgui
-NS_END  // platform
 NS_END  // uxoxo
 
 

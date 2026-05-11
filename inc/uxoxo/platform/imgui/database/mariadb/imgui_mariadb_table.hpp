@@ -1,10 +1,9 @@
-/*******************************************************************************
-* uxoxo [imgui]                                    imgui_mariadb_table_draw.hpp
+/******************************************************************************
+* uxoxo [imgui]                                        imgui_mariadb_table.hpp
 *
 *   Dear ImGui draw handler for the mariadb_table_view component.  Layers
 * MariaDB-specific chrome onto the shared imgui_database_table_draw
 * layout:
-*
 *   - an extras toolbar row below the base toolbar carrying a Galera
 *     sync-on-commit checkbox and the temporal query controls (AS OF,
 *     BETWEEN, ALL VERSIONS, Clear).  Temporal controls are disabled
@@ -14,33 +13,49 @@
 *   - a status bar that uses mariadb_table_view_status_text so the
 *     footer shows temporal and Galera indicators alongside the base
 *     connection and sync flags
-*
 *   The pair struct mariadb_table_view_pair bundles references to the
 * table_view, the mariadb_table_state, and a per-view
 * imgui_mariadb_table_ui holding ImGui input buffers — so the type-
 * erased registry can dispatch with a single void* the same way
 * database_table_view_pair does.
-*
+*   Migration note (2026.05.08):
+*     - `mariadb_table_view_pair` is now a using-alias of the generic
+*       `view_state_pair<table_view, mariadb_table_state,
+*        imgui_mariadb_table_ui>` template from imgui_view_pair.hpp.
+*       Brace-initialization at call sites is preserved.
+*     - The local `imgui_draw_mariadb_temporal_button` helper was a
+*       3-color push/pop wrapper used three times.  It has been
+*       removed in favour of `accent_button(label, normal, hover,
+*       normal, disabled)` from imgui_button_helpers.hpp.  The
+*       Clear-temporal button's identical hand-rolled push/pop block
+*       is also collapsed into an accent_button call.
+*     - The extras-row BeginChild + ChildBg push/pop pair becomes a
+*       `toolbar_scope` from imgui_chrome.hpp.  The status-bar pair
+*       becomes a `status_bar_scope`.
+*     - References into the now-removed shared `imgui_db_toolbar_style`
+*       (toolbar_bg, btn_disabled, status_text, status_height) have
+*       been redirected to the corresponding `palette::` tags.
+*       MariaDB-specific accents (temporal purple, galera teal) stay
+*       in `imgui_mariadb_toolbar_style` because they have no
+*       consumer outside this file.
 *   Structure:
 *     1.  per-view imgui state
-*     2.  mariadb_table_view_pair
-*     3.  toolbar style
+*     2.  mariadb_table_view_pair (alias for view_state_pair)
+*     3.  toolbar style (mariadb-specific accents only)
 *     4.  extras row rendering  (Galera + temporal controls)
 *     5.  status bar rendering
 *     6.  imgui_draw_mariadb_table_view (main entry point)
-*
 *   REQUIRES: C++17 or later.  Dear ImGui headers must be included
 * before this header.
 *
 *
-* path:      /inc/uxoxo/platform/imgui/table/database/
-*                imgui_mariadb_table_draw.hpp
+* path:      /inc/uxoxo/platform/imgui/database/mariadb/imgui_mariadb_table.hpp
 * link(s):   TBA
-* author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.20
-*******************************************************************************/
+* author(s): Samuel 'teer' Neal-Blim                          date: 2026.04.20
+******************************************************************************/
 
-#ifndef UXOXO_IMGUI_COMPONENT_TABLE_MARIADB_DRAW_
-#define UXOXO_IMGUI_COMPONENT_TABLE_MARIADB_DRAW_ 1
+#ifndef UXOXO_COMPONENT_IMGUI_DATABASE_MARIADB_TABLE_
+#define UXOXO_COMPONENT_IMGUI_DATABASE_MARIADB_TABLE_ 1
 
 // std
 #include <string>
@@ -53,12 +68,16 @@
 #include "../../../templates/component/table/table_view.hpp"
 #include "../../../templates/component/database/mariadb_table_view.hpp"
 #include "../../../templates/render_context.hpp"
+#include "../core/imgui_button_helpers.hpp"
+#include "../core/imgui_chrome.hpp"
+#include "../core/imgui_palette.hpp"
+#include "../core/imgui_scope.hpp"
+#include "../core/imgui_view_pair.hpp"
 #include "../table/imgui_table_draw.hpp"
 #include "./imgui_database_table_draw.hpp"
 
 
 NS_UXOXO
-NS_PLATFORM
 NS_IMGUI
 
 using uxoxo::component::render_context;
@@ -93,21 +112,22 @@ struct imgui_mariadb_table_ui
 // MariaDB UI buffers.
 
 // mariadb_table_view_pair
-//   struct: bundles a table_view, mariadb_table_state, and
-// imgui_mariadb_table_ui for registry dispatch.
-struct mariadb_table_view_pair
-{
-    table_view&             view;
-    mariadb_table_state&    state;
-    imgui_mariadb_table_ui& ui;
-};
+//   alias: view_state_pair instantiated for table_view +
+// mariadb_table_state + imgui_mariadb_table_ui.  Brace-initialization
+// at call sites is preserved because the alias resolves to a plain
+// aggregate.
+using mariadb_table_view_pair =
+    view_state_pair<table_view, mariadb_table_state, imgui_mariadb_table_ui>;
 
 
 // =============================================================================
 //  3.  TOOLBAR STYLE
 // =============================================================================
-//   Reuses the base imgui_db_toolbar_style palette for continuity and
-// adds MariaDB-specific accents for temporal indicators.
+//   MariaDB-specific accent palette.  Temporal queries use a purple
+// hue (distinguishing them from the database refresh blue and the
+// commit green); Galera uses a teal-cyan; clear-temporal uses an
+// amber tint.  Shared chrome colors come from `palette::` and are
+// NOT duplicated here.
 
 namespace imgui_mariadb_toolbar_style
 {
@@ -126,8 +146,6 @@ namespace imgui_mariadb_toolbar_style
     D_INLINE const ImVec4 galera_accent          =
         ImVec4(0.30f, 0.58f, 0.62f, 1.0f);
 
-    D_INLINE constexpr float extras_height = 32.0f;
-
 }   // namespace imgui_mariadb_toolbar_style
 
 
@@ -136,50 +154,6 @@ namespace imgui_mariadb_toolbar_style
 // =============================================================================
 
 NS_INTERNAL
-
-    // imgui_draw_mariadb_temporal_button
-    //   function: draws a temporal action button with the MariaDB
-    // accent palette.  Returns true if clicked and not disabled.
-    D_INLINE bool
-    imgui_draw_mariadb_temporal_button(
-        const char* _label,
-        bool        _disabled
-    )
-    {
-        if (_disabled)
-        {
-            ImGui::PushStyleColor(
-                ImGuiCol_Button,
-                imgui_db_toolbar_style::btn_disabled);
-            ImGui::PushStyleColor(
-                ImGuiCol_ButtonHovered,
-                imgui_db_toolbar_style::btn_disabled);
-            ImGui::PushStyleColor(
-                ImGuiCol_ButtonActive,
-                imgui_db_toolbar_style::btn_disabled);
-        }
-        else
-        {
-            ImGui::PushStyleColor(
-                ImGuiCol_Button,
-                imgui_mariadb_toolbar_style::btn_temporal);
-            ImGui::PushStyleColor(
-                ImGuiCol_ButtonHovered,
-                imgui_mariadb_toolbar_style::btn_temporal_hover);
-            ImGui::PushStyleColor(
-                ImGuiCol_ButtonActive,
-                imgui_mariadb_toolbar_style::btn_temporal);
-        }
-
-        const bool clicked =
-            ( ImGui::Button(_label) &&
-              !_disabled );
-
-        ImGui::PopStyleColor(3);
-
-        return clicked;
-    }
-
 
     // imgui_draw_mariadb_extras
     //   function: draws the MariaDB extras row (Galera checkbox,
@@ -192,23 +166,24 @@ NS_INTERNAL
         imgui_mariadb_table_ui& _ui
     )
     {
-        bool interacted = false;
+        bool interacted;
+        bool versioned;
 
-        ImGui::PushStyleColor(ImGuiCol_ChildBg,
-                              imgui_db_toolbar_style::toolbar_bg);
+        interacted = false;
 
-        ImGui::BeginChild(
-            "##mariadb_extras",
-            ImVec2(0.0f,
-                   imgui_mariadb_toolbar_style::extras_height),
-            false,
-            ImGuiWindowFlags_NoScrollbar);
+        toolbar_scope extras("##mariadb_extras");
 
-        // Galera sync checkbox
+        if (!extras.is_visible())
         {
-            ImGui::PushStyleColor(
-                ImGuiCol_CheckMark,
-                imgui_mariadb_toolbar_style::galera_accent);
+            return false;
+        }
+
+        // -- Galera sync checkbox --------------------------------------
+        {
+            scoped_color check_color {
+                { ImGuiCol_CheckMark,
+                      imgui_mariadb_toolbar_style::galera_accent }
+            };
 
             bool galera = _state.galera_sync_on_commit;
 
@@ -219,17 +194,15 @@ NS_INTERNAL
                                                    galera);
                 interacted = true;
             }
-
-            ImGui::PopStyleColor();
         }
 
         ImGui::SameLine();
         ImGui::TextDisabled("|");
         ImGui::SameLine();
 
-        const bool versioned = _state.system_versioned;
+        versioned = _state.system_versioned;
 
-        // AS OF entry
+        // -- AS OF entry -----------------------------------------------
         ImGui::TextUnformatted("AS OF");
         ImGui::SameLine();
 
@@ -241,9 +214,13 @@ NS_INTERNAL
 
         ImGui::SameLine();
 
-        if (imgui_draw_mariadb_temporal_button(
+        if (accent_button(
                 "Go##as_of",
-                !versioned || (_ui.as_of_buffer[0] == '\0')))
+                imgui_mariadb_toolbar_style::btn_temporal,
+                imgui_mariadb_toolbar_style::btn_temporal_hover,
+                imgui_mariadb_toolbar_style::btn_temporal,
+                ( !versioned ||
+                  (_ui.as_of_buffer[0] == '\0') )))
         {
             mariadb_table_view_refresh_as_of(_state,
                                              _ui.as_of_buffer);
@@ -254,7 +231,7 @@ NS_INTERNAL
         ImGui::TextDisabled("|");
         ImGui::SameLine();
 
-        // BETWEEN entries
+        // -- BETWEEN entries -------------------------------------------
         ImGui::TextUnformatted("BETWEEN");
         ImGui::SameLine();
 
@@ -274,28 +251,38 @@ NS_INTERNAL
 
         ImGui::SameLine();
 
-        const bool between_disabled =
-            ( !versioned                                   ||
-              (_ui.between_from_buffer[0] == '\0')         ||
-              (_ui.between_to_buffer[0]   == '\0') );
-
-        if (imgui_draw_mariadb_temporal_button(
-                "Go##between",
-                between_disabled))
         {
-            mariadb_table_view_refresh_between(_state,
-                                               _ui.between_from_buffer,
-                                               _ui.between_to_buffer);
-            interacted = true;
+            const bool between_disabled =
+                ( !versioned                                ||
+                  (_ui.between_from_buffer[0] == '\0')      ||
+                  (_ui.between_to_buffer[0]   == '\0') );
+
+            if (accent_button(
+                    "Go##between",
+                    imgui_mariadb_toolbar_style::btn_temporal,
+                    imgui_mariadb_toolbar_style::btn_temporal_hover,
+                    imgui_mariadb_toolbar_style::btn_temporal,
+                    between_disabled))
+            {
+                mariadb_table_view_refresh_between(
+                    _state,
+                    _ui.between_from_buffer,
+                    _ui.between_to_buffer);
+                interacted = true;
+            }
         }
 
         ImGui::SameLine();
         ImGui::TextDisabled("|");
         ImGui::SameLine();
 
-        // ALL VERSIONS
-        if (imgui_draw_mariadb_temporal_button("All Versions",
-                                               !versioned))
+        // -- ALL VERSIONS ----------------------------------------------
+        if (accent_button(
+                "All Versions",
+                imgui_mariadb_toolbar_style::btn_temporal,
+                imgui_mariadb_toolbar_style::btn_temporal_hover,
+                imgui_mariadb_toolbar_style::btn_temporal,
+                !versioned))
         {
             mariadb_table_view_refresh_all_versions(_state);
             interacted = true;
@@ -303,68 +290,46 @@ NS_INTERNAL
 
         ImGui::SameLine();
 
-        // Clear (live snapshot) — only useful when temporal is active
+        // -- Clear (live snapshot) — only useful when temporal active --
         {
             const bool clear_disabled = !_state.temporal_active;
 
-            if (clear_disabled)
-            {
-                ImGui::PushStyleColor(
-                    ImGuiCol_Button,
-                    imgui_db_toolbar_style::btn_disabled);
-                ImGui::PushStyleColor(
-                    ImGuiCol_ButtonHovered,
-                    imgui_db_toolbar_style::btn_disabled);
-                ImGui::PushStyleColor(
-                    ImGuiCol_ButtonActive,
-                    imgui_db_toolbar_style::btn_disabled);
-            }
-            else
-            {
-                ImGui::PushStyleColor(
-                    ImGuiCol_Button,
-                    imgui_mariadb_toolbar_style::btn_clear);
-                ImGui::PushStyleColor(
-                    ImGuiCol_ButtonHovered,
-                    imgui_mariadb_toolbar_style::btn_clear_hover);
-                ImGui::PushStyleColor(
-                    ImGuiCol_ButtonActive,
-                    imgui_mariadb_toolbar_style::btn_clear);
-            }
-
-            if ( ImGui::Button("Clear") &&
-                 !clear_disabled )
+            if (accent_button(
+                    "Clear",
+                    imgui_mariadb_toolbar_style::btn_clear,
+                    imgui_mariadb_toolbar_style::btn_clear_hover,
+                    imgui_mariadb_toolbar_style::btn_clear,
+                    clear_disabled))
             {
                 mariadb_table_view_clear_temporal(_state);
                 interacted = true;
             }
-
-            ImGui::PopStyleColor(3);
         }
 
-        // active-temporal indicator
+        // -- active-temporal indicator ---------------------------------
         if (_state.temporal_active)
         {
             ImGui::SameLine();
-            ImGui::PushStyleColor(
-                ImGuiCol_Text,
-                imgui_mariadb_toolbar_style::temporal_active_text);
+
+            scoped_color active_color {
+                { ImGuiCol_Text,
+                      imgui_mariadb_toolbar_style::temporal_active_text }
+            };
+
             ImGui::Text("active: %s",
                         _state.temporal_text.c_str());
-            ImGui::PopStyleColor();
         }
         else if (!versioned)
         {
             ImGui::SameLine();
-            ImGui::PushStyleColor(
-                ImGuiCol_Text,
-                imgui_db_toolbar_style::status_text);
-            ImGui::TextUnformatted("(not system-versioned)");
-            ImGui::PopStyleColor();
-        }
 
-        ImGui::EndChild();
-        ImGui::PopStyleColor();
+            scoped_color hint_color {
+                { ImGuiCol_Text,
+                      palette::get<palette::text_muted_tag>() }
+            };
+
+            ImGui::TextUnformatted("(not system-versioned)");
+        }
 
         return interacted;
     }
@@ -385,27 +350,22 @@ NS_INTERNAL
         const mariadb_table_state& _state
     )
     {
-        ImGui::PushStyleColor(ImGuiCol_ChildBg,
-                              imgui_db_toolbar_style::toolbar_bg);
+        status_bar_scope sb("##mariadb_status");
 
-        ImGui::BeginChild("##mariadb_status",
-                          ImVec2(0.0f,
-                                 imgui_db_toolbar_style::status_height),
-                          false,
-                          ImGuiWindowFlags_NoScrollbar);
+        if (!sb.is_visible())
+        {
+            return;
+        }
 
-        ImGui::PushStyleColor(ImGuiCol_Text,
-                              imgui_db_toolbar_style::status_text);
+        scoped_color text_color {
+            { ImGuiCol_Text,
+                  palette::get<palette::text_muted_tag>() }
+        };
 
         const std::string status =
-            mariadb_table_view_status_text(_state,
-                                           _table_view);
+            mariadb_table_view_status_text(_state, _table_view);
 
         ImGui::TextUnformatted(status.c_str());
-
-        ImGui::PopStyleColor();
-        ImGui::EndChild();
-        ImGui::PopStyleColor();
 
         return;
     }
@@ -428,7 +388,10 @@ imgui_draw_mariadb_table_view(
     render_context&          _ctx
 )
 {
-    bool interacted = false;
+    bool  interacted;
+    float grid_height;
+
+    interacted = false;
 
     // base toolbar — mariadb_table_state IS-A database_table_state,
     // so the internal helper binds directly without adaptation
@@ -442,9 +405,8 @@ imgui_draw_mariadb_table_view(
                                             _pair.ui);
 
     // grid (remaining space minus status bar height)
-    float grid_height =
-        ImGui::GetContentRegionAvail().y -
-        imgui_db_toolbar_style::status_height;
+    grid_height = ( ImGui::GetContentRegionAvail().y -
+                    palette::get<palette::status_bar_height_tag>() );
 
     if (grid_height < 0.0f)
     {
@@ -471,8 +433,7 @@ imgui_draw_mariadb_table_view(
 
 
 NS_END  // imgui
-NS_END  // platform
 NS_END  // uxoxo
 
 
-#endif  // UXOXO_IMGUI_COMPONENT_TABLE_MARIADB_DRAW_
+#endif  // UXOXO_COMPONENT_IMGUI_DATABASE_MARIADB_TABLE_

@@ -31,7 +31,7 @@
 *
 * path:      /inc/uxoxo/platform/imgui/imgui_renderer.hpp
 * link(s):   TBA
-* author(s): Samuel 'teer' Neal-Blim                           date: 2026.04.10
+* author(s): Samuel 'teer' Neal-Blim                        created: 2026.04.10
 *******************************************************************************/
 
 #ifndef UXOXO_COMPONENT_IMGUI_RENDERER_
@@ -48,14 +48,13 @@
 #include "../../templates/renderer.hpp"
 #include "../../templates/render_context.hpp"
 #include "../../templates/component/table/table_view.hpp"
-#include "../../templates/component/table/database/database_table_view.hpp"
+#include "../../templates/component/database/database_table_view.hpp"
 #include "../../templates/component/window/window_panel.hpp"
 #include "./table/imgui_table_draw.hpp"
-#include "./table/database/imgui_database_table_draw.hpp"
+#include "./database/imgui_database_table_draw.hpp"
 
 
 NS_UXOXO
-NS_PLATFORM
 NS_IMGUI
 
 
@@ -63,9 +62,9 @@ using uxoxo::component::renderer;
 using uxoxo::component::render_context;
 using uxoxo::component::window_panel;
 
-// =============================================================================
+// ===========================================================================
 //  1.  IMGUI RENDERER
-// =============================================================================
+// ===========================================================================
 
 // imgui_renderer
 //   class: concrete Dear ImGui rendering backend.  Registers component
@@ -86,7 +85,20 @@ public:
 
     // begin_frame
     //   starts a new ImGui frame.  Stores the current ImGuiContext
-    // in the render_context for draw handlers that need it.
+    // in the render_context for draw handlers that need it, and
+    // mirrors the platform backend's display size into the
+    // render_context's viewport_width / viewport_height fields so
+    // downstream draw handlers (console docking, layout splitters,
+    // etc.) can position themselves against the viewport without
+    // having to reach into ImGui::GetIO() themselves.
+    //
+    //   ImGui::GetIO().DisplaySize is set by the platform backend
+    // (glfw / sdl / etc.) before NewFrame is invoked, so reading
+    // it here returns the correct value for the frame about to be
+    // built.  Keeping this assignment in the renderer means
+    // application code only has to hand a default-constructed
+    // render_context to begin_frame; viewport_width/height stay in
+    // sync automatically across resizes.
     bool
     begin_frame(
         render_context& _ctx
@@ -101,13 +113,17 @@ public:
 
         ImGui::NewFrame();
 
+        const ImVec2 disp     = ImGui::GetIO().DisplaySize;
+        _ctx.viewport_width   = disp.x;
+        _ctx.viewport_height  = disp.y;
+
         return true;
     }
 
     // end_frame
     //   finalises the ImGui frame.  The caller is responsible for
     // calling the platform-specific render backend (e.g.
-    // ImGui_ImplOpenGL3_RenderDrawData) after this.
+    // ImGui_helperOpenGL3_RenderDrawData) after this.
     void
     end_frame(
         render_context& _ctx
@@ -149,9 +165,9 @@ private:
 };
 
 
-// =============================================================================
+// ===========================================================================
 //  2.  PANEL RENDERING HELPER
-// =============================================================================
+// ===========================================================================
 
 // imgui_render_panel
 //   function: wraps a window_panel in an ImGui::Begin / ImGui::End
@@ -236,9 +252,9 @@ imgui_render_panel(
 }
 
 
-// =============================================================================
+// ===========================================================================
 //  3.  CONVENIENCE: RENDER ALL PANELS
-// =============================================================================
+// ===========================================================================
 
 // imgui_render_all_panels
 //   function: iterates over a panel collection and renders each one
@@ -262,7 +278,6 @@ imgui_render_all_panels(
 
 
 NS_END  // imgui
-NS_END  // platform
 NS_END  // uxoxo
 
 
