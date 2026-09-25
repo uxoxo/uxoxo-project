@@ -11,7 +11,7 @@
 #ifndef UXOXO_
 #define UXOXO_ 1
 
-#include <djinterp/core/djinterp.hpp>
+#include <djinterp/djinterp.hpp>
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -81,7 +81,11 @@
 
 // NS_UI
 //   namespace: vendor-specific UI elements, layouts, widgets, and more.
-#define NS_UI                           D_NAMESPACE(U_KEYWORD_UI)
+// The djinterp root (included above) defines NS_UI for the same `ui`
+// namespace; this definition stands only for a root that does not.
+#ifndef NS_UI
+    #define NS_UI                       D_NAMESPACE(U_KEYWORD_UI)
+#endif  // NS_UI
 
 // NS_UI_TREE
 //   namespace: the `tree` namespace, corresponding to the central UI element

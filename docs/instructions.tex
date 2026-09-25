@@ -1,0 +1,362 @@
+\documentclass[11pt]{article}
+
+\usepackage[letterpaper,margin=1in]{geometry}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{parskip}
+\usepackage{microtype}
+\usepackage[hidelinks]{hyperref}
+
+% ---- numbered, continuable definition list ----
+\newlist{definitionlist}{enumerate}{1}
+\setlist[definitionlist]{label=\textbf{(\arabic*)}, leftmargin=2.6em,
+  labelsep=0.6em, itemsep=0.5ex, topsep=0.7ex}
+
+\title{A Formal Definition of Instructions in a\\[2pt]
+       Domain-Specific Language}
+\author{Prepared with Claude (Anthropic)}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+An \emph{instruction} (or \emph{command}) sits at the intersection of two things:
+a symbol in the grammar of a domain-specific language, and a behavior in the
+program that language describes. This note defines it self-containedly -- its
+abstract syntax as a named operator carrying optional parameters, the forms those
+parameters take, its reading across the standard grammar metasyntaxes, and its
+semantics as a function from arguments to a computation -- with no dependence on
+any external apparatus.
+\end{abstract}
+
+\section*{Instructions}
+
+An \textbf{instruction} (equivalently, a \textbf{command}) is a node of the
+abstract syntax: a named operator that may carry data. Its name is the node's
+head; its data are the node's children. No meaning resides in the name itself --
+meaning is supplied separately, by an interpretation, developed in the final
+section.
+
+Given:
+
+\begin{definitionlist}
+    \item a \textbf{name} \(n\), an identifier drawn from a namespace
+          \(\mathcal{N}\);
+    \item a \textbf{parameter} \(a\): a slot the instruction may carry, equipped
+          with a \textbf{domain} \(D_a\) (its admissible values) and a marking
+          \emph{required} or \emph{optional}; an optional parameter additionally
+          admits the \textbf{absent} value \(\bot \notin D_a\) and may name a
+          \textbf{default} \(d_a \in D_a\);
+    \item a \textbf{parameter profile} \(\operatorname{prof}(n)\): the finite,
+          possibly empty, set of parameters declared for the name \(n\),
+\end{definitionlist}
+
+one defines:
+
+\begin{definitionlist}[start=4]
+    \item an \textbf{instruction} \(c\): a name \(\operatorname{name}(c)\in
+          \mathcal{N}\) together with a \textbf{binding} \(\beta_c\) assigning to
+          each \(a\in\operatorname{prof}(c)\) a value \(\beta_c(a)\in
+          D_a\cup\{\bot\}\), with \(\bot\) permitted only where \(a\) is
+          optional. The \textbf{arity} of \(c\) is
+          \(\lvert\operatorname{prof}(c)\rvert\), writing
+          \(\operatorname{prof}(c):=\operatorname{prof}(\operatorname{name}(c))\).
+\end{definitionlist}
+
+The binding is the instruction's entire variable content: a finite map from its
+parameters to values, recording which optional parameters are present and what
+each carries. Flags, attributes, arguments -- and command-line ``options'' in the
+informal sense -- are not separate primitives but \emph{parameters} differing only
+in the shape of their domain; an instruction ``may or may not'' carry them exactly
+as its profile is non-empty or empty. An instruction of empty profile is a
+\textbf{bare command}, an atom with a name and nothing more. Being \emph{abstract}
+syntax, an instruction retains only its name and binding; distinct surface
+renderings that induce the same binding are the same instruction.
+
+Each parameter falls, by the shape of \(D_a\), into exactly one \textbf{mode}:
+
+\begin{definitionlist}[start=5]
+    \item \textbf{nullary} (\emph{flag}): \(D_a=\{\star\}\), a single presence
+          token; the only datum is present-versus-absent.
+    \item \textbf{Boolean}: \(D_a=\mathbb{B}=\{\mathsf{true},\mathsf{false}\}\).
+    \item \textbf{enumerated}: \(D_a=\{u_1,\dots,u_r\}\), a finite enumeration.
+    \item \textbf{valued}: \(D_a\) is an arbitrary type (the general case).
+\end{definitionlist}
+
+These nest -- nullary is the one-element enumeration, Boolean the two-element one
+-- and are separated only so the semantics can treat their values uniformly.
+
+\section*{The forms an instruction takes}
+
+The variable content of an instruction is the values its binding records. A few
+recurring forms are worth naming; each is a statement about the binding alone.
+
+\begin{table}[h]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{6pt}
+\renewcommand{\arraystretch}{1.35}
+\begin{tabularx}{\textwidth}{@{}l l >{\raggedright\arraybackslash}X@{}}
+\toprule
+\textbf{Surface instruction} & \textbf{Domain \(D_a\)} &
+\textbf{Binding contribution} \(\bigl(\text{parameter}\mapsto\text{value}\bigr)\)\\
+\midrule
+flag \(\mathsf{foo}\) (present) & \(\{\star\}\) &
+\(\mathsf{foo}\mapsto\star\) \;-- present, valueless\\
+\(\mathsf{do\_foo}=b\) & \(\mathbb{B}\) &
+\(\mathsf{do\_foo}\mapsto b,\quad b\in\{\mathsf{true},\mathsf{false}\}\)\\
+pair \(\mathsf{do\_foo}\,/\,\mathsf{dont\_do\_foo}\) & name-selected \(\mathbb{B}\) &
+\(s\mapsto\varpi(\operatorname{name}(c))\) \;for a shared setting \(s\)\\
+\(\mathsf{some\_command}=u\) & enum \(\{u_1,\dots,u_r\}\) &
+\(\mathsf{some\_command}\mapsto u,\quad u\in\{u_1,\dots,u_r\}\)\\
+\bottomrule
+\end{tabularx}
+\caption{Each instruction form as a contribution to the binding, graded by
+\(D_a\).}
+\end{table}
+
+The \textbf{flag} \(\mathsf{foo}\) carries a single nullary parameter: issued, its
+binding records presence with no value; unissued, the parameter is absent
+(\(\bot\)). Only presence is observable, and presence \emph{is} the content.
+
+The \textbf{Boolean} \(\mathsf{do\_foo}=b\) records a truth value directly.
+
+The \textbf{polarity pair} is two distinct command names, neither carrying an
+explicit value, that denote one underlying Boolean setting \(s\) with opposite
+values. A \textbf{polarity} \(\varpi\) sends each name to a Boolean --
+\(\varpi(\mathsf{do\_foo})=\mathsf{true}\),
+\(\varpi(\mathsf{dont\_do\_foo})=\mathsf{false}\) -- so the choice of name selects
+the value of \(s\). The pair \(\mathsf{do\_foo}/\mathsf{dont\_do\_foo}\) and the
+explicit form \(\mathsf{do\_foo}=b\) therefore carry the \emph{same} content: two
+concrete syntaxes for one setting. (The two names form an orbit of the
+fixed-point-free involution that swaps polarity, and \(\varpi\) is the
+\(\mathbb{Z}/2\)-valued invariant it induces.)
+
+The \textbf{enumerated} \(\mathsf{some\_command}=u\) records a value from a finite
+domain.
+
+\textbf{Remark (one scheme).} The forms are a single construction graded by
+\(\lvert D_a\rvert\) and by whether the value is retained or suppressed to
+presence alone: the flag is the one-element domain with its value forgotten, the
+Boolean the two-element domain, the enumeration the finite domain, the valued
+parameter the unrestricted one. A multi-parameter instruction is just their
+product over the profile.
+
+\section*{Reading the definition against a grammar}
+
+The construction does not depend on how a DSL's surface is written down. Fix a
+context-free grammar \(G=(N,\Sigma,P,S)\) -- nonterminals \(N\), terminals
+\(\Sigma\), productions \(P\), start symbol \(S\) -- presented in any of the usual
+notations. The instruction layer is the \emph{abstract} content of \(G\); the
+notation is only its concrete surface. The dictionary is:
+
+\begin{definitionlist}
+    \item a \textbf{name} is a terminal keyword in \(\Sigma\) (equivalently, the
+          production the keyword selects);
+    \item an \textbf{instruction} is a nonterminal \(\langle\textit{cmd}\rangle\)
+          together with its production; the \textbf{profile} is that production's
+          right-hand side;
+    \item a \textbf{parameter} \(a\) is a nonterminal \(A_a\), and its
+          \textbf{domain} is the language that nonterminal generates,
+          \(D_a=\mathcal{L}(A_a)\);
+    \item a \textbf{binding} \(\beta_c\) is the attribution of a parse tree: a
+          filled parameter slot carries the value parsed there; an optional slot
+          taken empty carries \(\bot\);
+    \item the \textbf{mode} is read off \(A_a\)'s production -- a singleton
+          right-hand side (nullary), \(\mathsf{true}\mid\mathsf{false}\)
+          (Boolean), a finite alternation (enumerated), or an arbitrary
+          sublanguage (valued).
+\end{definitionlist}
+
+Taking \(D_a=\mathcal{L}(A_a)\) is what frees the definition from any particular
+DSL: each language fixes its own parameter languages, and the rest of the
+development is identical over all of them.
+
+\textbf{The notations differ only in surface.} Each metasyntax expresses the same
+operators, so one production translates uniformly:
+
+\begin{table}[h]
+\centering
+\footnotesize
+\setlength{\tabcolsep}{6pt}
+\renewcommand{\arraystretch}{1.3}
+\begin{tabularx}{\textwidth}{@{}l *{4}{>{\raggedright\arraybackslash}X}@{}}
+\toprule
+ & \textbf{BNF} & \textbf{EBNF} & \textbf{ABNF} & \textbf{PEG}\\
+\midrule
+definition          & \texttt{::=} & \texttt{=} & \texttt{=} & \(\leftarrow\)\\
+alternation         & \texttt{|} & \texttt{|} & \texttt{/} & \texttt{/} \emph{(ordered)}\\
+optional \((X)\)    & \(X\mid\varepsilon\) & \texttt{[X]} & \texttt{[X]} & \texttt{X?}\\
+repetition \((0{+})\) & recursion & \texttt{\{X\}} & \texttt{*X} & \texttt{X*}\\
+terminal            & literal & \texttt{"lit"} & \texttt{\%xHH}, \texttt{"lit"} & \texttt{"lit"}, \texttt{[class]}\\
+nonterminal         & \(\langle\textit{name}\rangle\) & \textit{name} & \textit{rulename} & \textit{Name}\\
+\bottomrule
+\end{tabularx}
+\caption{One production across the four metasyntaxes. Alternation is
+\emph{unordered} in BNF, EBNF, and ABNF -- a symmetric choice whose ambiguity is
+resolved outside the grammar -- but \emph{ordered} in PEG, where \texttt{/} is a
+committed, first-match choice.}
+\end{table}
+
+\textbf{Presence as a single bit.} An instruction ``whose presence or absence is
+enough'' is exactly the optionality operator: \(X\mid\varepsilon\) in BNF,
+\([X]\) in EBNF and ABNF, \(X\texttt{?}\) in PEG. Its parameter is nullary, or a
+parameter whose value is discarded, so its binding records only presence; the
+syntactic domain may be a singleton or richer, but the observable content is the
+single bit present-versus-absent.
+
+\textbf{Precedence.} Priority enters at two independent layers.
+
+\emph{Syntactic.} When several alternatives could apply, a choice must be made.
+PEG fixes it inside the grammar: \(e_1/e_2\) tries the left alternative first and
+commits on success, so precedence is the order of alternatives and the grammar is
+unambiguous by construction. BNF, EBNF, and ABNF leave alternation symmetric
+(ABNF's \texttt{/} is set union, not PEG's ordered choice, despite the shared
+glyph), so precedence and associativity are imposed from outside -- by
+stratifying the grammar into levels
+\(\bigl(\langle\textit{expr}\rangle,\langle\textit{term}\rangle,
+\langle\textit{factor}\rangle\bigr)\) or by separate precedence declarations.
+
+\emph{Semantic.} When a program issues conflicting settings for one parameter, a
+resolution policy decides the winner; the usual policy is sequential override -- a
+later instruction supersedes an earlier one. The two layers are dual instances of
+one device, a total order that makes a nondeterministic combine deterministic:
+PEG's ordered choice is ``leftmost alternative wins'' at parse time, sequential
+override is ``latest issuance wins'' at execution time.
+
+\textbf{Attributes.} The denotation is an \textbf{attribute grammar} over \(G\).
+Each parameter nonterminal \(A_a\) \emph{synthesizes} its value
+\(\beta_c(a)\in D_a\cup\{\bot\}\); the production for \(\langle\textit{cmd}\rangle\)
+carries a semantic rule assembling these into the instruction's binding, and a
+further rule into its behavior. Defaults \(d_a\) and any ambient context -- the
+active namespace, the enclosing scope -- travel the other way, as \emph{inherited}
+attributes. Because every value is synthesized and the only inheritance flows
+left-to-right, the definition is \(L\)-attributed: it is evaluable in a single
+left-to-right pass.
+
+\section*{The behavioral half: instructions as interpreted symbols}
+
+The previous sections fixed the \emph{syntactic} half of an instruction -- a
+name, a profile, and the binding it parses to. Its \emph{semantic} half is a
+function \(f\) saying what executing it does. The two are glued along the profile:
+parsing fills the profile with a binding, and \(f\) reads that binding. An
+instruction is thus one symbol wearing two faces -- a grammar symbol and a
+behavior -- paired over the arity they share.
+
+Fix:
+
+\begin{definitionlist}
+    \item an \textbf{effect monad} \(T\) and a \textbf{result type} \(R\); a
+          \textbf{computation} is an element of \(T(R)\). The common command runs
+          only for effect, \(R=\mathbf{1}\); specializing \(T\) to the State monad
+          \(T(R)=\mathit{St}\to(R\times\mathit{St})\) makes a computation a state
+          transformer \(\mathit{St}\to\mathit{St}\), while other monads supply
+          exceptions, input/output, or nondeterminism;
+    \item the \textbf{binding space}, the dependent sum (a telescope in which each
+          factor may depend on the earlier ones)
+          \[
+            B \;=\; \sum_{a\in A}\bigl(D_a(\beta_{<a})\cup\{\bot\}\bigr),
+          \]
+          degenerating to the flat product \(\prod_{a\in A}(D_a\cup\{\bot\})\) when
+          the parameter domains are independent;
+    \item a \textbf{validity predicate} \(\Phi\colon B\to\mathbb{B}\), the
+          conjunction of the cross-parameter constraints -- required-present,
+          mutual exclusion, \(\textsf{requires}\)/\(\textsf{implies}\) -- cutting
+          out the \textbf{valid bindings}
+          \[
+            B_{\mathrm{valid}} \;=\; \{\,\beta\in B \mid \Phi(\beta)\,\}.
+          \]
+\end{definitionlist}
+
+Dependencies -- one parameter's \emph{domain} gated by another's value -- live in
+the \(\Sigma\)-shape of \(B\); flat constraints -- exclusion, co-requirement --
+live in \(\Phi\).
+
+\textbf{The semantic function.} The behavior of an instruction is a map
+
+\[
+  f\colon B_{\mathrm{valid}} \longrightarrow T(R),
+\]
+
+total on the valid bindings. Presence or absence of a flag is the choice of
+\(\bot\) in a coordinate, so \(f\) is a single function on a (dependent) product
+-- not one function per subset of present flags. The space of candidate behaviors
+compatible with the symbol's arity is therefore the exponential
+
+\[
+  F \;=\; \bigl[\,B_{\mathrm{valid}}\to T(R)\,\bigr],
+\]
+
+and an instruction is its symbol together with a chosen point \(f\in F\).
+
+\textbf{Assembling the behavior parameter-wise.} Defining \(f\) pointwise would
+list \(\lvert B_{\mathrm{valid}}\rvert\) cases; present it instead from parts
+linear in the parameters. Give the instruction a \textbf{base behavior} \(f_0\), a
+function of its required arguments alone, and give each optional parameter \(a\) a
+\textbf{modifier} \(m_a\colon D_a\cup\{\bot\}\to\operatorname{End}\bigl(T(R)\bigr)\),
+an endo-transformer on computations, with
+
+\[
+  m_a(\bot)=\mathrm{id}.
+\]
+
+Then
+
+\[
+  f(\beta) \;=\;
+  \Bigl(\,\mathop{\bigcirc}\limits_{a\in A_{\mathrm{opt}}} m_a(\beta(a))\,\Bigr)
+  \bigl(f_0(\beta|_{\mathrm{req}})\bigr),
+\]
+
+the composite of the present modifiers applied to the base, where
+\(A_{\mathrm{opt}}\) is the set of optional parameters and
+\(\beta|_{\mathrm{req}}\) the restriction of \(\beta\) to the required ones.
+Absence is the identity element, presence applies a modifier, and a combination is
+their composite: \(\lvert A_{\mathrm{opt}}\rvert\) modifiers and one base generate
+every behavior, the exponential blow-up confined to the \emph{image}
+\(\{\,f(\beta):\beta\in B_{\mathrm{valid}}\,\}\) -- the orbit of \(f_0\) under the
+modifier monoid -- which is never written out.
+
+\textbf{Proposition (order-independence \(\iff\) commutativity).} The collection
+of present optional parameters carries no intrinsic order, so the composite above
+is well defined exactly when the modifiers pairwise commute in
+\(\operatorname{End}(T(R))\); equivalently, the behavior factors through the action
+of a \emph{commutative} monoid, and parameter order is then semantically
+irrelevant. When the modifiers do not commute, the composite is made well defined
+by composing them in the parameter precedence of the preceding section.
+
+\emph{Proof sketch.} A fold over an unordered set is independent of its
+enumeration iff its operations commute, which for the monoid
+\((\operatorname{End}(T(R)),\circ,\mathrm{id})\) is pairwise commutativity of the
+\(m_a(\beta(a))\). Failing that, any total order on the parameters determines the
+fold, and precedence is the canonical such order. \(\square\)
+
+\textbf{Sequencing.} A \textbf{program} is a finite sequence \(c_1;\dots;c_m\) of
+instructions. Its behavior is the composite of the individual computations in the
+effect monad,
+
+\[
+  f_{c_m}(\beta_{c_m}) \;\bullet\; \cdots \;\bullet\; f_{c_1}(\beta_{c_1}),
+\]
+
+where \(\bullet\) is composition in \(T\) -- for the State monad, ordinary
+composition of state transformers, threading the state through -- applied right to
+left, so \(c_1\) executes first. Sequential override is then a derived property:
+if two instructions write the same state component, the later computation runs
+second and its write prevails.
+
+\textbf{The intersection, precisely.} Write \(\Omega\) for the signature of
+instruction constructors. The abstract syntax of the first section is the term
+algebra it freely generates; assigning every constructor a behavior makes
+computations an \(\Omega\)-algebra, and the program's denotation is the unique
+homomorphism from that term algebra into the algebra of computations. The function
+\(f\) is this homomorphism's action at a single constructor. An instruction is
+therefore one constructor read in both algebras at once -- a symbol on the
+syntactic side, a computation on the semantic side, identified along the profile
+each must honor. That single arrow, from a symbol to its computation, is the
+intersection of grammar and behavior the development has been circling.
+
+\end{document}

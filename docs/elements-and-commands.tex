@@ -1,0 +1,1345 @@
+\documentclass[../uxoxo-main]{subfiles}
+\begin{document}
+
+\chapter{Elements and Commands: the UI--DSL Correspondence}
+
+
+\begingroup\itshape\small
+\noindent
+The command companion makes a command a node of the free monad $\Free\Omega\,A$
+--- program-as-data, a first-class value with three legs (parse, compose,
+interpret). This note shows that the user-interface tree is the
+\emph{dual} of that object: the stateful UI is the cofree comonad
+$\Cofree\,\Omega\,\St$ over the \emph{same} signature, an element-shaped tree
+annotated with state and behaviour. From this single fact the correspondence the
+informal account demands falls out rigorously. \emph{Structurally}, an element's
+type is a constructor of $\Omega$, with its child-profile the constructor's
+arity --- one namespace worn three ways: UI type, command keyword, opcode tag.
+\emph{Behaviourally}, an element is a Mealy node, and a command is a choice of
+event; the event loop is the \emph{Free/Cofree pairing} that feeds the choice to
+the responder, and we prove this pairing is exactly the framework's runtime step.
+Closing the loop, the interpretation map is a monoid isomorphism between closed
+commands (modulo behaviour) and the reachable UI state-changes --- the precise
+form of ``every state and event is a command, and conversely.'' An element's
+attributes are an option set, its overlay the options companion's $\oplus$; a
+component with unfilled children is a template. We then say what the functional
+companion buys --- routing as a \ty{Traversable} descent, rendering as the
+comonadic $\extend$, serialization as the parsing prism, the learned
+personalization agent as a closed program --- and, with equal care, where it is
+\emph{not} optimal: node identity lives off the functor, local high-frequency
+mutation defeats value semantics, observer graphs exceed trees, and the
+equational theory fixes \emph{what} a program computes but not \emph{when}. The
+boundary is exact: pure tree $\to$ free/cofree; finite sharing $\to$ a coalgebra;
+cycles, identity, or churn $\to$ the imperative.
+\par\endgroup\medskip
+
+
+% =====================================================================
+\section{Preliminaries: the objects to be joined}\label{sec:prelim}
+\sectionnotation{signature functor $F$; types $\Ttyp$, profile $\prof(\tau)$, state space $\St(\tau)$; UI tree $\mu F$; free monad $\Free\Omega\,A$ (command) and cofree comonad $\Cofree F\,C$ (annotated tree); Mealy handler $\handle_\tau$, events $\Ev$; option set $O$ with algebra $(\oplus,\sim,\operatorname{diff})$.}
+% =====================================================================
+We recall, compactly but precisely, the four objects this note ties together,
+fixing notation and standing assumptions. Proofs of the recalled facts are in the
+cited companions; everything new is proved here.
+
+\paragraph{The element-shape functor.}
+A UI is a finite, typed, ordered tree of elements. The shape of that tree is
+governed by a single \textbf{signature functor}.
+
+\begin{definition}[Signature]\label{def:sig}
+Let $\Ttyp$ be a finite set of \textbf{element types}. The \textbf{signature
+functor} $F$ is the polynomial functor
+\[
+  F\,X \;=\; \sum_{\tau\in\Ttyp} \Big(\,\mathrm{Attr}_\tau \times X^{\,\prof(\tau)}\,\Big),
+\]
+one summand per type, carrying that type's attribute record $\mathrm{Attr}_\tau$
+and a tuple of child-positions indexed by the type's \textbf{profile}
+$\prof(\tau)$ (a finite, possibly empty, position set). $F$ is built from
+constants, $+$, $\times$, and exponentials by finite arity, hence
+\emph{polynomial}; we assume it \ty{Traversable} (\cref{ass:poly}). Each
+type's \textbf{state space} $\St(\tau)$ is a finite set assembled from atoms by
+product ($\times$), sum ($+$), and least fixed point ($\mu$).
+\end{definition}
+
+\begin{assumption}[Standing assumptions]\label{ass:poly}
+$\Ttyp$, every $\mathrm{Attr}_\tau$, and every $\St(\tau)$ are finite; $F$ is a
+polynomial \ty{Traversable} functor; trees are finite and well-founded; and the
+concrete-syntax layout of each constructor (\cref{prop:prism}) is uniquely
+decodable. We work up to identity-isomorphism (renaming nodes changes no
+observable), except in \cref{sec:identity}, which is precisely about identity.
+\end{assumption}
+
+\paragraph{The UI tree.}
+The bare shape is the initial algebra $\mu F$ --- the finite $F$-trees, i.e.\ the
+well-formed workspaces $\Tree$ of the editor chapter. An editor acts on $\mu F$
+by the structural primitives
+$\Ops_\top=\{\mint,\attach,\detach,\delete,\relabel\}$, and we recall its central
+property; the \textbf{runtime} layer instead drives node state via a Mealy
+handler per type, $\handle_\tau:\St(\tau)\times\Ev\pfun\St(\tau)$, over a finite
+event alphabet $\Ev$.
+
+\begin{theorem}[Generative completeness; recalled]\label{thm:gc}
+The structural primitives are \emph{universal}: from the seed $\Wempty$ they reach
+exactly $\Tree$, and $(\Tree,\step{})$ is strongly connected. Behaviourally, for
+each type the runtime relation generated by $\handle_\tau$ reaches all of
+$\St(\tau)$ from its initial state (with edit mode supplying any state a handler
+omits). Consequently every valid UI configuration is reachable, and the joint
+system is finite, hence decidable to analyse.
+\end{theorem}
+
+\paragraph{The command.}
+The command companion fixes the \textbf{command signature} $\Omega$ --- one
+operator per name, of arity its parameter profile --- and the free monad
+\[
+  \Free\Omega\,A \;=\; \mu X.\,(A + \Omega X),
+\]
+the \ty{free}$\langle\Omega,A\rangle$ carrier: a \textbf{command is a node of}
+$\Free\Omega\,A$, first-class because it is a value in a \ty{Monad}. A
+\textbf{closed} command ($A=\varnothing$) lies in $\Free\Omega\,\varnothing\cong
+\mu\Omega$, a runnable program. Three maps act on this one term:
+$\parsefn:\Sigma^{*}\pfun\Free\Omega\,A$ (build, an unfold), $\compose:
+\Free\Omega\,\varnothing\to\Sigma^{*}$ (serialize, a fold), and $\sem{-}:
+\Free\Omega\,\varnothing\to T(R)$ (interpret, a fold into an effect monad $T$).
+
+\paragraph{Options.}
+An \textbf{option} is a key--value pair $o=(k(o),v(o))$ with $k(o)$ in a key
+space; an \textbf{option set} $O$ has injective key map, so $k(\cdot):O\cong K(O)$
+and $O[k]$ denotes the option at key $k$. The companion's algebra
+$(\oplus,\sim,\operatorname{diff})$ gives: the \textbf{precedence overlay}
+$O_1\oplus O_2$ (keep all keys, $O_2$ wins on overlap), an associative monoid with
+identity $\varnothing$; \textbf{agreement} $O_1\sim O_2$ (identical on shared
+keys), a reflexive--symmetric tolerance (not transitive); and the projected
+\textbf{difference} $\operatorname{diff}_\pi$. Overlay is commutative exactly on
+agreeing sets.
+
+\paragraph{The functional carriers.}
+We use the companion's carriers \ty{maybe}, \ty{result}, \ty{pair}/\ty{kv\_pair}
+(the environment comonad), \ty{view}/\ty{producer} (lazy sequences), and the two
+that organise this note: \ty{free}$\langle F,A\rangle=\Free F\,A$ (a \ty{Monad},
+program-as-data) and its dual \ty{cofree}$\langle F,C\rangle=\Cofree F\,C$ (a
+\ty{Comonad}, an annotated tree). The protocols invoked are \ty{Functor},
+\ty{Applicative}, \ty{Selective}, \ty{Monad}, \ty{Traversable}, \ty{Foldable},
+\ty{Alternative}, and \ty{Comonad}.
+
+\begin{remark}[The thesis in one line]\label{rem:thesis}
+$\Free$ and $\Cofree$ over the \emph{same} $F$ are categorical duals. The command
+companion develops the $\Free$ side; the UI framework, unknowingly, develops the
+$\Cofree$ side. Naming that duality is the whole content of the correspondence:
+an element and a command are one signature read backwards and forwards.
+\end{remark}
+
+% =====================================================================
+\uxpart{Part A.\quad One signature, two dual carriers}
+% =====================================================================
+
+% ---------------------------------------------------------------------
+\section{The shared signature}\label{sec:shared}
+\sectionnotation{the identification $\Omega=F$: one constructor read as UI \emph{type}, command \emph{keyword}, \emph{opcode}, and parameter/child \emph{profile} (its arity).}
+% ---------------------------------------------------------------------
+The first move is to observe that the element types and the command names are not
+two alphabets to be related but one alphabet seen twice.
+
+\begin{definition}[Identification of signatures]\label{def:identify}
+Identify the command signature with the element signature, $\Omega = F$, by
+sending each element type $\tau\in\Ttyp$ to the command constructor of the same
+name and arity $\prof(\tau)$. Under this identification a constructor is at once:
+an element \textbf{type} (a node kind of the UI tree), a command \textbf{name} (a
+production keyword of the DSL), and --- via the opcode companion --- an
+\textbf{opcode} (a machine word). The constructor's arity is read three ways: the
+type's \textbf{child-profile}, the production's right-hand side, and the command's
+\textbf{parameter profile}.
+\end{definition}
+
+\begin{proposition}[Types are constructors]\label{prop:typesconstructors}
+The identification $\Omega=F$ is a bijection on constructors that preserves arity,
+and it is forced once one asks that building an element and naming its command use
+the same data. In particular $\mu F=\mu\Omega$ as sets of finite trees: a
+workspace shape \emph{is} a closed first-order command term, and conversely.
+\end{proposition}
+
+\begin{proof}
+Both signatures are sums indexed by a name set with a finite position tuple per
+summand; the identification matches names and, by \cref{def:identify}, positions,
+so it is an arity-preserving bijection of polynomial functors. Initial algebras of
+equal functors are equal, giving $\mu F=\mu\Omega$. The forcing is the observation
+that a node's children and a command's parameters are the same finite indexed
+family: to build the node is to supply exactly the data the command names.
+\end{proof}
+
+\begin{remark}[Three coordinates name one thing]\label{rem:threecoords}
+The opcode companion encodes the constructor \emph{tag}; the parse/compose pair
+relates the surface \emph{keyword} to that tag; so a single element/command is
+pinned by three coordinates --- keyword (concrete syntax), constructor (abstract
+syntax), opcode (machine word) --- with $\parsefn,\compose$ the left edge and
+opcode assignment the right. The element's \emph{type} is the same constructor,
+making the UI node the fourth reading of the one tag. The polarity pairs, product
+attributes, and hierarchies the opcode companion encodes (\textsf{PAIR},
+\textsf{PROD}, \textsf{TREE}) are exactly the $+$, $\times$, $\mu$ of the state
+algebra $\St$: flat attributes are a $\Pi$-product (\textsf{PROD}), a containment
+hierarchy a dependent $\Sigma$-product (\textsf{TREE}).
+\end{remark}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+  \node[sig, minimum width=26mm] (hub) {constructor of $F=\Omega$\\[-1pt]\stxt{one tag, arity $\prof(\tau)$}};
+  \node[ui]  (type) [above left=14mm and 16mm of hub] {UI \textbf{type} $\tau$\\[-1pt]\stxt{a node kind}};
+  \node[cmd] (kw)   [above right=14mm and 16mm of hub] {command \textbf{keyword}\\[-1pt]\stxt{a production}};
+  \node[opc] (op)   [below right=14mm and 16mm of hub] {\textbf{opcode} word\\[-1pt]\stxt{a machine code}};
+  \node[opt] (prof) [below left=14mm and 16mm of hub] {parameter \textbf{profile}\\[-1pt]\stxt{$=$ child-profile}};
+  \draw[uiar]  (hub) -- (type);
+  \draw[cmdar] (hub) -- (kw)  node[lbl,midway,above=-1pt,sloped]{$\parsefn/\compose$};
+  \draw[->,semithick,draw=cOpc!85!black] (hub) -- (op) node[lbl,midway,below=-1pt,sloped]{opcode asgn.};
+  \draw[->,semithick,draw=cOpt!75!black] (hub) -- (prof);
+  \node[lbl] at ($(hub)+(0,-15mm)$) {};
+\end{tikzpicture}
+\caption{\textbf{Four faces of one constructor.} A single tag of the shared
+signature $\Omega=F$ is read as a UI type, a DSL keyword, an opcode, and a
+parameter/child profile; $\parsefn/\compose$ is the keyword$\leftrightarrow$tag
+edge and opcode assignment the tag$\leftrightarrow$word edge
+(\cref{def:identify,rem:threecoords}).}
+\label{fig:faces}
+\end{figure}
+% ---------------------------------------------------------------------
+The bare tree $\mu F$ has no state. The running UI annotates every node with its
+current state (and, below, its behaviour). That annotated tree is a cofree
+comonad.
+
+\begin{definition}[The stateful UI tree]\label{def:U}
+The \textbf{stateful UI tree} is the carrier
+\[
+  U \;=\; \mu X.\,\bigl(\St \times F\,X\bigr),
+\]
+the finite $F$-trees in which every node $v$ additionally carries an annotation
+$\sigma(v)\in\St(\tau(v))$. It is the well-founded fragment of the cofree comonad
+$\Cofree F\,\St$, and carries the comonad operations
+\[
+  \extract : U\to\St \quad(\text{the root's annotation}),\qquad
+  \duplicate : U \to \mu X.\,(U\times F\,X),
+\]
+where $\duplicate$ relabels each node $v$ by the entire sub-tree rooted at $v$;
+$\extend\,g = F(\dots)\circ$ relabel applies $g:U\to B$ at every node to its own
+sub-tree, $\extend\,g : U \to \mu X.(B\times FX)$.
+\end{definition}
+
+\begin{proposition}[$U$ is a comonad; the laws are the UI's locality]\label{prop:comonad}
+$(\extract,\duplicate)$ satisfy the comonad laws
+$\extract\circ\duplicate=\id$, $F(\extract)\circ\duplicate=\id$ (after the
+evident reassociation), and coassociativity. Reading them in UI terms:
+\textbf{(i)} the root sub-tree's root is the root ($\extract$ after $\duplicate$),
+so a node's annotation is recoverable from its context; \textbf{(ii)} annotating
+each node with its own singleton context is the identity; \textbf{(iii)} contexts
+of contexts agree with contexts (coassociativity), so a context-dependent pass may
+be staged. Hence any rendering or layout whose output at a node depends on that
+node's sub-tree is a well-defined $\extend$.
+\end{proposition}
+
+\begin{proof}
+These are the standard cofree-comonad laws for the functor $X\mapsto\St\times FX$,
+which hold for any $F$; on the well-founded ($\mu$) fragment the relabelings
+terminate, so the operations are total. The UI readings are the laws transcribed
+under \cref{def:U}: $\duplicate$ places at $v$ the sub-tree at $v$, whose
+$\extract$ is $\sigma(v)$, giving (i); $\extend\,\extract=\id$ gives (ii);
+coassociativity is the equality of the two ways to form contexts-of-contexts,
+(iii).
+\end{proof}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[level distance=13mm,
+  level 1/.style={sibling distance=30mm},
+  level 2/.style={sibling distance=15mm},
+  every node/.style={font=\scriptsize}]
+  \node[ui, minimum width=15mm] (root) {\textsf{Form}\\\stxt{$\sigma$: valid?}}
+    child {node[ui] (lbl) {\textsf{Label}\\\stxt{$\sigma$: text}}}
+    child {node[ui] (fld) {\textsf{Field}\\\stxt{$\sigma$: ``ab\textbar''}}}
+    child {node[ui, minimum width=14mm] (grp) {\textsf{Group}\\\stxt{$\sigma$: layout}}
+      child {node[ui] (b1) {\textsf{Btn}\\\stxt{$\sigma$: up}}}
+      child {node[ghost] (b2) {\textsf{Btn}\\\stxt{$\sigma$: down}}}
+    };
+  % extract / extend annotations
+  \draw[uiar, draw=cState!70!black] ($(root.north)+(0,3mm)$) -- (root.north)
+        node[lbl, above=2pt, text=cState!50!black]{$\extract$ reads the root's $\sigma$};
+  \node[draw=cUi!70, dashed, rounded corners=3pt, fit=(grp)(b1)(b2),
+        inner sep=3pt, label={[lbl, text=cUi!55!black]below:context window of \textsf{Group} (its subtree)}] {};
+  \node[lbl, align=left, text width=42mm, anchor=west] at ($(grp.east)+(13mm,4mm)$)
+        {$\extend\,g$ relabels \emph{every} node by\\$g$(its own subtree) --- a context pass\\(layout, theme, focus-within).};
+  \begin{scope}[on background layer]
+    \fill[cUi!4, rounded corners=8pt]
+      ($(lbl.south west)+(-0.4,-0.55)$) rectangle ($(root.north east)+(0.55,0.95)$);
+  \end{scope}
+\end{tikzpicture}
+\caption{\textbf{The stateful UI is a cofree comonad.} An element-shaped tree
+($F$-shape) with a state annotation $\sigma$ at every node: the carrier
+$U=\mu X.(\St\times FX)$ of \cref{def:U}. $\extract$ reads a node's own state;
+$\extend$ recomputes each node from its subtree context (the dashed window) ---
+the comonadic form of context-dependent layout and rendering
+(\cref{prop:comonad,prop:render}).}
+\label{fig:cofreetree}
+\end{figure}
+
+\begin{definition}[Behavioural annotation; the element as a Mealy node]\label{def:mealy}
+Annotate each node additionally with its handler. Currying the Mealy map presents a
+node of type $\tau$ as a \textbf{response product}
+\[
+  \widehat{\handle}_\tau : \St(\tau)\;\longrightarrow\;\prod_{e\in\Ev}\bigl(\St(\tau)+\{\bot\}\bigr),
+  \qquad \widehat{\handle}_\tau(s)(e)=\begin{cases}\handle_\tau(s,e),& e\in E(\tau),\\[2pt]\bot,&\text{otherwise,}\end{cases}
+\]
+i.e.\ for each current state a chosen next-state \emph{for every event} (absent
+where unhandled). The \textbf{behavioural UI} is the cofree tree
+$\widehat U=\Cofree F\,(\St\times\textstyle\prod_{e}(\St+\{\bot\}))$ carrying both
+state and response product at each node. An \textbf{element} is one node of
+$\widehat U$: a type, an attribute record, a state, and a response product.
+\end{definition}
+
+The response product is the cofree side's payload. The next section exhibits its
+dual --- a command --- and the operation that pairs them.
+
+% ---------------------------------------------------------------------
+\section{Commands, and the Free/Cofree pairing}\label{sec:pairing}
+\sectionnotation{the located command $(p,e)$ and command program; the pairing $\run$ and the interpreter $\sem{-}$.}
+% ---------------------------------------------------------------------
+A command is a node of $\Free\Omega\,A$ (\cref{sec:prelim}). Where a handler
+node \emph{provides} a response for every event (a product), a command
+\emph{selects} one (a sum). Product pairs with sum; the pairing is application,
+and it is the event loop.
+
+\begin{definition}[Located command; event selection]\label{def:located}
+An \textbf{atomic located command} is a pair $(p,e)$ of a path $p$ to a node of
+$U$ and an event $e\in\Ev$ (with any payload folded into $e$); equivalently it is
+the \textbf{choice}, at the addressed node, of one coordinate of that node's
+response product. A \textbf{command program} is a node of $\Free\Omega\,A$ whose
+constructors are located commands --- a free-monad sequence/branch of selections;
+a closed program lies in $\Free\Omega\,\varnothing$. Authoring commands
+($\mint,\dots,\relabel$) are the located commands whose effect is structural
+rather than on $\sigma$.
+\end{definition}
+
+\begin{definition}[The pairing / run]\label{def:run}
+Define $\run:\Free\Omega\,\varnothing \times U \to U$ by structural recursion on
+the program. On an atomic located command $(p,e)$ at the node $v=U@p$,
+\[
+  \run\bigl((p,e),\,U\bigr) \;=\; U\bigl[\,v \mathrel{:=} \widehat{\handle}_{\tau(v)}(\sigma(v))(e)\,\bigr]
+  \quad\text{if } e\in E(\tau(v)),\quad\text{else } U,
+\]
+i.e.\ replace the addressed node's annotation by the selected response, leaving
+shape and all other annotations fixed; on a sequence $c_1;c_2$,
+$\run(c_1;c_2,U)=\run(c_2,\run(c_1,U))$; on an authoring command, apply the
+corresponding structural primitive. Equivalently $\run=\sem{-}$ with the effect
+monad $T$ the State monad over $U$, $R=\mathbf 1$.
+\end{definition}
+
+\begin{theorem}[The pairing is the runtime step]\label{thm:pairing}
+For an atomic located command $(p,e)$ routing to node $v$,
+$\run((p,e),-)$ equals the framework's runtime step $\runstep{e}$ that routes $e$
+to $v$; for an authoring command it equals the corresponding editor step
+$\step{}$. Hence on programs, $\run$ is the sequential composition of runtime and
+authoring steps, and the interpretation $\sem{-}$ of a closed command \emph{is} the
+joint UI transition it denotes.
+\end{theorem}
+
+\begin{proof}
+The runtime step, by definition, routes $e$ to the addressed node $v$ and updates
+its state by $\sigma(v)\mapsto\handle_{\tau(v)}(\sigma(v),e)$ when $e\in E(\tau(v))$
+(and is the identity otherwise), changing nothing else; this is exactly the right
+side of \cref{def:run} after uncurrying $\widehat{\handle}$. Authoring constructors
+are interpreted as their structural primitives by construction. Sequencing in the
+free monad is interpreted as composition in the State monad
+(the behaviour chapter's $f_{c_2}\bullet f_{c_1}$), which is the composition of the
+corresponding steps. Therefore $\run=\sem{-}$ agrees step-for-step with the joint
+transition relation.
+\end{proof}
+
+\begin{remark}[Why this is a \emph{pairing}]\label{rem:pairing}
+The content is the duality \emph{product pairs with sum}: a handler node is a
+product over events (provide a response to each), a command is a sum over events
+(choose one), and $\run$ is the canonical evaluation
+$\bigl(\textstyle\prod_e R_e\bigr)\times\bigl(\textstyle\sum_e \mathbf 1\bigr)\to R$
+applied node-wise. Extended along the recursion, this is the standard pairing of a
+\ty{cofree}-comonad of handlers with a \ty{free}-monad of commands: the UI is the
+comonad that \emph{responds}, the command is the monad that \emph{drives}, and the
+event loop is their pairing. The framework's two transition systems (runtime and
+authoring) are the two halves of this one operation --- state-moves and
+shape-moves --- because $\Omega=F$ carries both.
+\end{remark}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=10mm and 24mm]
+  \node[sig] (F) {$F=\Omega$\\[1pt]\stxt{one signature}};
+  \node[cmd] (Free) [below left=13mm and 20mm of F]
+        {$\Free\Omega\,A$\\[1pt]\stxt{program-as-data}};
+  \node[ui]  (Cof)  [below right=13mm and 20mm of F]
+        {$\Cofree F\,\St$\\[1pt]\stxt{annotated tree}};
+  \node[cmd, fill=cCmd!7] (cmd) [below=12mm of Free]
+        {\textbf{command}\\[-1pt]\stxt{\emph{drives} $\,\cdot\,$ chooses}};
+  \node[ui, fill=cUi!7] (uin) [below=12mm of Cof]
+        {\textbf{UI element}\\[-1pt]\stxt{\emph{responds} $\,\cdot\,$ provides}};
+  \node[st] (run) at ($(cmd)!0.5!(uin)$) [yshift=-15mm]
+        {$\run=\sem{-}$\\[-1pt]\stxt{the event loop}};
+  \draw[ar] (F) -- (Free) node[lbl, midway, sloped, above=-1pt]{$\mu X.(A{+}\Omega X)$};
+  \draw[ar] (F) -- (Cof)  node[lbl, midway, sloped, above=-1pt]{$\nu X.(\St{\times}FX)$};
+  \draw[cmdar] (Free) -- (cmd);
+  \draw[uiar]  (Cof)  -- (uin);
+  \draw[cmdar] (cmd) -- (run);
+  \draw[uiar]  (uin) -- (run);
+  \node[lbl, align=center] at ($(Free)!0.5!(Cof)+(0,2pt)$)
+        {\textsf{Monad} $\;\dashv\;$ \textsf{Comonad}\\[-1pt](categorical duals)};
+  \begin{scope}[on background layer]
+    \fill[cCmd!5, rounded corners=9pt]
+      ($(Free.north west)+(-0.45,0.35)$) rectangle ($(cmd.south east)+(0.35,-0.45)$);
+    \fill[cUi!5, rounded corners=9pt]
+      ($(uin.south west)+(-0.35,-0.45)$) rectangle ($(Cof.north east)+(0.45,0.35)$);
+  \end{scope}
+\end{tikzpicture}
+\caption{\textbf{One signature, two dual carriers.} The command companion develops
+the free monad $\Free\Omega\,A$ (it \emph{drives}: a program that chooses); the UI
+framework develops the cofree comonad $\Cofree F\,\St$ (it \emph{responds}: a tree
+that provides). Both are built over the same $F=\Omega$, and the event loop
+$\run=\sem{-}$ is their pairing (\cref{thm:pairing}).}
+\label{fig:duality}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=6mm]
+  % the responder: a Mealy node as a product over events
+  \node[ui, anchor=north] (prodhdr) at (0,0)
+        {\textbf{element} (cofree node)\\[-1pt]\stxt{provides a response \emph{per} event}};
+  \node[st] (s) [below=7mm of prodhdr] {state $s$};
+  \node[tnode, fill=cUi!18] (a) [below left=12mm and 13mm of s] {$s'$};
+  \node[tnode, fill=cUi!18] (b) [below=12mm of s] {$s''$};
+  \node[ghost] (c) [below right=12mm and 13mm of s] {$\bot$};
+  \draw[uiar] (s) -- (a) node[tag,midway,left=1pt]{$e_1$};
+  \draw[uiar] (s) -- (b) node[tag,midway,fill=white,inner sep=1pt]{$e_2$};
+  \draw[uiar] (s) -- (c) node[tag,midway,right=1pt]{$e_3$};
+  \node[lbl, align=center] (hf) at ($(a)!0.5!(c)+(0,-12mm)$)
+        {$\widehat{\handle}_\tau(s)=\bigl(e\mapsto\text{next-state or }\bot\bigr)$\\[1pt]
+         $\in\ \textstyle\prod_{e}(\St{+}\{\bot\})$};
+  % the driver: a command choosing one event
+  \node[cmd] (cmd) [right=56mm of s] {\textbf{command} $(p,e_2)$\\[-1pt]\stxt{chooses \emph{one} event}};
+  \node[cmd, fill=cCmd!7] (choice) [below=13mm of cmd] {select $e_2\in\textstyle\sum_{e}\mathbf 1$};
+  \node[st, fill=cState!30] (res) [below=24mm of choice] {result: $s''$};
+  \draw[cmdar] (cmd) -- (choice);
+  % the pairing: choice -> b, routed below the tree
+  \draw[cmdar, dashed] (choice.south) .. controls +(0,-1.4) and +(2.6,-0.2) .. (b.east)
+        node[tag, pos=0.5, above=2pt, text=cInk]{$\run$ (apply)};
+  \draw[uiar] (b.south) .. controls +(0,-1.1) and +(-2.4,0.2) .. (res.west);
+  \begin{scope}[on background layer]
+    \fill[cUi!4, rounded corners=8pt]
+      ($(prodhdr.north west)+(-0.35,0.3)$) rectangle ($(c.south east)+(0.35,-1.55)$);
+    \fill[cCmd!4, rounded corners=8pt]
+      ($(cmd.north west)+(-0.35,0.3)$) rectangle ($(res.south east)+(0.35,-0.35)$);
+  \end{scope}
+\end{tikzpicture}
+\caption{\textbf{Product pairs with sum: the pairing is application.} A handler node
+is a \emph{product} over events (a next-state for each); a command is a \emph{choice}
+of one event (a summand). The run feeds the choice to the product and reads off the
+selected response --- exactly the runtime step (\cref{thm:pairing,rem:pairing}).}
+\label{fig:mealy}
+\end{figure}
+
+% =====================================================================
+\uxpart{Part B.\quad The element--command correspondence}
+% =====================================================================
+
+% ---------------------------------------------------------------------
+\section{The UI element, defined through the DSL}\label{sec:element}
+\sectionnotation{the \emph{UI element} $\delta=(\tau,\mathrm{attrs},\sigma,\widehat{\handle}_\tau)$ in four faces; \emph{component} (composite element) and \emph{template} (a node of $\Free\Omega\,A$ with holes).}
+% ---------------------------------------------------------------------
+We can now give the element its definition --- not as a primitive, but through its
+four relations to the surrounding framework.
+
+\begin{definition}[UI element; component]\label{def:element}
+A \textbf{UI element} is a node of the behavioural UI tree $\widehat U$
+(\cref{def:mealy}), i.e.\ a tuple
+\[
+  \delta \;=\; \bigl(\tau,\ \mathrm{attrs},\ \sigma,\ \widehat{\handle}_\tau\bigr)
+\]
+read through four faces:
+\begin{definitionlist}
+  \item \textbf{(DSL face)} $\tau$ is a \emph{constructor of $\Omega$} of arity
+        $\prof(\tau)$ --- the element's command name / production / opcode, with
+        child-profile the parameter profile (\cref{def:identify});
+  \item \textbf{(option face)} $\mathrm{attrs}$ is an \emph{option set} keyed by
+        attribute name --- equally a command \emph{binding} (\cref{sec:attrs});
+  \item \textbf{(state face)} $\sigma\in\St(\tau)$ is a point of the $\times/+/\mu$
+        state algebra;
+  \item \textbf{(behaviour face)} $\widehat{\handle}_\tau$ is a \emph{Mealy node}
+        --- the cofree annotation, and the \emph{interpret-leg} of the element's
+        commands (\cref{thm:pairing}).
+\end{definitionlist}
+A \textbf{component} is a composite element: an internal node of $\widehat U$,
+hence a sub-term of the command tree. A component with one or more unfilled child
+positions is a \emph{template} over $\Omega$ (a node of $\Free\Omega\,A$ with holes
+$A$); filling them is instantiation $t\bind(u\ov d)$ (\cref{sec:ladder}).
+\end{definition}
+
+\begin{remark}[Atomic vs.\ composite, once more]\label{rem:atomic}
+An \textbf{atomic element} is a leaf: a nullary constructor of $\Omega$, a
+\emph{bare command}. A \textbf{composite element} is an internal node: a constructor
+of positive arity, a command carrying sub-commands. Nesting is composition; there
+is no separate ``container'' primitive, exactly as there is no separate composite
+command --- both are just internal nodes of the one tree (\cref{prop:typesconstructors}).
+\end{remark}
+
+% ---------------------------------------------------------------------
+\section{The behavioural bijection: every state-change is a command}\label{sec:bijection}
+\sectionnotation{closed commands $\mathcal C^{0}=\Free\Omega\,\varnothing$; behavioural equivalence $\approx$; the state-change monoid $\mathrm{Trans}(\widehat U)$.}
+% ---------------------------------------------------------------------
+The informal demand is that ``all elements map to a DSL command for all
+states/events, and conversely.'' Taken naively --- one element, one command --- it
+is a category error: an element admits many commands (one per event, plus
+authoring). The correct statement separates the two axes and is exact on each.
+
+\begin{theorem}[Behavioural bijection]\label{thm:bijection}
+Let $\mathcal C^{0}=\Free\Omega\,\varnothing$ be the closed commands, and let
+$c\approx c'$ mean $\sem c=\sem{c'}$ as transformations of $\widehat U$. Let
+$\mathrm{Trans}(\widehat U)$ be the monoid (under composition) of UI
+state-changes generated by the runtime events and authoring primitives. Then
+$\sem{-}$ descends to a \textbf{monoid isomorphism}
+\[
+  \sem{-} \;:\; \mathcal C^{0}/\!\approx \;\xrightarrow{\ \cong\ }\; \mathrm{Trans}(\widehat U).
+\]
+Equivalently: every UI state-change is realised by a closed command, distinct
+state-changes by inequivalent commands, and command sequencing is transition
+composition. This is the precise sense of ``every state and event is a command,
+and conversely.''
+\end{theorem}
+
+\begin{proof}
+\emph{Well-defined and injective.} By construction $\approx$ is the kernel of
+$\sem{-}$, so the induced map on $\approx$-classes is well-defined and injective.
+
+\emph{Homomorphism.} The behaviour chapter interprets a program $c_1;c_2$ as
+$\sem{c_2}\bullet\sem{c_1}$, composition in the State monad; thus
+$\sem{c_1;c_2}=\sem{c_2}\circ\sem{c_1}$, and $\sem{-}$ carries free-monad
+sequencing to composition, with the empty program to $\id$.
+
+\emph{Surjectivity (the ``conversely'').} $\mathrm{Trans}(\widehat U)$ is generated
+by two families: each runtime event $e$ routed to each node, and each authoring
+primitive. By \cref{thm:pairing} the former is $\sem{(p,e)}$ for the located
+command addressing that node, and the latter is $\sem{c}$ for the corresponding
+authoring constructor; so every \emph{generator} of $\mathrm{Trans}(\widehat U)$
+lies in the image. A monoid homomorphism whose image contains a generating set is
+onto the generated monoid. Hence $\sem{-}$ is surjective, and with injectivity an
+isomorphism.
+
+\emph{Coverage of all states.} That the generators actually reach every
+configuration --- so $\mathrm{Trans}(\widehat U)$ acts transitively on the valid
+states --- is generative completeness (\cref{thm:gc}): authoring reaches every
+shape and is strongly connected, and the per-type runtime reaches every state.
+Thus not only is each \emph{move} a command, but the commands suffice to reach
+\emph{every} state from any other.
+\end{proof}
+
+\begin{corollary}[The two correct readings]\label{cor:readings}
+The correspondence holds on two distinct axes, and only these:
+\begin{definitionlist}
+  \item \emph{structural} --- element \textbf{types} $\leftrightarrow$ command
+        \textbf{constructors}, an arity-preserving bijection (\cref{prop:typesconstructors});
+  \item \emph{behavioural} --- UI \textbf{state-changes} $\leftrightarrow$ closed
+        \textbf{commands} modulo behaviour, a monoid isomorphism (\cref{thm:bijection}).
+\end{definitionlist}
+The naive ``element $\leftrightarrow$ command'' conflates a constructor with a
+closed term over it; resolved into these two axes, ``everything is a command'' is
+literally true.
+\end{corollary}
+
+\begin{proof}
+Immediate from the cited results; the conflation is the type error of equating an
+element type (a generator) with an individual program built from it.
+\end{proof}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=7mm]
+  \node[cmd, minimum width=40mm, minimum height=20mm] (L) {};
+  \node[cmd, fill=cCmd!4, anchor=north] at (L.north) {\textbf{closed commands} $/\!\approx$\\[-1pt]\stxt{programs modulo behaviour}};
+  \node[cnode] (c1) at ($(L.center)+(-0.9,-0.35)$) {$(p,e)$};
+  \node[cnode] (c2) at ($(L.center)+(0.5,-0.35)$) {$\mint$};
+  \node[cnode] (c3) at ($(L.center)+(-0.2,-1.0)$) {$c_1;c_2$};
+
+  \node[ui, minimum width=40mm, minimum height=20mm, right=34mm of L] (R) {};
+  \node[ui, fill=cUi!4, anchor=north] at (R.north) {\textbf{UI state-changes}\\[-1pt]\stxt{$\mathrm{Trans}(\widehat U)$}};
+  \node[tnode, fill=cUi!18, minimum size=5mm] (t1) at ($(R.center)+(-0.9,-0.35)$) {$\runstep{e}$};
+  \node[tnode, fill=cUi!18, minimum size=5mm] (t2) at ($(R.center)+(0.5,-0.35)$) {$\step{}$};
+  \node[tnode, fill=cUi!18, minimum size=5mm] (t3) at ($(R.center)+(-0.2,-1.0)$) {$\circ$};
+
+  \draw[->, very thick, draw=cState!75!black] (L) -- (R)
+        node[midway, above=10mm, font=\small\bfseries, text=cInk]{$\sem{-}$}
+        node[midway, above=7mm, lbl]{monoid isomorphism};
+  \draw[cmdar, dashed] (c1) to[bend left=8] (t1);
+  \draw[cmdar, dashed] (c2) to[bend left=6] (t2);
+  \draw[cmdar, dashed] (c3) to[bend right=10] (t3);
+  \node[lbl, text width=26mm, align=center, below=1mm of L]
+        {sequencing $\,c_1;c_2$};
+  \node[lbl, text width=30mm, align=center, below=1mm of R]
+        {$\,\mapsto\,$ composition $\sem{c_2}\!\circ\!\sem{c_1}$};
+\end{tikzpicture}
+\caption{\textbf{The behavioural bijection (\cref{thm:bijection}).} Interpretation
+$\sem{-}$ sends closed commands modulo behaviour \emph{isomorphically} onto the
+reachable UI state-changes: generators (events, edits) map to generators,
+sequencing to composition. ``Every state and event is a command, and conversely''
+--- surjectivity is generative completeness, injectivity is the definition of
+$\approx$.}
+\label{fig:bijection}
+\end{figure}
+
+% ---------------------------------------------------------------------
+\section{Attributes are an option set; the overlay is the cascade}\label{sec:attrs}
+\sectionnotation{attribute record $=$ command binding $=$ option set; $\setAttr,\setStyle$ as overlay $\oplus$; the cascade (left $\oplus$-fold) and the reconciler $\operatorname{diff}_\pi$.}
+% ---------------------------------------------------------------------
+The option face of \cref{def:element} is an equality, not an analogy.
+
+\begin{theorem}[Attributes/binding/options coincide]\label{thm:attrs}
+For any element, the following are the same object: its \textbf{attribute record},
+the \textbf{binding} of its constructor's command, and an \textbf{option set} keyed
+by attribute/parameter name. Under this identification:
+\begin{definitionlist}
+  \item $\setAttr$ and $\setStyle$ are the precedence overlay: applying a patch
+        $P$ is $\mathrm{attrs}\mapsto \mathrm{attrs}\oplus P$;
+  \item a \textbf{style cascade} (defaults, then theme, then inline) is the left
+        fold $A_{\mathrm{def}}\oplus A_{\mathrm{theme}}\oplus A_{\mathrm{inline}}$,
+        well-defined and order-consistent (``later wins'') since
+        $(\text{option sets},\oplus,\varnothing)$ is a monoid;
+  \item two attribute sources are \emph{co-applicable in any order} iff they
+        \emph{agree} ($\sim$) --- the commutativity-iff-agreement law, identical to
+        the modifier-commutativity law for command behaviour;
+  \item the change set the reconciler computes between UI states $s,s'$ is
+        $\operatorname{diff}_\pi(\mathrm{attrs}(s),\mathrm{attrs}(s'))$, with $\pi$
+        selecting declared value, default, or value-or-default.
+\end{definitionlist}
+\end{theorem}
+
+\begin{proof}
+A command binding assigns to each parameter (a unique key) a value-or-absence
+$\beta_c(a)\in D_a\cup\{\bot\}$, with $\beta_c$ injective on the profile; this is
+exactly an option set keyed by the profile (synthesis chapter). An attribute record
+is the same finite key$\to$value map keyed by attribute name; the three views differ
+only in the name of the index set. The four clauses are then the options companion's
+laws transported verbatim: (1) is the definition of $\oplus$ as ``$O_2$ overrides
+$O_1$ on shared keys''; (2) is associativity with identity $\varnothing$; (3) is the
+proposition that $O_1\oplus O_2=O_2\oplus O_1\iff O_1\sim O_2$, which the behaviour
+chapter shows coincides with pairwise commutativity of the corresponding modifiers;
+(4) is the definition of $\operatorname{diff}_\pi$.
+\end{proof}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=4mm and 9mm, every node/.style={font=\scriptsize}]
+  % three sources as option sets
+  \node[opt, align=left] (def) {\textbf{defaults}\\ \texttt{size:14}\\ \texttt{color:gray}\\ \texttt{bold:no}};
+  \node[opt, align=left, right=of def] (thm) {\textbf{theme}\\ \texttt{color:navy}\\ \texttt{bold:no}};
+  \node[opt, align=left, right=of thm] (inl) {\textbf{inline}\\ \texttt{bold:yes}};
+  \node[font=\large] (o1) at ($(def.east)!0.5!(thm.west)$) {$\oplus$};
+  \node[font=\large] (o2) at ($(thm.east)!0.5!(inl.west)$) {$\oplus$};
+  % resolved
+  \node[st, align=left, right=14mm of inl] (res)
+     {\textbf{resolved}\\ \texttt{size:14}\ \stxt{(def)}\\ \texttt{color:navy}\ \stxt{(theme)}\\ \texttt{bold:yes}\ \stxt{(inline)}};
+  \draw[->, semithick, draw=cState!75!black] (inl) -- (res) node[midway, above, lbl, text=cInk]{later wins};
+  \node[lbl, below=5mm of thm, text width=80mm, align=center]
+     {left fold $A_{\mathrm{def}}\oplus A_{\mathrm{theme}}\oplus A_{\mathrm{inline}}$: per key, the rightmost
+      source present wins --- a monoid with identity $\varnothing$, commutative \emph{iff} the sources agree ($\sim$)};
+  \begin{scope}[on background layer]
+    \fill[cOpt!4, rounded corners=7pt] ($(def.north west)+(-0.25,0.25)$) rectangle ($(inl.south east)+(0.25,-0.25)$);
+  \end{scope}
+\end{tikzpicture}
+\caption{\textbf{The style cascade is the option overlay $\oplus$.} Defaults, theme,
+and inline attributes are option sets; cascading them is the left fold of the
+precedence overlay (``later wins''), keyed per attribute. This is literally the
+options companion's monoid and the command's sequential override
+(\cref{thm:attrs,rem:resolution}).}
+\label{fig:cascade}
+\end{figure}
+
+\begin{remark}[One resolution device everywhere]\label{rem:resolution}
+``Later wins'' (style cascade, sequential override), ``leftmost wins'' (committed
+event dispatch, PEG choice), and ``highest precedence wins'' (opcode tactic) are
+the single device of a total order making a nondeterministic combine
+deterministic, instantiated at apply-time, parse-time, and encode-time. Attribute
+cascading is this device on the option monoid; the next part shows event dispatch
+is the same device on the parser's \ty{Alternative}.
+\end{remark}
+
+% =====================================================================
+\uxpart{Part C.\quad What the functional companion buys}
+% =====================================================================
+
+% ---------------------------------------------------------------------
+\section{Routing is a traversal; dispatch is ordered choice}\label{sec:routing}
+\sectionnotation{routing as the \ty{Traversable} descent $\mathsf{traverse}$; dispatch as left-biased $\mathrm{alt}$ (\ty{Alternative}); the capture and bubble phases.}
+% ---------------------------------------------------------------------
+\begin{proposition}[Routing as a \ty{Traversable} descent]\label{prop:routing}
+Hit-testing and event dispatch are one \ty{Traversable} traversal of $F$ with
+\ty{Alternative} selecting the consuming node. Concretely, routing an event is the
+effectful descent $\mathsf{traverse}$ over the node's children that (i) by the
+disjoint-region geometry visits the unique child whose region contains the pointer
+(or, for keyboard events, follows the focus path), and (ii) at each level offers
+the local handler via left-biased $\mathrm{alt}$: the first ancestor-or-node whose
+handler is defined on the event consumes it. The two dispatch \emph{phases} ---
+capture (root$\to$target) and bubble (target$\to$root) --- are the pre-order and
+post-order of the same traversal.
+\end{proposition}
+
+\begin{proof}
+$F$ is \ty{Traversable} (\cref{ass:poly}), so $\mathsf{traverse}$ threads an
+effect across a constructor's children in a fixed order; geometry makes the
+pointer-containing child unique (the editor's disjoint-sibling condition), so the
+descent is deterministic. Left-biased $\mathrm{alt}$ is, by the parser companion,
+exactly committed ordered choice: $\mathrm{alt}\,p\,q$ runs $p$, and only on its
+failure $q$; taking $p$ to be ``the deeper handler'' and $q$ ``the shallower''
+realises ``first defined handler wins,'' i.e.\ event capture; reversing the bias
+gives bubbling. Pre-/post-order are the two threadings of one \ty{Traversable}
+structure.
+\end{proof}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[level distance=14mm,
+  level 1/.style={sibling distance=26mm},
+  level 2/.style={sibling distance=13mm},
+  every node/.style={font=\scriptsize}]
+  \node[ui] (root) {\textsf{Root}}
+    child {node[ui] (p) {\textsf{Panel}}}
+    child {node[ui] (g) {\textsf{Group}}
+      child {node[ui] (l) {\textsf{Label}}}
+      child[level distance=14mm] {node[ui, draw=cImp, fill=cImp!12, very thick] (t) {\textsf{Button}\\\stxt{target}}}
+    };
+  % capture phase (down the path), bubble phase (up)
+  \draw[->, very thick, draw=cOpc!85!black]
+        ($(root.west)+(-2pt,2pt)$) .. controls +(-1.3,-0.4) and +(-1.0,0.6) .. ($(g.west)+(-2pt,2pt)$)
+        .. controls +(-0.8,-0.4) and +(-0.6,0.5) .. ($(t.west)+(-2pt,2pt)$);
+  \node[tag, text=cOpc!70!black] at ($(g.west)+(-1.55,0.4)$) {capture $\downarrow$};
+  \draw[->, very thick, draw=cCmd!85!black]
+        ($(t.east)+(2pt,2pt)$) .. controls +(0.7,0.5) and +(0.6,-0.4) .. ($(g.east)+(2pt,2pt)$)
+        .. controls +(0.9,0.6) and +(1.1,-0.4) .. ($(root.east)+(2pt,2pt)$);
+  \node[tag, text=cCmd!70!black] at ($(g.east)+(1.7,0.45)$) {bubble $\uparrow$};
+  \node[lbl, below=12mm of t, xshift=-12mm, text width=70mm, align=center]
+     {one \ty{Traversable} descent; \ty{Alternative} (left-biased) picks the first
+      handler that consumes --- the committed choice of PEG and override};
+\end{tikzpicture}
+\caption{\textbf{Routing is a traversal; dispatch is ordered choice
+(\cref{prop:routing}).} Geometry/focus fixes a unique root$\to$target path. The two
+dispatch phases are the pre-order (capture, $\downarrow$) and post-order (bubble,
+$\uparrow$) of one \ty{Traversable} descent; ``first handler wins'' is left-biased
+\ty{Alternative}.}
+\label{fig:routing}
+\end{figure}
+
+\begin{remark}[Dispatch precedence is the resolution device]\label{rem:dispatch}
+Thus event precedence (which handler fires) is not UI-specific machinery but the
+\ty{Alternative} monoid's $\mathrm{alt}/\mathrm{aempty}$ --- the same committed
+choice as PEG parsing and the dual, at run-time, of sequential override
+(\cref{rem:resolution}). That \ty{result} is \emph{not} \ty{Alternative} is why an
+error-reporting dispatcher must elect an explicit merge rather than inherit a free
+``no handler.''
+\end{remark}
+
+% ---------------------------------------------------------------------
+\section{Rendering is comonadic; serialization is a prism}\label{sec:render}
+\sectionnotation{rendering as the comonadic $\extend$; the serialization prism $\compose=\mathrm{cata}[\printfn]$ and $\parsefn=\compose^{-1}$ on $\Lang$; the canonical command surface.}
+% ---------------------------------------------------------------------
+\begin{proposition}[Rendering as $\extend$]\label{prop:render}
+A render or layout pass whose output at a node depends on that node's sub-tree
+(intrinsic sizing, theme inheritance, focus-within) is the comonadic
+$\extend\,g:U\to U'$ for $g:U\to B$ reading the local context; $\extract$ reads a
+node's own value. An \emph{incremental} render is $\extend$ restricted to a dirty
+sub-comonad: nodes whose context is unchanged keep their previous output by the
+comonad law $\extend\,\extract=\id$.
+\end{proposition}
+
+\begin{proof}
+By \cref{prop:comonad}, a context-dependent assignment is a well-defined
+$\extend$; $\extract$ is the local read. If $g$ depends only on an unchanged
+sub-context at $v$, then $g$ at $v$ is unchanged, so re-running $\extend\,g$ there
+reproduces the prior value --- formally, on the clean sub-comonad $g$ factors
+through $\extract$, where $\extend\,\extract=\id$.
+\end{proof}
+
+\begin{proposition}[Serialization/addressing as the parsing prism]\label{prop:prism}
+The UI tree round-trips through the DSL: $\compose=\mathrm{cata}[\printfn]:\mu
+F\to\Sigma^{*}$ is a total injection, and $\parsefn=\compose^{-1}:\Sigma^{*}\pfun
+\mu F$ its partial inverse on $\Lang=\img(\compose)$, satisfying the prism laws
+$\parsefn(\compose\,t)=t$ and $s\in\Lang\Rightarrow\compose(\parsefn\,s)=s$.
+Consequently every element and every UI state has a \textbf{canonical command
+surface} naming it, and conversely each surface in $\Lang$ denotes a unique UI.
+\end{proposition}
+
+\begin{proof}
+$F$ is a polynomial \ty{Traversable} functor with a uniquely decodable layout
+(\cref{ass:poly}); the parsing companion then gives $\compose$ as the unique fold,
+total and (by decodability) injective, and $\parsefn$ as its anamorphic inverse on
+the image, with the prism laws. Applying $\compose$ to a sub-tree yields the surface
+naming that element; applying it to the state-decorated tree (the decorated grammar)
+names a state. Injectivity gives uniqueness in both directions.
+\end{proof}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=44mm]
+  \node[ui, minimum width=30mm] (tree)
+        {$\mu F$\\[-1pt]\stxt{the UI tree (structure)}};
+  \node[cmd, minimum width=30mm, right=of tree] (surf)
+        {$\Sigma^{*}\supseteq\Lang$\\[-1pt]\stxt{the DSL surface (bytes)}};
+  \draw[->, semithick, draw=cUi!75!black]
+        (tree.north east) to[bend left=22]
+        node[midway, above, font=\small]{$\compose=\mathrm{cata}[\printfn]$}
+        node[midway, below=8pt, lbl]{fold $\cdot$ total $\cdot$ injective}
+        (surf.north west);
+  \draw[->, semithick, draw=cCmd!85!black]
+        (surf.south west) to[bend left=22]
+        node[midway, below, font=\small]{$\parsefn=\compose^{-1}$}
+        node[midway, above=8pt, lbl]{unfold $\cdot$ partial on $\Lang$}
+        (tree.south east);
+  \node[lbl, below=12mm of tree, xshift=22mm, text width=86mm, align=center, text=cInk]
+     {prism laws: $\parsefn(\compose\,t)=t$ \quad and \quad $s\in\Lang\Rightarrow\compose(\parsefn\,s)=s$\\
+      $\Rightarrow$ every element/state has a \emph{canonical command surface} naming it};
+\end{tikzpicture}
+\caption{\textbf{Serialization is a prism; the UI is addressable
+(\cref{prop:prism}).} $\compose$ folds a UI tree to its DSL surface (total,
+injective); $\parsefn$ unfolds it back on the recognized language $\Lang$. The
+round-trip laws make ``name this element/state by a command'' well-defined --- the
+bridge that lets a closed command in \cref{thm:bijection} denote a state-change
+concretely.}
+\label{fig:prism}
+\end{figure}
+
+\begin{remark}[Addressability is the bridge to Part B]\label{rem:address}
+\cref{prop:prism} is what lets a \emph{closed command} in \cref{thm:bijection}
+\emph{name} a state-change concretely: parse the surface to a command term, run it
+by the pairing. The grammar is the UI's declarative image; the pairing is its
+operational one; the prism is the isomorphism between them on $\Lang$.
+\end{remark}
+
+% ---------------------------------------------------------------------
+\section{One expressiveness ladder, four readings}\label{sec:ladder}
+\sectionnotation{the expressiveness ladder $\FreeAp\subseteq\FreeSel\subseteq\Free$ (applicative $\subseteq$ selective $\subseteq$ monadic).}
+% ---------------------------------------------------------------------
+\begin{proposition}[$\FreeAp\subseteq\FreeSel\subseteq\Free$, read four ways]\label{prop:ladder}
+The free-construction ladder grades, by exactly the $\times,+,\mu$ strata, four
+notions at once:
+\[
+\begin{array}{llll}
+ & \FreeAp & \FreeSel & \Free\\
+\text{parser} & \text{fixed shape} & \text{static guard} & \text{value-driven shape}\\
+\text{template} & \text{fill-in-the-blanks} & \text{conditional section} & \text{recursive/data-driven}\\
+\text{command} & \text{independent args} & \text{flag gates a branch} & \text{arg chooses sub-command}\\
+\text{UI element} & \text{static layout} & \text{conditional child} & \text{data-driven subtree}
+\end{array}
+\]
+The inclusions are strict and the same in all four columns: no value-inspection
+(applicative), static branch only (selective), a resolved value chooses the
+substructure (monadic, the $\mu$ case).
+\end{proposition}
+
+\begin{proof}
+The ladder is the parser/template grading of the companions; \cref{def:identify}
+makes the UI element's child-shape an $\Omega$-term, so a child position fixed in
+advance is applicative, a child present-or-absent under a static guard is the
+selective $\mathsf{when}$, and a child sub-tree chosen by a resolved value is the
+monadic $\bind$ over $\mu$. Strictness is inherited from the companions: a value
+that selects shape is not expressible without $\bind$.
+\end{proof}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[every node/.style={font=\scriptsize}]
+  % three panels
+  \foreach \x/\col/\nm/\dsc in {%
+      2.3/cUi/{$\FreeAp$}/applicative,
+      5.8/cCmd/{$\FreeSel$}/selective,
+      9.3/cSig/{$\Free$}/monadic}{
+     \draw[rounded corners=5pt, thick, draw=\col!70!black, fill=\col!7]
+          (\x,0.25) rectangle (\x+3.0,3.75);
+     \node[font=\scriptsize\bfseries, text=\col!55!black] at (\x+1.5,3.46) {\nm};
+     \node[lbl] at (\x+1.5,3.14) {\dsc};
+     \draw[\col!45, thin] (\x+0.15,2.95) -- (\x+2.85,2.95);
+  }
+  % subset symbols between panels
+  \node[font=\large, text=cInk!70] at (5.55,1.85) {$\subseteq$};
+  \node[font=\large, text=cInk!70] at (9.05,1.85) {$\subseteq$};
+  % row-label gutter
+  \foreach \y/\r in {2.6/parser, 2.05/template, 1.5/command, 0.95/{UI element}}
+     \node[tag, anchor=east, font=\scriptsize\sffamily\bfseries] at (2.12,\y) {\r};
+  % cells: applicative
+  \foreach \y/\c in {2.6/{fixed shape}, 2.05/{fill-blanks},
+                     1.5/{indep.\ args}, 0.95/{static layout}}
+     \node[anchor=west] at (2.46,\y) {\c};
+  % cells: selective
+  \foreach \y/\c in {2.6/{static guard}, 2.05/{conditional section},
+                     1.5/{flag gates branch}, 0.95/{conditional child}}
+     \node[anchor=west] at (5.96,\y) {\c};
+  % cells: monadic
+  \foreach \y/\c in {2.6/{value-driven shape}, 2.05/{recursive / data},
+                     1.5/{arg chooses sub-cmd}, 0.95/{data-driven subtree}}
+     \node[anchor=west] at (9.46,\y) {\c};
+  % footer progression
+  \node[lbl] at (7.3,-0.18)
+     {$\times,+$ only $\;\longrightarrow\;$ add static $\textsf{when}$ $\;\longrightarrow\;$ add $\bind$ over $\mu$};
+\end{tikzpicture}
+\caption{\textbf{One ladder, four readings (\cref{prop:ladder}).} The free-construction
+chain $\FreeAp\subseteq\FreeSel\subseteq\Free$ grades parser, template, command, and
+UI expressiveness identically: no value-inspection (applicative), a static branch
+(selective), a resolved value choosing the substructure (monadic, the $\mu$ case).}
+\label{fig:ladder}
+\end{figure}
+
+\begin{remark}[Where each UI idiom sits]\label{rem:idioms}
+A static form is applicative; ``show this panel only if logged in,'' with both
+states pre-built, is selective; a tree/list whose node count is a runtime value, or
+a wizard whose next step depends on an answer, is monadic. The selective rung is
+the corpus's guarded action $\gamma(w,e)=\mathsf{when}$ at term level; the monadic
+rung is where genuine data-dependence --- and the cost discussion of Part D ---
+begins.
+\end{remark}
+
+% ---------------------------------------------------------------------
+\section{The learned UI is a learned program}\label{sec:learned}
+\sectionnotation{the capability-permitted sub-signature $\Omega_\kappa$; the glamour $g\in\Free\Omega_\kappa\,\varnothing$; the agent (fairy) as the interpreter $\sem{-}$.}
+% ---------------------------------------------------------------------
+The personalization layer now reads in command terms, tightening its safety
+guarantees to statements about $\sem{-}$.
+
+\begin{proposition}[Glamour as closed program; agent as interpreter]\label{prop:glamour}
+Let $\Omega_\kappa\subseteq\Omega$ be the sub-signature of capability-permitted
+constructors. The preemptive agent's \textbf{glamour} is a closed program
+$g\in\Free\Omega_\kappa\,\varnothing$; the agent is the free-monad interpreter
+$\sem{-}$ run as a pre-pass on the default tree. Then:
+\begin{definitionlist}
+  \item \emph{(safety)} $\sem g$ preserves every shipped invariant --- schema,
+        no-dangling, protection --- because each $\Omega_\kappa$-constructor does
+        and invariant-preservation composes; so $\sem g(\widehat U)$ is valid;
+  \item \emph{(reversibility)} $\sem g$ is undoable and reset-to-default is
+        reachable, by strong connectivity (\cref{thm:gc});
+  \item \emph{(optimality target)} compiling the learned utility's per-context
+        optimum into $g$ makes $\sem g$ drive the default to that optimum, when it
+        is $\kappa$-reachable.
+\end{definitionlist}
+Hence ``personalize the UI'' \emph{is} ``synthesize and run a closed command''; the
+learned model emits a program, and the lattice of invariants bounds it.
+\end{proposition}
+
+\begin{proof}
+A glamour is a guarded rewrite by $\kappa$-permitted operations, i.e.\ a finite
+located-command program over $\Omega_\kappa$, hence a node of
+$\Free\Omega_\kappa\,\varnothing$; running it is $\sem{-}$ (\cref{def:run}). (1)
+Each permitted constructor is a step of the invariant-restricted editor, preserving
+schema and (with the global-reset convention) no-dangling; preservation of a meet of
+invariants is the conjunction of preservations, so the composite program preserves
+all of them. (2) The unrestricted editor is strongly connected
+(\cref{thm:gc}), so from $\sem g(\widehat U)$ the default --- and any prior state ---
+is reachable; undo is the reverse program. (3) The optimum is a valid state
+(\cref{thm:gc} coverage); if it is reachable by $\kappa$-permitted steps, the
+synthesized $g$ is a reaching program and $\sem g$ lands there.
+\end{proof}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=7mm and 13mm]
+  \node[st] (util) {learned utility\\[-1pt]\stxt{per-context optimum}};
+  \node[cmd] (glam) [right=of util] {glamour\\$g\in\Free\Omega_\kappa\,\varnothing$\\[-1pt]\stxt{a closed program}};
+  \node[cmd, fill=cCmd!7] (fairy) [right=of glam] {fairy $=\sem{-}$\\[-1pt]\stxt{free-monad interpreter}};
+  \node[ui] (out) [right=of fairy] {personalized UI\\[-1pt]\stxt{$\sem g(\widehat U)$}};
+  \draw[ar] (util) -- (glam) node[lbl,midway,above]{synthesize};
+  \draw[cmdar] (glam) -- (fairy) node[lbl,midway,above]{run as pre-pass};
+  \draw[cmdar] (fairy) -- (out);
+  \draw[uiar, dashed] (out.south) .. controls +(0,-0.8) and +(0,-0.8) .. (glam.south)
+        node[lbl, midway, below, text=cInk]{undo (strong connectivity)};
+  % bounding lattice
+  \node[draw=cSig!75!black, very thick, rounded corners=7pt, inner sep=11pt,
+        fit=(util)(glam)(fairy)(out), label={[text=cSig!55!black, font=\scriptsize\bfseries]above:invariant lattice $\;\Sigma\wedge\Psi\wedge\Phi^\theta_P\;$ (the program must respect it)}] {};
+\end{tikzpicture}
+\caption{\textbf{The learned UI is a learned program (\cref{prop:glamour}).}
+Personalization compiles the learned utility into a closed command
+$g\in\Free\Omega_\kappa\,\varnothing$ over capability-permitted constructors; the
+agent runs it by $\sem{-}$. Safety is that $\sem g$ stays inside the invariant
+lattice; reversibility is strong connectivity. ``Personalize'' $=$ ``synthesize and
+run a command.''}
+\label{fig:glamour}
+\end{figure}
+
+\begin{remark}[The whole stack in one sentence]\label{rem:stack}
+Reading bottom to top: a \emph{type} is a constructor; an \emph{element} is a cofree
+node over it; a \emph{state-change} is a closed command paired against that node; a
+\emph{UI} is the cofree tree; \emph{personalization} is a synthesized free program
+run against it; and the invariant lattice is the predicate the program must respect.
+One signature $\Omega=F$ threads all six.
+\end{remark}
+
+% =====================================================================
+\uxpart{Part D.\quad Calibration: where functional programming is not optimal}
+% =====================================================================
+The functional reading is exact and buys the results above, but it is optimal only
+on a precise fragment. Four propositions mark the boundary; the part closes by
+locating it.
+
+% ---------------------------------------------------------------------
+\section{Identity lives off the functor}\label{sec:identity}
+\sectionnotation{the runtime state $\varrho=(U,\mathrm{globals})$ with pointer map $\mathrm{globals}:\{\dots\}\pfun N$; the integrity constraint $\Psi$; identities $N\subseteq\II$.}
+% ---------------------------------------------------------------------
+\begin{proposition}[The runtime state is not a $\Free$/$\Cofree$ value]\label{prop:identity}
+The cofree tree $U$ is determined by shape and annotation up to isomorphism and
+carries \emph{no node identity}. But the runtime globals --- focus, hover, capture,
+drag, selection --- are \emph{references} to specific nodes, and the no-dangling
+invariant $\Psi$ is the integrity constraint that these references point into the
+live document. Therefore the full runtime state is not a value of any
+$\Free$/$\Cofree$ carrier; it is the pair
+\[
+  \varrho \;=\; \bigl(U,\ \mathrm{globals}\bigr),\qquad
+  \mathrm{globals} : \{\mathrm{focus},\mathrm{hover},\mathrm{capture},\mathrm{drag},\mathrm{selection}\}\pfun N,
+\]
+a cofree tree \emph{plus} a partial pointer assignment into its node-identity set
+$N\subseteq\II$. Stability of these pointers across mutations is a property no
+identity-quotiented (pure value) representation provides.
+\end{proposition}
+
+\begin{proof}
+$\Free$ and $\Cofree$ are functors of $F$ alone; their elements are equivalence
+classes under relabeling of positions, so two trees differing only by node names are
+equal, i.e.\ identity is quotiented away. The globals, however, must denote
+\emph{the same} node before and after an unrelated edit elsewhere; this is data not
+recoverable from the shape-and-annotation class, hence external to the carrier. The
+pairing with $\mathrm{globals}:\cdot\pfun N$ is exactly the extra datum, and $\Psi$
+is the well-formedness of that partial map. Renaming-invariance of the carrier and
+pointer-stability of the globals are contradictory unless identity is tracked
+separately.
+\end{proof}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[level distance=12mm,
+  level 1/.style={sibling distance=22mm},
+  level 2/.style={sibling distance=12mm},
+  every node/.style={font=\scriptsize}]
+  \node[ui] (root) {\textsf{Root}}
+    child {node[ui] (a) {\textsf{List}}
+      child {node[ui] (a1) {\textsf{Item}}}
+      child {node[ui, draw=cImp, fill=cImp!10, very thick] (a2) {\textsf{Item}}}
+    }
+    child {node[ui, draw=cImp, fill=cImp!10, very thick] (b) {\textsf{Field}}};
+  % globals box
+  \node[imp, anchor=west, align=left] (glob) at (4.7,0)
+     {\textbf{globals} $:\{\dots\}\pfun N$\\[1pt]
+      \stxt{focus} $\to$ \textsf{Field}\\
+      \stxt{selection} $\to$ \textsf{Item}\\
+      \stxt{drag} $\to\ \bot$};
+  \draw[->, semithick, draw=cImp!80!black, dashed] (glob.west) to[bend left=10] (b.east);
+  \draw[->, semithick, draw=cImp!80!black, dashed] (glob.south west) to[bend right=12] (a2.east);
+  \node[lbl, text=cImp!60!black, below=10mm of a, xshift=3mm, text width=84mm, align=center]
+     {$\Cofree$ carries shape $+$ annotation \emph{only} --- identity is quotiented away;\\
+      $\varrho=(U,\mathrm{globals})$ adds pointers into $N$, and $\Psi$ is their integrity. Pointer
+      \emph{stability} across edits is what value semantics cannot give.};
+\end{tikzpicture}
+\caption{\textbf{Identity lives off the functor (\cref{prop:identity}).} The cofree
+tree $U$ knows shape and state but not \emph{which} node is which; focus, selection,
+and drag are references into the identity set $N$. The runtime state is the pair
+$\varrho=(U,\mathrm{globals})$, and $\Psi$ is the no-dangling integrity of those
+pointers --- a non-polynomial side constraint.}
+\label{fig:identity}
+\end{figure}
+
+\begin{remark}[Off the hierarchy, as foretold]\label{rem:offhierarchy}
+This is the corpus's observation that identity integrity sits off the Chomsky
+hierarchy, now as the functional boundary: a regular/polynomial functor captures
+shape; key-and-reference identity is a non-polynomial side constraint. The clean
+fix is an imperative node table with stable handles, which the value semantics of
+$\Free$/$\Cofree$ deliberately lacks.
+\end{remark}
+
+% ---------------------------------------------------------------------
+\section{Local high-frequency mutation defeats value semantics}\label{sec:mutation}
+\sectionnotation{update costs $\Theta(\mathrm{depth})$ (pure spine copy) and $\Theta(\mathrm{size})$ ($\extend$) vs.\ $O(1)$ (imperative); the frequency$\times$locality parameter.}
+% ---------------------------------------------------------------------
+\begin{proposition}[Update costs]\label{prop:cost}
+A single runtime event changes one node's annotation. In the pure carrier $U$ this
+requires rebuilding the path from the root to that node --- $\Theta(\mathrm{depth})$
+fresh nodes per event --- and a comonadic $\extend$ recomputes \emph{every} node,
+$\Theta(\mathrm{size})$. An in-place representation with the stable handles of
+\cref{prop:identity} performs the same local update in $O(1)$ amortized and re-render
+in $O(\#\text{affected})$. Hence on the high-frequency, spatially-local events that
+dominate interaction (typing, dragging, hovering), value semantics is asymptotically
+suboptimal; the governing parameter is the \emph{frequency $\times$ locality} of
+mutation, not the data model's correctness.
+\end{proposition}
+
+\begin{proof}
+Persistent update of an immutable $\mu$-tree must allocate a new spine from the
+mutated node to the root to preserve sharing of the untouched subtrees, which is
+$\Theta(\mathrm{depth})$ nodes; this is the standard cost of functional update. A
+global $\extend$ visits every node by definition. An imperative table mutates the
+target cell in place and marks a bounded dirty set, giving the stated bounds. For a
+stream of $m$ events each touching $O(1)$ nodes, the pure cost is
+$\Theta(m\cdot\mathrm{depth})$ versus imperative $\Theta(m)$ plus affected re-render.
+\end{proof}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[every node/.style={font=\scriptsize}, level distance=9mm,
+  level 1/.style={sibling distance=15mm}, level 2/.style={sibling distance=11mm}]
+  % LEFT: pure update -- copied spine
+  \node[ui, draw=cCmd, fill=cCmd!12] (pr) at (0,0) {\textsf{Root}$'$}
+    child {node[ghost] {$\cdots$}}
+    child {node[ui, draw=cCmd, fill=cCmd!12] (pg) {\textsf{Grp}$'$}
+      child {node[ghost] {leaf}}
+      child {node[ui, draw=cCmd, fill=cCmd!12] (pt) {\textsf{Btn}$'$}}
+    };
+  \node[font=\scriptsize\bfseries, text=cCmd!55!black] at (0,0.95) {pure update};
+  \node[tag, text=cCmd!60!black, anchor=west] at ($(pg.east)+(0.1,0.15)$) {copied spine};
+  \node[lbl, text width=45mm, align=center, anchor=north] at (0,-2.8)
+     {immutable $\mu X.(\St{\times}FX)$: rebuild\\root$\to$node, $\Theta(\mathrm{depth})$ fresh nodes/event;\\$\extend$ touches all: $\Theta(\mathrm{size})$};
+  % RIGHT: imperative -- in-place cell
+  \begin{scope}[xshift=68mm]
+    \node[ui] (ir) at (0,0) {\textsf{Root}}
+      child {node[ui] {$\cdots$}}
+      child {node[ui] (ig) {\textsf{Grp}}
+        child {node[ui] {leaf}}
+        child {node[imp, draw=cImp, fill=cImp!14] (it) {\textsf{Btn}$\star$}}
+      };
+    \node[font=\scriptsize\bfseries, text=cImp!60!black] at (0,0.95) {imperative};
+    \node[tag, text=cImp!60!black, anchor=west] at ($(it.east)+(0.12,0)$) {in place};
+    \node[lbl, text width=45mm, align=center, anchor=north] at (0,-2.8)
+       {stable handles: write one cell,\\$O(1)$ amortized/event;\\re-render $O(\#\text{affected})$};
+  \end{scope}
+  \node[lbl, text=cInk] at (3.4,-4.35)
+     {governing parameter: \textbf{frequency $\times$ locality} of mutation --- not correctness};
+  \begin{scope}[on background layer]
+    \fill[cCmd!4, rounded corners=7pt] (-2.4,-3.95) rectangle (2.4,1.3);
+    \fill[cImp!4, rounded corners=7pt] (4.2,-3.95) rectangle (9.2,1.3);
+  \end{scope}
+\end{tikzpicture}
+\caption{\textbf{Local high-frequency mutation defeats value semantics
+(\cref{prop:cost}).} One event changes one node. Persistent update must copy the
+spine to the root ($\Theta(\mathrm{depth})$, and $\extend$ is $\Theta(\mathrm{size})$);
+an imperative table with stable handles mutates one cell in $O(1)$. Value semantics
+still wins for snapshots, undo, and history --- the trade is directional.}
+\label{fig:cost}
+\end{figure}
+
+\begin{remark}[Where value semantics still wins]\label{rem:valuewins}
+The same persistence that costs on local writes \emph{buys} cheap snapshotting,
+undo, structural sharing, and time-travel --- precisely the operations the
+personalization layer (\cref{prop:glamour}) and the editor's history want. The
+trade is real and directional: pure for infrequent global moves and history,
+imperative for frequent local ones. A practical UI uses both, separated by exactly
+this boundary.
+\end{remark}
+
+% ---------------------------------------------------------------------
+\section{Observer graphs exceed trees}\label{sec:graphs}
+\sectionnotation{the sharing coalgebra $\Struct(F)$ (a finite DAG) and the cyclic/coalgebraic regime $\nu F$.}
+% ---------------------------------------------------------------------
+\begin{proposition}[Trees, sharing DAGs, cyclic graphs]\label{prop:graphs}
+Data-binding, two-way bindings, and observers make the dependency structure a
+\emph{graph}, whereas $\mu F$ and $\Cofree F$ are \emph{trees}. The corpus already
+lifts $\mu F$ to $\Struct(F)$ --- a finite coalgebra with sharing edges --- to
+express back-references and shared partials; this captures acyclic sharing
+(a DAG). Genuine \emph{cycles} (mutual data-binding, observer loops) are not
+finite $F$-trees and not $\Struct(F)$ DAGs; they require a coalgebraic ($\nu$F)
+or imperative (pointer-graph) representation with an explicit update/fixpoint
+discipline.
+\end{proposition}
+
+\begin{proof}
+A finite tree has a unique path to each node and no node reachable from itself; an
+observer cycle has a node depending on its own output, so it is not modeled by
+$\mu F$. $\Struct(F)$ adds sharing as a finite coalgebra structure, representing
+common sub-structure (a DAG) but still terminating unfolds; a cycle makes the
+unfold non-terminating, leaving the $\Struct(F)$ fragment. The coalgebraic $\nu F$
+or an explicit pointer graph with a scheduling/fixpoint rule is then required to
+give the loop a meaning.
+\end{proof}
+
+% ---------------------------------------------------------------------
+\section{The theory fixes what, not when}\label{sec:when}
+\sectionnotation{the effect monad $T(R)$; the value/schedule distinction (what a program computes vs.\ when).}
+% ---------------------------------------------------------------------
+\begin{remark}[Effects: value versus schedule]\label{rem:when}
+The interpretation $\sem{-}$ lands in an effect monad $T(R)$, and the monad/comonad
+laws fix the \emph{value} a program computes and the \emph{equalities} between
+programs. They do \emph{not} fix the \emph{schedule}: real-time deadlines, animation
+timing, frame pacing, input coalescing, and the interleaving of concurrent effects
+are outside the equational theory. Two programs equal in $T$ may differ in latency
+or perceived smoothness. The algebra is the contract for \emph{correctness}; timing
+is an operational concern the functional reading deliberately abstracts, and where
+those constraints bind, an effect-scheduling layer outside the laws is required.
+\end{remark}
+
+% ---------------------------------------------------------------------
+\section{The stratification: the right tool per layer}\label{sec:strata}
+\sectionnotation{the three representation regimes: pure tree $\to$ $\Free/\Cofree$; sharing DAG $\to$ $\Struct(F)$; identity/cycles/churn $\to$ imperative.}
+% ---------------------------------------------------------------------
+\begin{proposition}[Representation boundary]\label{prop:strata}
+The four observations partition the UI's structure into three regimes, each with a
+fitting representation:
+\begin{definitionlist}
+  \item \emph{pure finite tree} --- the shape $\mu F$ and the stateful tree
+        $U=\Cofree F\,\St$, with infrequent or global moves, history, and
+        serialization: the \textbf{functional} carriers $\Free/\Cofree$ are optimal
+        (Parts A--C);
+  \item \emph{finite acyclic sharing} --- back-references and shared partials: the
+        \textbf{coalgebraic} $\Struct(F)$ (a finite $F$-coalgebra) is the right
+        representation;
+  \item \emph{identity-critical, cyclic, or high-frequency} --- focus/selection
+        pointers (\cref{prop:identity}), observer graphs (\cref{prop:graphs}),
+        and per-frame local mutation (\cref{prop:cost}): a mutable,
+        identity-bearing, \textbf{imperative} representation is optimal.
+\end{definitionlist}
+The boundaries are exact and are read off the structure itself --- acyclicity,
+sharing, identity-dependence, mutation frequency --- not chosen by taste.
+\end{proposition}
+
+\begin{proof}
+Each clause is the cited result: \cref{prop:render,prop:prism} place pure trees in
+(1); the corpus's $\Struct(F)$ lift places acyclic sharing in (2)
+(\cref{prop:graphs}); and \cref{prop:identity,prop:cost,prop:graphs} place
+identity, cycles, and churn in (3). The criteria are structural predicates
+(presence of cycles, of sharing, of identity references, the frequency$\times$
+locality of writes), so the assignment is determined by the structure.
+\end{proof}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[every node/.style={font=\scriptsize}]
+  % three stacked zones
+  \node[zone, draw=cUi!70!black, fill=cUi!7, text width=11.2cm, align=left, minimum height=15mm] (z1) at (0,0)
+     {\textbf{\textcolor{cUi!50!black}{pure finite tree}} \;---\; functional carriers $\Free/\Cofree$ are optimal\\[1pt]
+      \stxt{shape $\mu F$, stateful tree $\Cofree F\,\St$; serialization, history, global/infrequent moves}};
+  \node[zone, draw=cOpt!70!black, fill=cOpt!7, text width=11.2cm, align=left, minimum height=14mm,
+        below=4mm of z1] (z2)
+     {\textbf{\textcolor{cOpt!45!black}{finite acyclic sharing}} \;---\; the coalgebra $\Struct(F)$\\[1pt]
+      \stxt{back-references, shared partials: a finite $F$-coalgebra (a DAG), terminating unfolds}};
+  \node[zone, draw=cImp!70!black, fill=cImp!7, text width=11.2cm, align=left, minimum height=15mm,
+        below=4mm of z2] (z3)
+     {\textbf{\textcolor{cImp!55!black}{identity-critical, cyclic, or high-frequency}} \;---\; imperative\\[1pt]
+      \stxt{focus/selection pointers, observer cycles, per-frame local mutation: mutable, identity-bearing}};
+  % decision criteria on the right edge as a descending arrow
+  \draw[->, very thick, draw=cInk!55] ($(z1.east)+(0.5,0)$) -- ($(z3.east)+(0.5,0)$);
+  \node[tag, text=cInk, anchor=west, align=left] at ($(z1.east)+(0.65,0)$) {add\\sharing};
+  \node[tag, text=cInk, anchor=west, align=left] at ($(z2.east)+(0.65,0)$) {add cycles /\\identity / churn};
+\end{tikzpicture}
+\caption{\textbf{The stratification: the right tool per layer (\cref{prop:strata}).}
+The boundary is read off the structure itself --- acyclicity, sharing,
+identity-dependence, mutation frequency. Pure trees $\to$ free/cofree; acyclic
+sharing $\to$ the coalgebra $\Struct(F)$; cycles, identity, or churn $\to$ the
+imperative. The functional reading of Parts A--C is exact and optimal on the top
+zone, and not beyond it.}
+\label{fig:strata}
+\end{figure}
+
+% =====================================================================
+\uxpart{Part E.\quad Synthesis}
+% =====================================================================
+
+% ---------------------------------------------------------------------
+\section{The correspondence, assembled}\label{sec:synth}
+% ---------------------------------------------------------------------
+\begin{theorem}[The UI--DSL correspondence]\label{thm:correspondence}
+Under \cref{ass:poly} and generative completeness (\cref{thm:gc}), for the shared
+signature $\Omega=F$:
+\begin{definitionlist}
+  \item \emph{(dual carriers)} commands are the free monad $\Free\Omega\,A$ and the
+        stateful UI is the cofree comonad $\Cofree F\,\St$ over the same $F$, paired
+        by the event loop $\run=\sem{-}$, which is the runtime/authoring step
+        (\cref{thm:pairing});
+  \item \emph{(structure)} element types are command constructors, an
+        arity-preserving bijection, with three further faces keyword/opcode/profile
+        (\cref{prop:typesconstructors,rem:threecoords});
+  \item \emph{(behaviour)} closed commands modulo behaviour are isomorphic, as a
+        monoid, to the reachable UI state-changes --- every state and event is a
+        command and conversely (\cref{thm:bijection});
+  \item \emph{(data)} an element's attributes are an option set, its overlay the
+        cascade $\oplus$, its diff the reconciler (\cref{thm:attrs}); and a
+        component with holes is a template (\cref{def:element});
+  \item \emph{(functional support)} routing is a \ty{Traversable} descent with
+        \ty{Alternative} dispatch, rendering the comonadic $\extend$, serialization
+        the parsing prism, and personalization a synthesized closed program
+        (\cref{prop:routing,prop:render,prop:prism,prop:glamour});
+  \item \emph{(boundary)} this functional reading is optimal exactly on the pure
+        finite-tree fragment; acyclic sharing wants the coalgebra $\Struct(F)$, and
+        identity/cycles/churn want the imperative (\cref{prop:strata}).
+\end{definitionlist}
+\end{theorem}
+
+\begin{proof}
+Each clause is the cited result; together they are the assembled statement that a
+UI element and a DSL command are one signature $\Omega=F$ read as a responding
+comonad and a driving monad respectively.
+\end{proof}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[every node/.style={font=\scriptsize}]
+  \node[sig, anchor=north west] (l1) at (0,0)
+        {\textbf{type} $\tau$ \;---\; a \emph{constructor} of $\Omega=F$};
+  \node[ui, anchor=north west] (l2) at (0,-1.0)
+        {\textbf{element} \;---\; a \emph{cofree node} over it (state $+$ Mealy)};
+  \node[cmd, anchor=north west] (l3) at (0,-2.0)
+        {\textbf{state-change} \;---\; a \emph{closed command} paired against the node};
+  \node[ui, fill=cUi!7, anchor=north west] (l4) at (0,-3.0)
+        {\textbf{UI} \;---\; the \emph{cofree tree} $\Cofree F\,\St$};
+  \node[cmd, fill=cCmd!7, anchor=north west] (l5) at (0,-4.0)
+        {\textbf{personalization} \;---\; a synthesized \emph{free program} run against it};
+  \node[opt, anchor=north west] (l6) at (0,-5.0)
+        {\textbf{invariant lattice} \;---\; the predicate the program must respect};
+  \foreach \a/\b in {l1/l2,l2/l3,l3/l4,l4/l5,l5/l6}
+     \draw[ar] ($(\a.south west)+(0.7,0)$) -- ($(\b.north west)+(0.7,0)$);
+  % the signature thread on the left (vertical)
+  \draw[->, very thick, draw=cSig!75!black] (-0.5,-0.05) -- (-0.5,-5.5);
+  \node[text=cSig!55!black, font=\scriptsize\bfseries, rotate=90] at (-0.82,-2.78)
+        {one signature $\Omega=F$ threads all six};
+\end{tikzpicture}
+\caption{\textbf{The whole stack, threaded by one signature
+(\cref{thm:correspondence,rem:stack}).} Bottom to top, each layer is a reading of
+the same $\Omega=F$: a type is a constructor; an element a cofree node; a
+state-change a closed command paired against it; the UI the cofree tree;
+personalization a synthesized free program; the lattice the predicate it must
+respect.}
+\label{fig:stack}
+\end{figure}
+
+\begin{remark}[What is necessary, what is contingent]\label{rem:necessary}
+\emph{Necessary} --- forced by the framework: the identification $\Omega=F$
+(\cref{prop:typesconstructors}); the free/cofree duality and its pairing
+(\cref{thm:pairing}); the behavioural isomorphism (\cref{thm:bijection}); and
+attributes-as-options (\cref{thm:attrs}). These hold however the system is built.
+\emph{Contingent} --- a representation choice: whether a given layer is realised in
+the functional carriers, the coalgebra, or the imperative. The correspondence is a
+theorem; the functional implementation is an option, optimal precisely where
+\cref{prop:strata} says and not elsewhere. The single thread through both is the
+signature: meaning enters once, when a constructor is declared, and is read
+forwards as a command and backwards as an element.
+\end{remark}
+
+% ---------------------------------------------------------------------
+\section{Crosswalk: one object across the companions}\label{app:crosswalk}
+% ---------------------------------------------------------------------
+\begin{center}
+\footnotesize
+\renewcommand{\arraystretch}{1.25}
+\begin{tabularx}{\textwidth}{@{}l X l@{}}
+\toprule
+\textbf{UI notion} & \textbf{Command / companion incarnation} & \textbf{Where}\\
+\midrule
+element type $\tau$ & constructor of $\Omega=F$; keyword; opcode tag; child-profile $=$ arity & \cref{def:identify,prop:typesconstructors}\\
+atomic element (leaf) & nullary constructor; bare command & \cref{rem:atomic}\\
+composite element & internal node of $\Cofree F$; command carrying sub-commands & \cref{rem:atomic}\\
+component with a hole & template over $\Omega$; node of $\Free\Omega\,A$ & \cref{def:element}\\
+stateful UI tree & cofree comonad $\Cofree F\,\St=\mu X.(\St\times FX)$ & \cref{def:U}\\
+element (with behaviour) & Mealy node $=$ response product $=$ interpret-leg & \cref{def:mealy}\\
+event at a node & located command $(p,e)$; choice of one response coordinate & \cref{def:located}\\
+runtime / authoring step & the Free/Cofree pairing $\run=\sem{-}$ & \cref{thm:pairing}\\
+all state-changes & closed commands $\Free\Omega\,\varnothing$ modulo $\approx$ (monoid iso) & \cref{thm:bijection}\\
+attributes / style & option set; $\setAttr/$cascade $=\oplus$; reconcile $=\operatorname{diff}_\pi$ & \cref{thm:attrs}\\
+event dispatch & \ty{Traversable} descent $+$ \ty{Alternative} ordered choice & \cref{prop:routing}\\
+render / layout & comonadic $\extend$; local read $\extract$ & \cref{prop:render}\\
+serialize / address & parsing prism $\compose/\parsefn$ on $\mu F$ & \cref{prop:prism}\\
+static/conditional/data-driven UI & $\FreeAp\subseteq\FreeSel\subseteq\Free$ ladder & \cref{prop:ladder}\\
+personalization glamour & closed program $\Free\Omega_\kappa\,\varnothing$; agent $=\sem{-}$ & \cref{prop:glamour}\\
+focus/selection/drag & pointers into $N$; $\varrho=(U,\mathrm{globals})$ --- off the functor & \cref{prop:identity}\\
+back-reference / shared partial & coalgebra $\Struct(F)$ (acyclic sharing) & \cref{prop:graphs}\\
+observer cycle / per-frame churn & imperative, identity-bearing representation & \cref{prop:strata}\\
+\bottomrule
+\end{tabularx}
+\end{center}
+\end{document}

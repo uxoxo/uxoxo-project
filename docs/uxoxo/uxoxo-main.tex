@@ -1,0 +1,266 @@
+% =====================================================================
+%  uxoxo-main.tex  --  umbrella document for the UXOXO monograph
+%
+%  Each chapter lives in chapters/ as its own compilable subfile
+%  (\documentclass[../uxoxo-main]{subfiles}).  Compile this file for the
+%  whole book; compile any chapter alone and it borrows this preamble.
+%
+%      pdflatex uxoxo-main           (run 2-3x for refs/TOC)
+%      pdflatex chapters/elements-and-commands   (chapter alone)
+% =====================================================================
+\documentclass[11pt,oneside]{report}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{stmaryrd}
+\usepackage{thmtools}
+\usepackage{mathtools}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{enumitem}
+\usepackage{parskip}
+\usepackage{microtype}
+\usepackage{tikz}
+\usepackage{float}
+\usetikzlibrary{positioning,arrows.meta,calc,fit,backgrounds,shapes.geometric,
+  shapes.misc,decorations.pathreplacing,decorations.markings,chains,patterns}
+\emergencystretch=3em
+
+% ---------------------------------------------------------------------
+%  Semantic colour palette (consistent across all diagrams)
+% ---------------------------------------------------------------------
+\definecolor{cCmd}{RGB}{217,119,6}     % command / free  -- amber
+\definecolor{cUi}{RGB}{13,148,136}     % UI / cofree      -- teal
+\definecolor{cSig}{RGB}{124,58,237}    % signature        -- violet
+\definecolor{cOpt}{RGB}{22,163,74}     % options          -- green
+\definecolor{cOpc}{RGB}{37,99,235}     % opcode           -- blue
+\definecolor{cState}{RGB}{202,138,4}   % state            -- gold
+\definecolor{cImp}{RGB}{220,38,38}     % imperative/ident -- red
+\definecolor{cInk}{RGB}{30,41,59}      % ink / neutral    -- slate
+
+\tikzset{
+  >={Stealth[round]},
+  every picture/.style={line cap=round, line join=round, font=\small},
+  box/.style={rounded corners=2.5pt, draw, semithick, inner sep=5pt, align=center},
+  cmd/.style ={box, draw=cCmd,  fill=cCmd!12,  text=cCmd!55!black},
+  ui/.style  ={box, draw=cUi,   fill=cUi!12,   text=cUi!50!black},
+  sig/.style ={box, draw=cSig,  fill=cSig!12,  text=cSig!55!black},
+  opt/.style ={box, draw=cOpt,  fill=cOpt!12,  text=cOpt!50!black},
+  opc/.style ={box, draw=cOpc,  fill=cOpc!10,  text=cOpc!55!black},
+  st/.style  ={box, draw=cState,fill=cState!18,text=cState!45!black},
+  imp/.style ={box, draw=cImp,  fill=cImp!10,  text=cImp!60!black},
+  ghost/.style={box, draw=cInk!45, fill=cInk!6, text=cInk!75},
+  tnode/.style={circle, draw=cUi, fill=cUi!12, semithick, minimum size=6.5mm,
+                inner sep=0.5pt, font=\scriptsize, text=cInk},
+  cnode/.style={rounded corners=2pt, draw=cCmd, fill=cCmd!12, semithick,
+                minimum size=6mm, inner sep=2pt, font=\scriptsize, text=cInk},
+  lbl/.style={font=\scriptsize\itshape, text=cInk!75},
+  tag/.style={font=\scriptsize\sffamily, text=cInk!80},
+  ar/.style={->, semithick, draw=cInk!75},
+  dar/.style={<->, semithick, draw=cInk!75},
+  cmdar/.style={->, semithick, draw=cCmd!85!black},
+  uiar/.style={->, semithick, draw=cUi!75!black},
+  zone/.style={rounded corners=5pt, draw, very thick, inner sep=9pt},
+}
+\newcommand{\dcap}[1]{\par\smallskip{\footnotesize #1}}
+\newcommand{\stxt}[1]{{\scriptsize\sffamily\color{cInk!70}#1}}
+
+% ---------------------------------------------------------------------
+%  Operators
+% ---------------------------------------------------------------------
+\DeclareMathOperator{\Dom}{dom}
+\DeclareMathOperator{\Doc}{Doc}
+\DeclareMathOperator{\anc}{anc}
+\DeclareMathOperator{\Reach}{Reach}
+\DeclareMathOperator{\img}{im}
+\DeclareMathOperator{\End}{End}
+\DeclareMathOperator{\Lang}{L}
+\DeclareMathOperator{\supp}{supp}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\newcommand{\KL}{\mathrm{D}_{\mathrm{KL}}}
+\newcommand{\id}{\mathrm{id}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Real}{\mathbb{R}}
+\newcommand{\Bool}{\mathbb{B}}
+\newcommand{\Nat}{\mathbb{N}}
+
+% ---------------------------------------------------------------------
+%  The tree / editor
+% ---------------------------------------------------------------------
+\newcommand{\II}{\mathbb{I}}
+\newcommand{\Tree}{\mathcal{T}}
+\newcommand{\View}{\mathcal{V}}
+\newcommand{\Edit}{\mathcal{E}}
+\newcommand{\Ops}{\mathcal{O}}
+\newcommand{\dle}{\vartriangleleft}
+\newcommand{\dleq}{\vartriangleleft^{*}}
+\newcommand{\dlplus}{\vartriangleleft^{+}}
+\newcommand{\pfun}{\rightharpoonup}
+\newcommand{\coloniff}{\mathrel{:\Longleftrightarrow}}
+\newcommand{\Wempty}{W_{\varnothing}}
+\newcommand{\Render}{R}
+\newcommand{\Lift}{L}
+\newcommand{\step}[1]{\xrightarrow{\,#1\,}}
+\newcommand{\stepP}[1]{\xrightarrow[P]{\,#1\,}}
+\newcommand{\runstep}[1]{\overset{#1}{\Longrightarrow}}
+\newcommand{\mint}{\mathsf{mint}}
+\newcommand{\attach}{\mathsf{attach}}
+\newcommand{\detach}{\mathsf{detach}}
+\newcommand{\delete}{\mathsf{delete}}
+\newcommand{\relabel}{\mathsf{relabel}}
+\newcommand{\move}{\mathsf{move}}
+\newcommand{\setType}{\mathsf{setType}}
+\newcommand{\setStyle}{\mathsf{setStyle}}
+\newcommand{\setAttr}{\mathsf{setAttr}}
+
+% ---------------------------------------------------------------------
+%  Elements / runtime
+% ---------------------------------------------------------------------
+\newcommand{\St}{\mathrm{St}}
+\newcommand{\Ttyp}{\mathbb{T}}
+\newcommand{\Ev}{\mathsf{Ev}}
+\newcommand{\handle}{\mathsf{handle}}
+\newcommand{\route}{\mathsf{route}}
+\newcommand{\recognize}{\mathsf{recognize}}
+\newcommand{\hit}{\mathsf{hit}}
+\newcommand{\reg}{\mathsf{reg}}
+\newcommand{\modeUse}{\mathsf{use}}
+\newcommand{\modeEdit}{\mathsf{edit}}
+
+% ---------------------------------------------------------------------
+%  Command / functional / option companions
+% ---------------------------------------------------------------------
+\newcommand{\ty}[1]{\ensuremath{\mathtt{#1}}}
+\newcommand{\Free}{\mathrm{Free}}
+\newcommand{\Cofree}{\mathrm{Cofree}}
+\newcommand{\FreeAp}{\mathrm{Free}_{\!\mathrm{Ap}}}
+\newcommand{\FreeSel}{\mathrm{Free}_{\!\mathrm{Sel}}}
+\newcommand{\Struct}{\mathrm{Struct}}
+\newcommand{\parsefn}{\mathsf{parse}}
+\newcommand{\compose}{\mathsf{compose}}
+\newcommand{\printfn}{\mathsf{print}}
+\newcommand{\In}{\mathsf{In}}
+\newcommand{\prof}{\mathrm{prof}}
+\newcommand{\cmdname}{\mathrm{name}}
+\newcommand{\bind}{\mathbin{>\!\!>\!\!=}}
+\providecommand{\ov}{\mathbin{\triangleleft}}
+\newcommand{\extract}{\mathsf{extract}}
+\newcommand{\extend}{\mathsf{extend}}
+\newcommand{\duplicate}{\mathsf{duplicate}}
+\newcommand{\run}{\mathsf{run}}
+\newcommand{\sem}[1]{\llbracket #1 \rrbracket}
+
+% ---------------------------------------------------------------------
+%  Personalization / idealized UI
+% ---------------------------------------------------------------------
+\newcommand{\uu}{\mathsf{u}}
+\newcommand{\Uspace}{\mathbb{U}}
+\newcommand{\Ubd}{\Uspace_{\Sigma}^{\le \mathsf{B}}}
+\newcommand{\Ufib}[1]{\Uspace_{\Sigma,#1}^{\le \mathsf{B}}}
+\newcommand{\Uopt}{\Uspace^{\uu}}
+\newcommand{\Ctx}{\mathsf{Ctx}}
+\newcommand{\proj}{\mathsf{ctx}}
+\newcommand{\learn}{\mathsf{learn}}
+\newcommand{\Phiu}{\Phi_{\uu}}
+\newcommand{\law}{\mathbb{P}}
+\newcommand{\Glaw}{\mathsf{G}}
+
+% ---------------------------------------------------------------------
+%  Definition list (house style)
+% ---------------------------------------------------------------------
+\newlist{definitionlist}{enumerate}{1}
+\setlist[definitionlist]{label=\textbf{(\arabic*)}, leftmargin=2.6em,
+  labelsep=0.6em, itemsep=0.5ex, topsep=0.7ex}
+
+% ---------------------------------------------------------------------
+%  Theorems: one shared sequence per chapter, correct cref names
+% ---------------------------------------------------------------------
+\declaretheorem[style=definition,numberwithin=chapter,name=Definition]{definition}
+\declaretheorem[style=definition,sibling=definition,name=Remark]{remark}
+\declaretheorem[style=definition,sibling=definition,name=Example]{example}
+\declaretheorem[style=definition,sibling=definition,name=Assumption]{assumption}
+\declaretheorem[style=plain,sibling=definition,name=Theorem]{theorem}
+\declaretheorem[style=plain,sibling=definition,name=Lemma]{lemma}
+\declaretheorem[style=plain,sibling=definition,name=Proposition]{proposition}
+\declaretheorem[style=plain,sibling=definition,name=Corollary]{corollary}
+
+% ---------------------------------------------------------------------
+%  Part divider inside a chapter, and per-section notation block
+% ---------------------------------------------------------------------
+\newcommand{\uxpart}[1]{%
+  \clearpage
+  \par\addvspace{0.3\baselineskip}%
+  \addcontentsline{toc}{section}{#1}%
+  \noindent{\large\bfseries\color{cSig!55!black}#1}\par
+  \nobreak\vspace{1pt}{\color{cSig!35}\hrule height 0.9pt}%
+  \addvspace{0.75\baselineskip}\nobreak
+  \uxnocleartrue}
+
+\newcommand{\sectionnotation}[1]{%
+  \par\nobreak\smallskip
+  \setlength{\fboxsep}{5pt}%
+  \noindent\colorbox{cInk!4}{%
+    \begin{minipage}{\dimexpr\linewidth-2\fboxsep\relax}
+      \small\textbf{\textsf{\textcolor{cInk!75}{New in this section.}}}\enspace #1
+    \end{minipage}}%
+  \par\smallskip}
+
+% ---------------------------------------------------------------------
+%  Every \section starts on a fresh page (unless it directly follows a
+%  Part divider, in which case it shares that page)
+% ---------------------------------------------------------------------
+\newif\ifuxnoclear \uxnoclearfalse
+\let\uxorigsection\section
+\renewcommand{\section}{\ifuxnoclear\uxnoclearfalse\else\clearpage\fi\uxorigsection}
+
+\usepackage[hidelinks,plainpages=false,pdfpagelabels]{hyperref}
+\usepackage[capitalize,noabbrev]{cleveref}
+\crefname{definition}{Definition}{Definitions}\Crefname{definition}{Definition}{Definitions}
+\crefname{remark}{Remark}{Remarks}\Crefname{remark}{Remark}{Remarks}
+\crefname{example}{Example}{Examples}\Crefname{example}{Example}{Examples}
+\crefname{assumption}{Assumption}{Assumptions}\Crefname{assumption}{Assumption}{Assumptions}
+\crefname{theorem}{Theorem}{Theorems}\Crefname{theorem}{Theorem}{Theorems}
+\crefname{lemma}{Lemma}{Lemmas}\Crefname{lemma}{Lemma}{Lemmas}
+\crefname{proposition}{Proposition}{Propositions}\Crefname{proposition}{Proposition}{Propositions}
+\crefname{corollary}{Corollary}{Corollaries}\Crefname{corollary}{Corollary}{Corollaries}
+
+% chapter-qualified hyperref anchors (the theorem counter resets per chapter)
+\makeatletter
+\def\theHdefinition{\thechapter.\arabic{definition}}
+\def\theHremark{\thechapter.\arabic{definition}}
+\def\theHexample{\thechapter.\arabic{definition}}
+\def\theHassumption{\thechapter.\arabic{definition}}
+\def\theHtheorem{\thechapter.\arabic{definition}}
+\def\theHlemma{\thechapter.\arabic{definition}}
+\def\theHproposition{\thechapter.\arabic{definition}}
+\def\theHcorollary{\thechapter.\arabic{definition}}
+\makeatother
+
+\usepackage{subfiles}
+
+% =====================================================================
+\begin{document}
+
+\pagenumbering{roman}
+\begin{center}
+\vspace*{3cm}
+{\Huge\bfseries UXOXO\par}
+\vspace{6mm}
+{\Large A Universal UI Language:\\[2pt] the expressible, the addressable, and the idealized interface\par}
+\vspace{2.2cm}
+{\large A formal monograph\par}
+\vspace{4mm}
+{\color{cInk!70}\today\par}
+\end{center}
+\clearpage
+
+\tableofcontents
+\clearpage
+\pagenumbering{arabic}
+
+% ---- chapters (each is its own compilable subfile) ----
+\subfile{chapters/elements-and-commands}
+\subfile{chapters/idealized-ui}
+
+\end{document}
