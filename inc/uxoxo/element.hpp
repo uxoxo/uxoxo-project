@@ -67,7 +67,7 @@ V.    THE GENERIC BUILDER                             (make_element -- for modul
 // djinterp
 #include <djinterp/core/functional/free.hpp>
 #include <djinterp/core/functional/functor.hpp>
-#include <djinterp/core/option/option_record.hpp>
+#include <djinterp/core/option/option_record.hpp>  // option_record, overlay
 // uxoxo
 #include "./uxoxo.hpp"
 
@@ -76,10 +76,10 @@ NS_UXOXO
 
 
 // option_set
-//   re-export: an element's attribute record is djinterp's runtime option
-// record, brought into uxoxo under the element vocabulary's name so it can be
-// used without qualification. (djinterp::option_set is the compile-time option
-// pack, a different type.)
+//   type: an element's attribute record -- djinterp's runtime option record,
+// brought into uxoxo under the name the element vocabulary uses. djinterp's
+// own option_set is the compile-time schema template, so this is an alias of
+// option_record rather than a using-declaration of that name.
 using option_set = ::djinterp::option_record;
 
 

@@ -15,15 +15,24 @@
 * nothing.
 *   Interpreted archetypes: text_leaf, container (row, and column through its
 * "orientation" attribute), interactive, panel, tab_bar, tab, text_field,
-* toggle, selectable and separator. Any other archetype degrades to its
-* children drawn top to bottom, or its "text" attribute when it has none.
-* Application element types get bespoke drawing the framework's way, by
-* registering a renderer with set_renderer<imgui_platform>.
+* toggle, selectable, separator, number_field, slider, combo, color_field,
+* tree_node, menu_bar, menu, menu_item, section, table, table_row and
+* splitter. Any other archetype degrades to its children drawn top to bottom,
+* or its "text" attribute when it has none. Application element types get
+* bespoke drawing the framework's way, by registering a renderer with
+* set_renderer<imgui_platform>.
+*   Two attributes mean the same thing on every element. "key" is a stable
+* identity among siblings: a container pushes it on ImGui's ID stack in place
+* of the child's index, so a widget keeps its identity -- and an edit in
+* progress keeps its focus -- while siblings before it come and go. "target"
+* rides along with whatever the element reports: it is copied into the
+* payload of every event the element posts, so one action can serve many
+* elements and still say which one spoke.
 *
 * path:      /inc/uxoxo/platform/imgui_platform.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                         created: 2026.09.22
-*                                                            revised: 2026.09.22
+*                                                            revised: 2026.10.04
 *******************************************************************************/
 
 /*
@@ -85,12 +94,14 @@ using imgui_draw = std::function<void(imgui_frame&)>;
 
 // 1.2.2
 // imgui_blueprint
-//   struct: the platform's blueprint -- how to draw a subtree, and its text.
-// An empty draw draws nothing.
+//   struct: the platform's blueprint -- how to draw a subtree, its text, and
+// the identity its parent draws it under. An empty draw draws nothing; an
+// empty key leaves the parent to use the child's index.
 struct imgui_blueprint
 {
     imgui_draw  draw;
     std::string text;
+    std::string key;
 };
 
 

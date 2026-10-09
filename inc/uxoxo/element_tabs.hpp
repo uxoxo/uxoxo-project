@@ -5,11 +5,16 @@
 *   tabs holds tab children; each tab holds its page's children. A tab whose
 * selected attribute is true is brought to the front on the frame it is seen,
 * so an application sets it for one frame to switch pages.
+*   A tab with an "action" reports when it comes to the front: on a frame it
+* is shown while its "active" attribute is false, it posts its action with
+* its "value". An application that marks the page it believes is in front
+* "active" therefore hears about every change of page, and can build the
+* content of the front page alone.
 *
 * path:      /inc/uxoxo/element_tabs.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                         created: 2026.09.22
-*                                                            revised: 2026.09.22
+*                                                            revised: 2026.10.04
 *******************************************************************************/
 
 #ifndef UXOXO_ELEMENT_TABS_HPP

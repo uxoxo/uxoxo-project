@@ -65,7 +65,7 @@ IV.   CLOSE                                           (fill, then restyle root)
 #include <vector>
 // djinterp
 #include <djinterp/core/functional/free.hpp>
-#include <djinterp/core/option/option_record.hpp>
+#include <djinterp/core/option/option_record.hpp>  // option_record, overlay
 // uxoxo
 #include "./element.hpp"
 #include "./uxoxo.hpp"

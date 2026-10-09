@@ -11,7 +11,7 @@
 #ifndef UXOXO_
 #define UXOXO_ 1
 
-#include <djinterp/djinterp.hpp>
+#include <djinterp/djinterp.hpp>  // framework root
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -66,7 +66,7 @@
 #define NS_UXOXO                        D_NAMESPACE(U_UXOXO_FRAMEWORK_NAME)
 
 // NS_COMPONENT
-//   namespace: the `component` namespace containing vendor-agnostic UI 
+//   namespace: the `component` namespace containing vendor-agnostic UI
 // component templates.
 #define NS_COMPONENT                    D_NAMESPACE(U_KEYWORD_COMPONENT)
 
@@ -75,14 +75,15 @@
 #define NS_PLATFORM                     D_NAMESPACE(U_KEYWORD_PLATFORM)
 
 // NS_TEMPLATES
-//   namespace: the `templates` namespace containing templates for various 
+//   namespace: the `templates` namespace containing templates for various
 // individual UI components, UI layouts, and more.
 #define NS_TEMPLATES                    D_NAMESPACE(U_KEYWORD_TEMPLATES)
 
 // NS_UI
 //   namespace: vendor-specific UI elements, layouts, widgets, and more.
-// The djinterp root (included above) defines NS_UI for the same `ui`
-// namespace; this definition stands only for a root that does not.
+// djinterp's root defines it already, as the same `namespace ui {`; a second
+// definition would differ in spelling, which the macro rule forbids, so this
+// one stands only where the root's does not.
 #ifndef NS_UI
     #define NS_UI                       D_NAMESPACE(U_KEYWORD_UI)
 #endif  // NS_UI

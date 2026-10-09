@@ -5,12 +5,13 @@
 *   width and height are in pixels, or a fraction of the space available when
 * they lie in (0, 1]; 0 takes all remaining space and a negative value leaves
 * that many pixels free. resize ("x", "y" or "") lets the user drag the
-* panel's edge.
+* panel's edge, and scroll_x gives it a horizontal scroll bar for content
+* wider than it is.
 *
 * path:      /inc/uxoxo/element_panel.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                         created: 2026.09.22
-*                                                            revised: 2026.09.22
+*                                                            revised: 2026.10.04
 *******************************************************************************/
 
 #ifndef UXOXO_ELEMENT_PANEL_HPP
