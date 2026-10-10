@@ -10,11 +10,19 @@
 * swatch before the text. With "drag_type" set, a node can be dragged onto
 * another of the same type: the drop reports "drop_action" with the dragged
 * node's value under "value" and the receiving node's under "target".
+*   A right-click reports "context_action", and a double-click
+* "double_action", each with the node's "value"; a node with a double
+* action opens by its arrow alone, so the double-click is the
+* application's. With "editing" the node's text is an input, filled with
+* "edit_text", which takes the keyboard when "focus" is set: Enter, or a
+* click elsewhere after an edit, reports "edit_action" with the value and
+* the new text under "text"; Escape, or leaving it unedited, reports
+* "cancel_action".
 *
 * path:      /inc/uxoxo/element_tree_node.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                         created: 2026.10.04
-*                                                            revised: 2026.10.04
+*                                                            revised: 2026.10.09
 *******************************************************************************/
 
 #ifndef UXOXO_ELEMENT_TREE_NODE_HPP
@@ -63,7 +71,21 @@ NS_COMPONENT
                               { "drag_type",     ::djinterp::option_value(
                                                      std::string()) },
                               { "drop_action",   ::djinterp::option_value(
-                                                     std::string()) } } },
+                                                     std::string()) },
+                              { "context_action", ::djinterp::option_value(
+                                                     std::string()) },
+                              { "double_action", ::djinterp::option_value(
+                                                     std::string()) },
+                              { "editing",       ::djinterp::option_value(
+                                                     false) },
+                              { "edit_text",     ::djinterp::option_value(
+                                                     std::string()) },
+                              { "edit_action",   ::djinterp::option_value(
+                                                     std::string()) },
+                              { "cancel_action", ::djinterp::option_value(
+                                                     std::string()) },
+                              { "focus",         ::djinterp::option_value(
+                                                     false) } } },
                 0,
                 -1,
                 option_set{},   // no state
@@ -82,8 +104,10 @@ NS_COMPONENT
       _value:    the node's identity, reported with its events ("value").
       _children: the node's subtree, drawn while it is open.
       _attrs:    optional extra attributes (open, leaf, selected, action,
-                 toggle_action, drag_type, drop_action, r, g, b, a),
-                 overlaid on top (caller wins).
+                 toggle_action, drag_type, drop_action, context_action,
+                 double_action, editing, edit_text, edit_action,
+                 cancel_action, focus, r, g, b, a), overlaid on top
+                 (caller wins).
     Return:
       An element_template wrapping a tree_node node over _children.
     */

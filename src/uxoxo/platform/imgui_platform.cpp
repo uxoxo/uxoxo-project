@@ -10,11 +10,15 @@
 *   Every event an element posts goes through post(), which copies the
 * element's "target" attribute into the payload. The archetypes below never
 * touch the frame directly.
+*   An input that reports only when its edit is done keeps the edit in a
+* draft between frames, keyed by the input's ID: the element's own text is
+* rebuilt each frame from the application's state, which has not heard of
+* the edit yet.
 *
 * path:      /src/uxoxo/platform/imgui_platform.cpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                         created: 2026.09.22
-*                                                            revised: 2026.10.04
+*                                                            revised: 2026.10.09
 *******************************************************************************/
 #include <uxoxo/platform/imgui_platform.hpp>  // corresponding header
 // std
@@ -23,9 +27,10 @@
 #include <cstddef>    // std::size_t
 #include <cstdint>    // std::intptr_t
 #include <cstdlib>    // std::atof
-#include <string>     // std::string
-#include <utility>    // std::move
-#include <vector>     // std::vector
+#include <string>         // std::string
+#include <unordered_map>  // std::unordered_map
+#include <utility>        // std::move
+#include <vector>         // std::vector
 // imgui
 #include <imgui.h>                  // ImGui widgets and layout
 #include <misc/cpp/imgui_stdlib.h>  // InputText over std::string
@@ -35,6 +40,7 @@
 #include "../../../inc/uxoxo/element_menu.hpp"          // archetype_menu*
 #include "../../../inc/uxoxo/element_number_field.hpp"  // archetype_slider, ...
 #include "../../../inc/uxoxo/element_panel.hpp"         // archetype_panel
+#include "../../../inc/uxoxo/element_popup.hpp"         // archetype_popup
 #include "../../../inc/uxoxo/element_section.hpp"       // archetype_section
 #include "../../../inc/uxoxo/element_selectable.hpp"    // archetype_selectable
 #include "../../../inc/uxoxo/element_separator.hpp"     // archetype_separator
@@ -112,6 +118,78 @@ post(
     _frame.post(_action, std::move(_payload));
 
     return;
+}
+
+// drafts
+//   the text being edited in each input that reports only when its edit is
+// done, by the input's ID.
+std::unordered_map<ImGuiID, std::string>&
+drafts()
+{
+    static std::unordered_map<ImGuiID, std::string> held;
+
+    return held;
+}
+
+/*
+committed_input
+  One line of input that reports when its edit is done: Enter, or leaving
+it after an edit, reports the text and returns true; Escape, or leaving it
+unedited, sets _cancelled. The draft carries the edit between frames.
+*/
+bool
+committed_input(
+    const char*        _label,
+    std::string&       _buffer,
+    bool               _focus,
+    float              _width,
+    bool&              _cancelled
+)
+{
+    const ImGuiID id    = ImGui::GetID(_label);
+    const auto    found = drafts().find(id);
+
+    if (found != drafts().end())
+    {
+        _buffer = found->second;
+    }
+
+    if (_focus)
+    {
+        ImGui::SetKeyboardFocusHere();
+    }
+
+    ImGui::SetNextItemWidth(_width);
+
+    const bool entered = ImGui::InputText(
+        _label,
+        &_buffer,
+        ImGuiInputTextFlags_EnterReturnsTrue |
+            ImGuiInputTextFlags_AutoSelectAll);
+    const bool active  = ImGui::IsItemActive();
+    const bool escaped = ImGui::IsKeyPressed(ImGuiKey_Escape, false);
+    bool       done    = entered;
+
+    _cancelled = false;
+
+    if ( (!entered) &&
+         (ImGui::IsItemDeactivated()) )
+    {
+        done       = ( (ImGui::IsItemDeactivatedAfterEdit()) &&
+                       (!escaped) );
+        _cancelled = !done;
+    }
+
+    if (active)
+    {
+        drafts()[id] = _buffer;
+    }
+    else
+    {
+        drafts().erase(id);
+    }
+
+    return done;
 }
 
 // join_text
@@ -832,6 +910,8 @@ text_field(
             const std::string id      = widget_id(attrs, "##field");
 
             ImGuiInputTextFlags flags = ImGuiInputTextFlags_None;
+            const bool          commit  = attrs.as_bool("commit", false);
+            const bool          many    = attrs.as_bool("multiline", false);
 
             if (attrs.as_bool("read_only", false))
             {
@@ -845,12 +925,59 @@ text_field(
 
             bool changed = false;
 
+            // one line that reports when done: the draft keeps the edit
+            if ( (commit) &&
+                 (!many) )
+            {
+                const double width = attrs.as_double("width", 0.0);
+                bool         cancelled = false;
+
+                changed = committed_input(
+                    id.c_str(),
+                    buffer,
+                    attrs.as_bool("focus", false),
+                    (width == 0.0)
+                        ? -FLT_MIN
+                        : extent(width, ImGui::GetContentRegionAvail().x),
+                    cancelled);
+
+                if (!enabled)
+                {
+                    ImGui::EndDisabled();
+                }
+
+                tooltip(attrs);
+
+                if ( (changed) &&
+                     (!action.empty()) )
+                {
+                    post(_frame, attrs, action, payload_value(buffer));
+                }
+
+                return;
+            }
+
+            if (attrs.as_bool("focus", false))
+            {
+                ImGui::SetKeyboardFocusHere();
+            }
+
             // many lines fill the width; one line takes the rest of its row
-            if (attrs.as_bool("multiline", false))
+            if (many)
             {
                 const float avail  = ImGui::GetContentRegionAvail().y;
                 const float height =
                     extent(attrs.as_double("height", 0.0), avail);
+
+                if (commit)
+                {
+                    const auto found = drafts().find(ImGui::GetID(id.c_str()));
+
+                    if (found != drafts().end())
+                    {
+                        buffer = found->second;
+                    }
+                }
 
                 changed = ImGui::InputTextMultiline(
                     id.c_str(),
@@ -880,6 +1007,24 @@ text_field(
             }
 
             tooltip(attrs);
+
+            // many lines that report when done: the draft keeps the edit
+            if (commit)
+            {
+                const ImGuiID key    = ImGui::GetID(id.c_str());
+                const bool    active = ImGui::IsItemActive();
+
+                changed = ImGui::IsItemDeactivatedAfterEdit();
+
+                if (active)
+                {
+                    drafts()[key] = buffer;
+                }
+                else
+                {
+                    drafts().erase(key);
+                }
+            }
 
             // an edit reports the new text
             if ( (changed) &&
@@ -965,9 +1110,18 @@ selectable(
                 ++colours;
             }
 
+            const std::string context_action =
+                attrs.as_string("context_action", "");
+            const std::string double_action  =
+                attrs.as_string("double_action", "");
             ImGuiSelectableFlags flags =
                 enabled ? ImGuiSelectableFlags_None
                         : ImGuiSelectableFlags_Disabled;
+
+            if (!double_action.empty())
+            {
+                flags |= ImGuiSelectableFlags_AllowDoubleClick;
+            }
 
             // a row in a table can span every column
             if (attrs.as_bool("span", false))
@@ -983,18 +1137,35 @@ selectable(
 
             const bool picked =
                 ImGui::Selectable(text.c_str(), selected, flags, size);
+            const bool doubled =
+                ( (picked) &&
+                  (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) );
+            const bool context =
+                ImGui::IsItemClicked(ImGuiMouseButton_Right);
 
             ImGui::PopStyleColor(colours);
             tooltip(attrs);
 
-            // a pick reports the row's value
+            const long value = attrs.as_long("value", 0);
+
+            // a pick reports the row's value; a double-click and a
+            // right-click report theirs as well
             if ( (picked) &&
                  (!action.empty()) )
             {
-                post(_frame,
-                     attrs,
-                     action,
-                     payload_value(attrs.as_long("value", 0)));
+                post(_frame, attrs, action, payload_value(value));
+            }
+
+            if ( (doubled) &&
+                 (!double_action.empty()) )
+            {
+                post(_frame, attrs, double_action, payload_value(value));
+            }
+
+            if ( (context) &&
+                 (!context_action.empty()) )
+            {
+                post(_frame, attrs, context_action, payload_value(value));
             }
 
             return;
@@ -1434,9 +1605,26 @@ tree_node(
             const bool  swatch = own_color(attrs, colour);
             const float side   = ImGui::GetFontSize() * 0.75f;
 
-            ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow       |
-                                       ImGuiTreeNodeFlags_OpenOnDoubleClick |
+            const std::string context_action =
+                attrs.as_string("context_action", "");
+            const std::string double_action  =
+                attrs.as_string("double_action", "");
+            const bool        editing        = attrs.as_bool("editing", false);
+
+            ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow    |
                                        ImGuiTreeNodeFlags_SpanAvailWidth;
+
+            // a double-click is the application's when it asks for it
+            if (double_action.empty())
+            {
+                flags |= ImGuiTreeNodeFlags_OpenOnDoubleClick;
+            }
+
+            // the input drawn over an edited node takes the mouse there
+            if (editing)
+            {
+                flags |= ImGuiTreeNodeFlags_AllowOverlap;
+            }
 
             if (leaf)
             {
@@ -1455,7 +1643,10 @@ tree_node(
                 flags |= ImGuiTreeNodeFlags_Selected;
             }
 
-            const std::string label = swatch_label(text, swatch, side);
+            const std::string label = swatch_label(editing ? std::string()
+                                                           : text,
+                                                   swatch,
+                                                   side);
             const bool        open  = ImGui::TreeNodeEx(
                 reinterpret_cast<void*>(static_cast<std::intptr_t>(value)),
                 flags,
@@ -1466,6 +1657,14 @@ tree_node(
             const bool clicked =
                 ( (ImGui::IsItemClicked(ImGuiMouseButton_Left)) &&
                   (!toggled) );
+            const bool doubled =
+                ( (!toggled) &&
+                  (ImGui::IsItemHovered()) &&
+                  (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) );
+            const bool context =
+                ImGui::IsItemClicked(ImGuiMouseButton_Right);
+            const ImVec2 node_min = ImGui::GetItemRectMin();
+            const ImVec2 node_max = ImGui::GetItemRectMax();
 
             // the swatch sits where the label begins
             if (swatch)
@@ -1482,8 +1681,11 @@ tree_node(
                     side * 0.25f);
             }
 
-            tooltip(attrs);
-            tree_drag_and_drop(attrs, text, _frame);
+            if (!editing)
+            {
+                tooltip(attrs);
+                tree_drag_and_drop(attrs, text, _frame);
+            }
 
             const std::string action        = attrs.as_string("action", "");
             const std::string toggle_action =
@@ -1496,6 +1698,81 @@ tree_node(
                      attrs,
                      action,
                      payload_value(value));
+            }
+
+            if ( (doubled) &&
+                 (!double_action.empty()) )
+            {
+                post(_frame, attrs, double_action, payload_value(value));
+            }
+
+            if ( (context) &&
+                 (!context_action.empty()) )
+            {
+                post(_frame, attrs, context_action, payload_value(value));
+            }
+
+            // the text as an input, over where the label was, and exactly
+            // as tall as the node: drawn at the node's line, it moves the
+            // cursor past that line just as the node did, so nothing is
+            // left to put back -- a cursor put back with nothing drawn
+            // after it is an error to ImGui when the node is the last item
+            // of its window
+            if (editing)
+            {
+                const float  left   = node_min.x +
+                                      ImGui::GetTreeNodeToLabelSpacing() +
+                                      (swatch ? side +
+                                                ImGui::GetStyle()
+                                                    .ItemInnerSpacing.x
+                                              : 0.0f);
+                const float  pad    = std::max(0.0f,
+                                               (node_max.y - node_min.y -
+                                                ImGui::GetFontSize()) * 0.5f);
+                std::string  buffer = attrs.as_string("edit_text", text);
+                bool         cancelled = false;
+
+                ImGui::SetCursorScreenPos(ImVec2(left, node_min.y));
+                ImGui::PushStyleVar(ImGuiStyleVar_FramePadding,
+                                    ImVec2(ImGui::GetStyle().FramePadding.x,
+                                           pad));
+
+                // a leaf pushes no ID of its own: the input takes the node's
+                ImGui::PushID(static_cast<int>(value));
+
+                const bool done = committed_input(
+                    "##edit",
+                    buffer,
+                    attrs.as_bool("focus", false),
+                    std::max(ImGui::GetFontSize() * 4.0f,
+                             node_max.x - left),
+                    cancelled);
+
+                ImGui::PopID();
+                ImGui::PopStyleVar();
+
+                if (attrs.as_bool("focus", false))
+                {
+                    ImGui::SetScrollHereY(0.5f);
+                }
+
+                const std::string edit_action =
+                    attrs.as_string("edit_action", "");
+                const std::string cancel_action =
+                    attrs.as_string("cancel_action", "");
+
+                if ( (done) &&
+                     (!edit_action.empty()) )
+                {
+                    option_set payload = payload_value(value);
+                    payload.set("text", buffer);
+                    post(_frame, attrs, edit_action, std::move(payload));
+                }
+                else if ( (cancelled) &&
+                          (!cancel_action.empty()) )
+                {
+                    post(_frame, attrs, cancel_action, payload_value(value));
+                }
             }
 
             // opening or closing reports the new state
@@ -1522,6 +1799,39 @@ tree_node(
             return;
         },
         text,
+        attrs);
+}
+
+// ------------------------------------------------------- archetypes: popups
+
+imgui_blueprint
+popup(
+    const node_t& _node
+)
+{
+    const blocks_t   children = _node.children;
+    const option_set attrs    = _node.attrs;
+
+    return make_blueprint(
+        [children, attrs](imgui_frame& _frame)
+        {
+            const std::string id = attrs.as_string("id", "popup");
+
+            // opened here, so it is named in the scope it is drawn in
+            if (attrs.as_bool("open", false))
+            {
+                ImGui::OpenPopup(id.c_str());
+            }
+
+            if (ImGui::BeginPopup(id.c_str()))
+            {
+                draw_stack(children, _frame);
+                ImGui::EndPopup();
+            }
+
+            return;
+        },
+        std::string(),
         attrs);
 }
 
@@ -1906,6 +2216,7 @@ imgui_platform::on_archetype::operator()(
     if (archetype == archetype_menu_bar)     { return menu_bar(_node);     }
     if (archetype == archetype_menu)         { return menu(_node);         }
     if (archetype == archetype_menu_item)    { return menu_item(_node);    }
+    if (archetype == archetype_popup)        { return popup(_node);        }
     if (archetype == archetype_section)      { return section(_node);      }
     if (archetype == archetype_table)        { return table(_node);        }
     if (archetype == archetype_table_row)    { return table_row(_node);    }

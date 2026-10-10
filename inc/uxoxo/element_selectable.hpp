@@ -4,12 +4,14 @@
 * The selectable element: a row of text that can be picked from a list.
 *   Picking it reports an event whose kind is the element's action and whose
 * payload carries the element's value attribute through under "value", so
-* one action can serve every row of a list.
+* one action can serve every row of a list. A right-click reports
+* "context_action", and a double-click "double_action", with the same
+* value.
 *
 * path:      /inc/uxoxo/element_selectable.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                         created: 2026.09.22
-*                                                            revised: 2026.09.22
+*                                                            revised: 2026.10.09
 *******************************************************************************/
 
 #ifndef UXOXO_ELEMENT_SELECTABLE_HPP
@@ -44,7 +46,11 @@ NS_COMPONENT
                               { "enabled",  ::djinterp::option_value(true) },
                               { "action",   ::djinterp::option_value(
                                                 std::string()) },
-                              { "value",    ::djinterp::option_value(0L) } } },
+                              { "value",    ::djinterp::option_value(0L) },
+                              { "context_action", ::djinterp::option_value(
+                                                      std::string()) },
+                              { "double_action",  ::djinterp::option_value(
+                                                      std::string()) } } },
                 0,
                 0,
                 option_set{},   // no state

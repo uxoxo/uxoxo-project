@@ -8,6 +8,12 @@
 * along with what an element posts, a "key" keeps a widget's identity while
 * siblings before it come and go, a tab reports coming to the front, a tree
 * node reports opening, and a splitter reports how far it was dragged.
+*   Then what an application needs for menus and renames in place: a popup
+* opens at the mouse and reports the item chosen; a tree node reports a
+* right-click and a double-click, and, edited in place, the text typed or
+* the edit given up; a text field in commit mode reports only when its edit
+* is done. And through all of it ImGui reports no error -- the misuses a
+* release build recovers from and a debug build asserts on.
 *   A probe element -- a renderer registered with set_renderer, the way an
 * application adds its own -- records the rectangle and ID of the item drawn
 * just before it, which is how the simulated mouse finds its targets.
@@ -15,7 +21,7 @@
 * path:      /tests/platform/imgui_platform_smoke.cpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                         created: 2026.10.04
-*                                                            revised: 2026.10.04
+*                                                            revised: 2026.10.09
 *******************************************************************************/
 // std
 #include <cstdio>   // std::printf
@@ -36,6 +42,7 @@
 #include <uxoxo/element_menu.hpp>          // component::menu_bar, ...
 #include <uxoxo/element_number_field.hpp>  // component::int_field, ...
 #include <uxoxo/element_panel.hpp>         // component::panel
+#include <uxoxo/element_popup.hpp>         // component::popup
 #include <uxoxo/element_row.hpp>           // component::row
 #include <uxoxo/element_section.hpp>       // component::section
 #include <uxoxo/element_selectable.hpp>    // component::selectable
@@ -188,6 +195,17 @@ id_clash()
     return false;
 }
 
+// errors
+//   how many frames ImGui reported an error in: a misuse it recovers from in
+// a release build, and asserts on in a debug one.
+int&
+errors()
+{
+    static int count = 0;
+
+    return count;
+}
+
 // frame
 //   one ImGui frame drawing a blueprint in a full-viewport window; returns
 // the events it posted.
@@ -217,6 +235,11 @@ frame(
     ImGui::End();
     ImGui::Render();
     ImGui_ImplNullRender_RenderDrawData(ImGui::GetDrawData());
+
+    if (GImGui->ErrorCountCurrentFrame > 0)
+    {
+        ++errors();
+    }
 
     return posted.events;
 }
@@ -251,6 +274,50 @@ find_event(
     }
 
     return nullptr;
+}
+
+// click
+//   a mouse button pressed in one frame and released in the next, where
+// the mouse is; the events both frames posted.
+std::vector<event>
+click(
+    const imgui_blueprint& _blueprint,
+    ImGuiMouseButton       _button
+)
+{
+    ImGuiIO& io = ImGui::GetIO();
+
+    io.AddMouseButtonEvent(_button, true);
+
+    std::vector<event>       events = frame(_blueprint);
+    io.AddMouseButtonEvent(_button, false);
+    const std::vector<event> later  = frame(_blueprint);
+
+    events.insert(events.end(), later.begin(), later.end());
+
+    return events;
+}
+
+// key
+//   a key pressed in one frame and released in the next; the events both
+// frames posted.
+std::vector<event>
+key(
+    const imgui_blueprint& _blueprint,
+    ImGuiKey               _key
+)
+{
+    ImGuiIO& io = ImGui::GetIO();
+
+    io.AddKeyEvent(_key, true);
+
+    std::vector<event>       events = frame(_blueprint);
+    io.AddKeyEvent(_key, false);
+    const std::vector<event> later  = frame(_blueprint);
+
+    events.insert(events.end(), later.begin(), later.end());
+
+    return events;
 }
 
 // everything
@@ -292,7 +359,8 @@ everything()
                           attr("open", true)) },
               attr("height", 120.0)),
         tabs("tabs", { tab("one", { label("page one") }),
-                       tab("two", { label("page two") }) }) });
+                       tab("two", { label("page two") }) }),
+        popup("menu", { menu_item("Rename", "rename"), separator() }) });
 }
 
 }  // anonymous namespace
@@ -304,6 +372,7 @@ main()
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui::GetIO().IniFilename = nullptr;
+    ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     ImGui_ImplNull_Init();
     install_probe();
 
@@ -498,6 +567,168 @@ main()
 
         check("a hole draws as its slot", (open.text == "<slot>"));
     }
+
+    ImGuiIO& io = ImGui::GetIO();
+
+    // 10. a popup opens at the mouse, for the frame that asks, and reports
+    // the item chosen
+    {
+        using namespace ::uxoxo::component;
+
+        // asked to open in one frame; open, until chosen from, after it
+        const imgui_blueprint asked = realize<imgui_platform>(
+            popup("menu",
+                  { menu_item("Rename", "rename", attr("value", 3L)),
+                    probe("item") },
+                  attr("open", true)));
+        const imgui_blueprint shown = realize<imgui_platform>(
+            popup("menu",
+                  { menu_item("Rename", "rename", attr("value", 3L)),
+                    probe("item") }));
+
+        io.AddMousePosEvent(100.0f, 100.0f);
+        (void)frame(asked);
+        (void)frame(shown);
+
+        const bool opened = (GImGui->OpenPopupStack.Size == 1);
+
+        io.AddMousePosEvent(centre("item").x, centre("item").y);
+        (void)frame(shown);
+
+        const std::vector<event> events = click(shown, ImGuiMouseButton_Left);
+        const event*             chosen = find_event(events, "rename");
+
+        check("a popup opens and reports its item",
+              ( (opened)                                         &&
+                (chosen != nullptr)                              &&
+                (chosen->payload.as_long("value", 0) == 3L)      &&
+                (GImGui->OpenPopupStack.Size == 0) ));
+    }
+
+    // 11. a tree node reports a right-click and a double-click
+    {
+        using namespace ::uxoxo::component;
+
+        option_set node;
+        node.set("leaf", true);
+        node.set("context_action", "context");
+        node.set("double_action", "rename");
+
+        const imgui_blueprint tree = realize<imgui_platform>(
+            column({ tree_node("node", 5, {}, node), probe("leaf") }));
+
+        (void)frame(tree);
+        io.AddMousePosEvent(centre("leaf").x, centre("leaf").y);
+        (void)frame(tree);
+
+        const std::vector<event> right   = click(tree,
+                                                 ImGuiMouseButton_Right);
+        std::vector<event>       doubled = click(tree,
+                                                 ImGuiMouseButton_Left);
+        const std::vector<event> second  = click(tree,
+                                                 ImGuiMouseButton_Left);
+
+        doubled.insert(doubled.end(), second.begin(), second.end());
+
+        const event* context = find_event(right, "context");
+        const event* rename  = find_event(doubled, "rename");
+
+        check("tree node right and double clicks",
+              ( (context != nullptr)                          &&
+                (context->payload.as_long("value", 0) == 5L)  &&
+                (rename != nullptr)                           &&
+                (rename->payload.as_long("value", 0) == 5L) ));
+    }
+
+    // 12. a tree node edited in place reports the text typed, or that the
+    // edit was given up
+    {
+        using namespace ::uxoxo::component;
+
+        // edit
+        //   the node as an application draws it while renaming: the first
+        // frame gives the input the keyboard
+        auto edit = [](bool _focus)
+        {
+            option_set node;
+            node.set("leaf", true);
+            node.set("editing", true);
+            node.set("edit_text", "old");
+            node.set("edit_action", "renamed");
+            node.set("cancel_action", "cancelled");
+            node.set("focus", _focus);
+
+            return realize<imgui_platform>(
+                column({ tree_node("old", 6, {}, node) }));
+        };
+
+        const imgui_blueprint first = edit(true);
+        const imgui_blueprint later = edit(false);
+
+        (void)frame(first);
+        (void)frame(later);
+        (void)frame(later);
+
+        io.AddInputCharactersUTF8("new");
+        (void)frame(later);
+
+        const std::vector<event> entered = key(later, ImGuiKey_Enter);
+        const event*             renamed = find_event(entered, "renamed");
+
+        // and again, given up
+        (void)frame(first);
+        (void)frame(later);
+        (void)frame(later);
+
+        io.AddInputCharactersUTF8("never");
+        (void)frame(later);
+
+        const std::vector<event> escaped   = key(later, ImGuiKey_Escape);
+        const event*             cancelled = find_event(escaped,
+                                                        "cancelled");
+
+        check("a tree node edited in place",
+              ( (renamed != nullptr)                                  &&
+                (renamed->payload.as_long("value", 0) == 6L)          &&
+                (renamed->payload.as_string("text", "") == "new")     &&
+                (cancelled != nullptr)                                &&
+                (find_event(escaped, "renamed") == nullptr) ));
+    }
+
+    // 13. a text field in commit mode reports when its edit is done, and
+    // not before
+    {
+        using namespace ::uxoxo::component;
+
+        option_set field;
+        field.set("commit", true);
+        field.set("focus", true);
+
+        const imgui_blueprint first = realize<imgui_platform>(
+            column({ text_field("x", "set", field) }));
+
+        field.set("focus", false);
+
+        const imgui_blueprint later = realize<imgui_platform>(
+            column({ text_field("x", "set", field) }));
+
+        (void)frame(first);
+        (void)frame(later);
+
+        io.AddInputCharactersUTF8("abc");
+
+        const std::vector<event> typing = frame(later);
+        const std::vector<event> done   = key(later, ImGuiKey_Enter);
+        const event*             set    = find_event(done, "set");
+
+        check("a commit field reports when done",
+              ( (find_event(typing, "set") == nullptr)          &&
+                (set != nullptr)                                &&
+                (set->payload.as_string("value", "") == "abc") ));
+    }
+
+    // 14. and through all of it, ImGui reported no misuse
+    check("ImGui reports no error", (errors() == 0));
 
     ImGui_ImplNull_Shutdown();
     ImGui::DestroyContext();

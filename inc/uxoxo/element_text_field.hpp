@@ -6,11 +6,16 @@
 * read_only keys that component/input/text_input_template.hpp declares, so
 * one backend serves both. An edit is reported as an event whose kind is the
 * element's action and whose payload holds the new text under "value".
+*   With "commit" the edit is reported once, when it is done -- on Enter in
+* one line, or when the field is left after an edit -- rather than at every
+* keystroke: for a value whose every intermediate spelling would be an
+* event of its own, a name that other things refer to. "focus" gives the
+* field the keyboard, in the frame it is drawn with the attribute set.
 *
 * path:      /inc/uxoxo/element_text_field.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                         created: 2026.09.22
-*                                                            revised: 2026.09.22
+*                                                            revised: 2026.10.09
 *******************************************************************************/
 
 #ifndef UXOXO_ELEMENT_TEXT_FIELD_HPP
@@ -52,7 +57,11 @@ NS_COMPONENT
                               { "multiline",   ::djinterp::option_value(
                                                    false) },
                               { "height",      ::djinterp::option_value(
-                                                   0.0) } } },
+                                                   0.0) },
+                              { "commit",      ::djinterp::option_value(
+                                                   false) },
+                              { "focus",       ::djinterp::option_value(
+                                                   false) } } },
                 0,
                 0,
                 option_set{},   // no state

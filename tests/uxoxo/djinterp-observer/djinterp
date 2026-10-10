@@ -1,0 +1,12 @@
+/*******************************************************************************
+* djinterp                                                          djinterp.h
+*   Shim for standalone compilation.  In the real project this is the master
+*   library header; here we just need the namespace macros.
+*******************************************************************************/
+#ifndef  DJINTERP_H_
+#define  DJINTERP_H_ 1
+
+#define NS_DJINTERP  namespace djinterp {
+#define NS_END        }
+
+#endif

@@ -222,5 +222,5 @@ if(UXOXO_BUILD_TESTS)
 
     add_test(NAME uxoxo_platform_smoke COMMAND uxoxo_platform_smoke)
     set_tests_properties(uxoxo_platform_smoke PROPERTIES
-        PASS_REGULAR_EXPRESSION "passed: 9   failed: 0")
+        PASS_REGULAR_EXPRESSION "passed: 14   failed: 0")
 endif()
