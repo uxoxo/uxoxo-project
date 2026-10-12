@@ -9,12 +9,19 @@
 * is shown while its "active" attribute is false, it posts its action with
 * its "value". An application that marks the page it believes is in front
 * "active" therefore hears about every change of page, and can build the
-* content of the front page alone.
+* content of the front page alone. A tab's "click_action" reports every
+* click on its title, the front page's too, and its "double_action" a
+* double-click, each with the tab's "value".
+*   A tab_button is a small button at the bar's right end, after the pages:
+* its text -- or an "icon" drawn in lines, one of "minimize", "restore",
+* "down", "float", "dock", "pin" and "close" -- a "tooltip", and the
+* "action" it reports, with its "value", when it is pressed. "on" shows it
+* held down.
 *
 * path:      /inc/uxoxo/element_tabs.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                         created: 2026.09.22
-*                                                            revised: 2026.10.04
+*                                                            revised: 2026.10.11
 *******************************************************************************/
 
 #ifndef UXOXO_ELEMENT_TABS_HPP
@@ -29,10 +36,12 @@
 
 NS_UXOXO
 
-// archetype_tab_bar / archetype_tab
-//   constants: the render archetypes for a bar of pages and for one page.
-inline constexpr const char* archetype_tab_bar = "tab_bar";
-inline constexpr const char* archetype_tab     = "tab";
+// archetype_tab_bar / archetype_tab / archetype_tab_button
+//   constants: the render archetypes for a bar of pages, for one page, and
+// for a button at the bar's end.
+inline constexpr const char* archetype_tab_bar    = "tab_bar";
+inline constexpr const char* archetype_tab        = "tab";
+inline constexpr const char* archetype_tab_button = "tab_button";
 
 
 NS_COMPONENT
@@ -72,6 +81,28 @@ NS_COMPONENT
                                                 false) } } },
                 0,
                 -1,
+                option_set{},   // no state
+                handler_fn{}    // inert
+            };
+
+        return &descriptor;
+    }
+
+    // tab_button_type
+    //   the descriptor for a button at a tab bar's end, owned by this module.
+    D_NODISCARD
+    inline const element_type* tab_button_type()
+    {
+        static const element_type descriptor =
+            element_type{
+                "tab_button",
+                archetype_tab_button,
+                option_set{ { { "text",   ::djinterp::option_value(
+                                              std::string()) },
+                              { "action", ::djinterp::option_value(
+                                              std::string()) } } },
+                0,
+                0,
                 option_set{},   // no state
                 handler_fn{}    // inert
             };
@@ -130,6 +161,33 @@ NS_COMPONENT
         resolved = ::djinterp::overlay(resolved, _attrs);
 
         return make_element(tab_type(), resolved, std::move(_items));
+    }
+
+    /*
+    tab_button
+      Builds a button at a tab bar's right end.
+
+    Parameter(s):
+      _text:   the button's face ("text").
+      _action: the event kind it reports when pressed ("action").
+      _attrs:  optional extra attributes (value, tooltip), overlaid on top
+               (caller wins).
+    Return:
+      An element_template wrapping a single tab_button node.
+    */
+    D_NODISCARD
+    inline element_template tab_button(
+        const std::string& _text,
+        const std::string& _action,
+        option_set         _attrs = option_set{}
+    )
+    {
+        option_set resolved = tab_button_type()->defaults;
+        resolved.set("text", _text);
+        resolved.set("action", _action);
+        resolved = ::djinterp::overlay(resolved, _attrs);
+
+        return make_element(tab_button_type(), resolved, {});
     }
 
 NS_END  // component

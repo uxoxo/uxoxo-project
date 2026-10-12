@@ -14,25 +14,33 @@
 * draft between frames, keyed by the input's ID: the element's own text is
 * rebuilt each frame from the application's state, which has not heard of
 * the edit yet.
+*   Text that does not fit where it is drawn -- a label cut off by its
+* column, a value longer than its field, a combo's choice, a check box's or
+* a tree node's title past the panel's edge -- is still readable: a label
+* ends in an ellipsis, and the mouse over any of them shows the whole text
+* above the element's own tooltip.
 *
 * path:      /src/uxoxo/platform/imgui_platform.cpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                         created: 2026.09.22
-*                                                            revised: 2026.10.09
+*                                                            revised: 2026.10.11
 *******************************************************************************/
 #include <uxoxo/platform/imgui_platform.hpp>  // corresponding header
 // std
 #include <algorithm>  // std::max, std::min
 #include <cfloat>     // FLT_MAX
+#include <cmath>      // std::floor
 #include <cstddef>    // std::size_t
 #include <cstdint>    // std::intptr_t
 #include <cstdlib>    // std::atof
+#include <memory>     // std::shared_ptr, std::make_shared
 #include <string>         // std::string
 #include <unordered_map>  // std::unordered_map
 #include <utility>        // std::move
 #include <vector>         // std::vector
 // imgui
 #include <imgui.h>                  // ImGui widgets and layout
+#include <imgui_internal.h>         // RenderTextEllipsis
 #include <misc/cpp/imgui_stdlib.h>  // InputText over std::string
 // uxoxo
 #include "../../../inc/uxoxo/element_color_field.hpp"   // archetype_color_field
@@ -50,6 +58,7 @@
 #include "../../../inc/uxoxo/element_text_field.hpp"    // archetype_text_field
 #include "../../../inc/uxoxo/element_toggle.hpp"        // archetype_toggle
 #include "../../../inc/uxoxo/element_tree_node.hpp"     // archetype_tree_node
+#include "../../../inc/uxoxo/element_window.hpp"        // archetype_window
 
 
 NS_UXOXO
@@ -65,7 +74,11 @@ using blocks_t = std::vector<imgui_blueprint>;
 // ------------------------------------------------------------------- helpers
 
 // make_blueprint
-//   a blueprint whose key is the element's own "key" attribute.
+//   a blueprint whose key is the element's own "key" attribute. Its drawing
+// is shared, not held: a container keeps its children's blueprints by
+// value, so a blueprint that held its drawing -- and the children that
+// drawing keeps -- would be copied whole by each container above it, the
+// leaves of a deep tree once for every level. Shared, a copy is a count.
 imgui_blueprint
 make_blueprint(
     imgui_draw         _draw,
@@ -73,7 +86,15 @@ make_blueprint(
     const option_set&  _attrs
 )
 {
-    return imgui_blueprint{ std::move(_draw),
+    const std::shared_ptr<const imgui_draw> shared =
+        std::make_shared<const imgui_draw>(std::move(_draw));
+
+    return imgui_blueprint{ [shared](imgui_frame& _frame)
+                            {
+                                (*shared)(_frame);
+
+                                return;
+                            },
                             std::move(_text),
                             _attrs.as_string("key", "") };
 }
@@ -374,6 +395,91 @@ tooltip(
     return;
 }
 
+// cut_off
+//   whether the last item runs past the right edge it is clipped at -- a
+// table cell's, a panel's -- by more than a pixel.
+bool
+cut_off()
+{
+    const float edge = ImGui::GetWindowDrawList()->GetClipRectMax().x;
+
+    return (ImGui::GetItemRectMax().x > edge + 1.0f);
+}
+
+/*
+tooltip_whole
+  The element's "tooltip" over the last item; and, when the item could not
+show the whole of its text, that text first, so that what is squished can
+still be read.
+*/
+void
+tooltip_whole(
+    const option_set&  _attrs,
+    const std::string& _whole,
+    bool               _cut
+)
+{
+    if ( (!_cut) ||
+         (_whole.empty()) )
+    {
+        tooltip(_attrs);
+
+        return;
+    }
+
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+    {
+        const std::string tip = _attrs.as_string("tooltip", "");
+
+        if ( (tip.empty()) ||
+             (tip == _whole) )
+        {
+            ImGui::SetTooltip("%s", _whole.c_str());
+        }
+        else
+        {
+            ImGui::SetTooltip("%s\n\n%s", _whole.c_str(), tip.c_str());
+        }
+    }
+
+    return;
+}
+
+// room_right
+//   the width left for an item at the cursor: to the content's edge, or to
+// the clipping edge where that is nearer -- a table cell's.
+float
+room_right()
+{
+    const float clip = ImGui::GetWindowDrawList()->GetClipRectMax().x -
+                       ImGui::GetCursorScreenPos().x;
+
+    return std::min(ImGui::GetContentRegionAvail().x, clip);
+}
+
+// field_cut
+//   whether a one-line field just drawn shows less than its whole text:
+// longer than its frame, or the frame cut off by its column. A field being
+// typed in is never cut -- the caret shows where the text is.
+bool
+field_cut(
+    const std::string& _text,
+    bool               _labelled
+)
+{
+    if (ImGui::IsItemActive())
+    {
+        return false;
+    }
+
+    const float room = ImGui::GetItemRectSize().x -
+                       ImGui::GetStyle().FramePadding.x * 2.0f;
+
+    return ( ( (!_labelled) &&
+               (ImGui::CalcTextSize(_text.c_str()).x > room) ) ||
+             (cut_off()) );
+}
+
 // extent
 //   one axis of a size: 0 is all remaining space, (0, 1] a fraction of
 // _avail, a negative value leaves that many pixels, anything else is pixels.
@@ -473,9 +579,29 @@ text_leaf(
                 ++colours;
             }
 
+            const float  room = room_right();
+            const ImVec2 size = ImGui::CalcTextSize(text.c_str());
+            bool         cut  = false;
+
             if (attrs.as_bool("wrap", false))
             {
                 ImGui::TextWrapped("%s", text.c_str());
+            }
+            // a line too long for its room ends in an ellipsis there
+            else if ( (size.x > room + 0.5f) &&
+                      (room > 0.0f) )
+            {
+                const ImVec2 at = ImGui::GetCursorScreenPos();
+
+                ImGui::Dummy(ImVec2(room, size.y));
+                ImGui::RenderTextEllipsis(ImGui::GetWindowDrawList(),
+                                          at,
+                                          ImVec2(at.x + room, at.y + size.y),
+                                          at.x + room,
+                                          text.c_str(),
+                                          nullptr,
+                                          &size);
+                cut = true;
             }
             else
             {
@@ -489,7 +615,7 @@ text_leaf(
                 ImGui::PopFont();
             }
 
-            tooltip(attrs);
+            tooltip_whole(attrs, text, cut);
 
             return;
         },
@@ -512,6 +638,8 @@ container(
         {
             const float unit  = ImGui::GetStyle().ItemSpacing.x;
             bool        first = true;
+            bool        drew  = false;   // a child before took a line
+            bool        moved = false;   // ... and its gap is made already
 
             for (std::size_t i = 0; i < children.size(); ++i)
             {
@@ -529,9 +657,32 @@ container(
                                     static_cast<float>(spacing) * unit);
                 }
 
+                // a column's gap is ImGui's own, made smaller or larger --
+                // once per line taken, whatever draws nothing between
+                if ( (vertical) &&
+                     (drew)     &&
+                     (!moved)   &&
+                     (spacing != 1) )
+                {
+                    const float gap = ImGui::GetStyle().ItemSpacing.y;
+
+                    ImGui::SetCursorPosY(ImGui::GetCursorPosY() +
+                                         static_cast<float>(spacing - 1) *
+                                             gap);
+                    moved = true;
+                }
+
+                const float before = ImGui::GetCursorPosY();
+
                 push_child(children[i], i);
                 children[i].draw(_frame);
                 ImGui::PopID();
+
+                if (ImGui::GetCursorPosY() != before)
+                {
+                    drew  = true;
+                    moved = false;
+                }
 
                 first = false;
             }
@@ -590,6 +741,49 @@ panel(
 
             ImGui::EndChild();
 
+            const std::string hover_action =
+                attrs.as_string("hover_action", "");
+
+            if (!hover_action.empty())
+            {
+                // the mouse over the panel, and not over a window above it
+                const bool over =
+                    ( (ImGui::IsMouseHoveringRect(ImGui::GetItemRectMin(),
+                                                  ImGui::GetItemRectMax(),
+                                                  false)) &&
+                      (ImGui::IsWindowHovered(
+                          ImGuiHoveredFlags_ChildWindows |
+                          ImGuiHoveredFlags_AllowWhenBlockedByActiveItem)) );
+                ImGuiStorage* storage = ImGui::GetStateStorage();
+                const ImGuiID since   = ImGui::GetID((id + "##since").c_str());
+                const ImGuiID told    = ImGui::GetID((id + "##told").c_str());
+                const float   now     = static_cast<float>(ImGui::GetTime());
+
+                if (!over)
+                {
+                    storage->SetFloat(since, -1.0f);
+                    storage->SetBool(told, false);
+                }
+                else if (storage->GetFloat(since, -1.0f) < 0.0f)
+                {
+                    storage->SetFloat(since, now);
+                }
+
+                // a rest long enough reports once, until the mouse leaves
+                if ( (over)                                         &&
+                     (!storage->GetBool(told, false))               &&
+                     (now - storage->GetFloat(since, now) >=
+                          static_cast<float>(
+                              attrs.as_double("hover_delay", 0.3))) )
+                {
+                    storage->SetBool(told, true);
+                    post(_frame,
+                         attrs,
+                         hover_action,
+                         payload_value(attrs.as_long("value", 0)));
+                }
+            }
+
             return;
         },
         join_text(children),
@@ -628,6 +822,153 @@ section(
         attrs);
 }
 
+/*
+draw_icon
+  A small picture drawn with lines rather than a font's glyphs, so it is
+there in any font: "minimize", "restore" (a chevron up), "down", "float" (a
+window), "dock" (a window with its lower part filled), "pin" and "close".
+_size is the square it fills; an unknown name draws nothing and returns
+false.
+*/
+bool
+draw_icon(
+    ImDrawList*        _list,
+    const std::string& _name,
+    ImVec2             _centre,
+    float              _size,
+    ImU32              _colour
+)
+{
+    const float h     = _size * 0.5f;
+    const float thick = std::max(1.0f, _size * 0.09f);
+    const float x     = _centre.x;
+    const float y     = _centre.y;
+
+    if (_name == "minimize")
+    {
+        _list->AddLine(ImVec2(x - h * 0.8f, y + h * 0.45f),
+                       ImVec2(x + h * 0.8f, y + h * 0.45f),
+                       _colour,
+                       thick * 1.3f);
+    }
+    else if ( (_name == "restore") ||
+              (_name == "down") )
+    {
+        const float turn = (_name == "restore") ? 1.0f : -1.0f;
+        const ImVec2 points[3] = {
+            ImVec2(x - h * 0.75f, y + h * 0.35f * turn),
+            ImVec2(x, y - h * 0.40f * turn),
+            ImVec2(x + h * 0.75f, y + h * 0.35f * turn) };
+
+        _list->AddPolyline(points, 3, _colour, ImDrawFlags_None,
+                           thick * 1.3f);
+    }
+    else if ( (_name == "float") ||
+              (_name == "dock") )
+    {
+        const ImVec2 min(x - h * 0.8f, y - h * 0.65f);
+        const ImVec2 max(x + h * 0.8f, y + h * 0.65f);
+
+        _list->AddRect(min, max, _colour, 1.0f, ImDrawFlags_None, thick);
+
+        if (_name == "float")
+        {
+            // a title bar
+            _list->AddRectFilled(min,
+                                 ImVec2(max.x, min.y + h * 0.40f),
+                                 _colour);
+        }
+        else
+        {
+            // a panel along the bottom
+            _list->AddRectFilled(ImVec2(min.x, max.y - h * 0.55f),
+                                 max,
+                                 _colour);
+        }
+    }
+    else if (_name == "pin")
+    {
+        // a pushpin: its head, its collar, its point
+        _list->AddRectFilled(ImVec2(x - h * 0.35f, y - h * 0.85f),
+                             ImVec2(x + h * 0.35f, y - h * 0.10f),
+                             _colour,
+                             1.0f);
+        _list->AddLine(ImVec2(x - h * 0.70f, y - h * 0.10f),
+                       ImVec2(x + h * 0.70f, y - h * 0.10f),
+                       _colour,
+                       thick * 1.3f);
+        _list->AddLine(ImVec2(x, y - h * 0.10f),
+                       ImVec2(x, y + h * 0.85f),
+                       _colour,
+                       thick);
+    }
+    else if (_name == "close")
+    {
+        _list->AddLine(ImVec2(x - h * 0.6f, y - h * 0.6f),
+                       ImVec2(x + h * 0.6f, y + h * 0.6f),
+                       _colour,
+                       thick * 1.2f);
+        _list->AddLine(ImVec2(x + h * 0.6f, y - h * 0.6f),
+                       ImVec2(x - h * 0.6f, y + h * 0.6f),
+                       _colour,
+                       thick * 1.2f);
+    }
+    else
+    {
+        return false;
+    }
+
+    return true;
+}
+
+// tab_pass
+//   enum: what a tab bar's children are drawing for. A bar's buttons sit at
+// its right end and its pages fill the rest, so the bar draws its children
+// three times: to measure its buttons, to draw them, and to draw its pages;
+// a page draws only in the last pass, and a button only in the first two.
+enum class tab_pass
+{
+    pages,
+    measure,
+    buttons
+};
+
+tab_pass&
+the_tab_pass()
+{
+    static tab_pass pass = tab_pass::pages;
+
+    return pass;
+}
+
+// the_tab_buttons
+//   the width the measuring pass found the bar's buttons take.
+float&
+the_tab_buttons()
+{
+    static float width = 0.0f;
+
+    return width;
+}
+
+// the_tab_button
+//   how many of the bar's buttons the drawing pass has drawn.
+int&
+the_tab_button()
+{
+    static int count = 0;
+
+    return count;
+}
+
+/*
+tab_bar
+  The bar is ImGui's own, begun over less than the whole width when it has
+buttons: they are drawn first, at the right end of the bar's line, and the
+bar's pages lay out in what is left -- ImGui's trailing tabs follow the
+last page instead, wherever it ends. The line under the tabs still runs the
+whole width.
+*/
 imgui_blueprint
 tab_bar(
     const node_t& _node
@@ -639,9 +980,19 @@ tab_bar(
     return make_blueprint(
         [children, id](imgui_frame& _frame)
         {
-            // pages are identified by title within the bar
-            if (ImGui::BeginTabBar(id.c_str()))
+            ImGuiWindow* window = ImGui::GetCurrentWindow();
+
+            if (window->SkipItems)
             {
+                return;
+            }
+
+            // draw_all
+            //   every child, for one pass.
+            auto draw_all = [&children, &_frame](tab_pass _pass)
+            {
+                the_tab_pass() = _pass;
+
                 for (const imgui_blueprint& page : children)
                 {
                     if (page.draw)
@@ -650,6 +1001,52 @@ tab_bar(
                     }
                 }
 
+                the_tab_pass() = tab_pass::pages;
+
+                return;
+            };
+
+            the_tab_buttons() = 0.0f;
+            draw_all(tab_pass::measure);
+
+            const float  buttons = the_tab_buttons();
+            const ImVec2 start   = ImGui::GetCursorScreenPos();
+            const float  right   = window->WorkRect.Max.x;
+            const float  gap     = ImGui::GetStyle().ItemInnerSpacing.x;
+
+            // the buttons, right-aligned on the bar's line; the bar is
+            // begun after them, so the cursor put back is drawn from
+            if (buttons > 0.0f)
+            {
+                ImGui::SetCursorScreenPos(ImVec2(right - buttons, start.y));
+                the_tab_button() = 0;
+                draw_all(tab_pass::buttons);
+                ImGui::SetCursorScreenPos(start);
+            }
+
+            const ImGuiContext& context = *GImGui;
+            ImGuiTabBar*        bar     =
+                GImGui->TabBars.GetOrAddByKey(window->GetID(id.c_str()));
+            const ImRect        box(
+                start.x,
+                start.y,
+                std::max(start.x + 1.0f,
+                         right - ((buttons > 0.0f) ? buttons + gap : 0.0f)),
+                start.y + context.FontSize +
+                    context.Style.FramePadding.y * 2.0f);
+
+            bar->ID            = window->GetID(id.c_str());
+            bar->SeparatorMinX = box.Min.x -
+                                 IM_TRUNC(window->WindowPadding.x * 0.5f);
+            bar->SeparatorMaxX = right +
+                                 IM_TRUNC(window->WindowPadding.x * 0.5f);
+
+            // pages are identified by title within the bar
+            if (ImGui::BeginTabBarEx(bar,
+                                     box,
+                                     ImGuiTabBarFlags_IsFocused))
+            {
+                draw_all(tab_pass::pages);
                 ImGui::EndTabBar();
             }
 
@@ -671,12 +1068,46 @@ tab(
     return make_blueprint(
         [children, attrs, title](imgui_frame& _frame)
         {
+            // a page is drawn in its bar's pass for pages alone
+            if (the_tab_pass() != tab_pass::pages)
+            {
+                return;
+            }
+
             const ImGuiTabItemFlags flags =
                 attrs.as_bool("selected", false) ? ImGuiTabItemFlags_SetSelected
                                                  : ImGuiTabItemFlags_None;
 
+            const bool front =
+                ImGui::BeginTabItem(title.c_str(), nullptr, flags);
+
+            // the title, pressed or pressed twice, front page or not
+            const std::string click_action  =
+                attrs.as_string("click_action", "");
+            const std::string double_action =
+                attrs.as_string("double_action", "");
+
+            if ( (!click_action.empty()) &&
+                 (ImGui::IsItemClicked(ImGuiMouseButton_Left)) )
+            {
+                post(_frame,
+                     attrs,
+                     click_action,
+                     payload_value(attrs.as_long("value", 0)));
+            }
+
+            if ( (!double_action.empty())                                 &&
+                 (ImGui::IsItemHovered())                                 &&
+                 (ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left)) )
+            {
+                post(_frame,
+                     attrs,
+                     double_action,
+                     payload_value(attrs.as_long("value", 0)));
+            }
+
             // only the front page draws its content
-            if (ImGui::BeginTabItem(title.c_str(), nullptr, flags))
+            if (front)
             {
                 const std::string action = attrs.as_string("action", "");
 
@@ -697,6 +1128,107 @@ tab(
             return;
         },
         title,
+        attrs);
+}
+
+/*
+tab_button
+  Measured, then drawn, by its bar before the bar's pages: a frameless
+button as tall as a tab, one beside the next. An "icon" is drawn in place
+of the text, in a square as tall as the text; "on" shows the button held.
+*/
+imgui_blueprint
+tab_button(
+    const node_t& _node
+)
+{
+    const option_set  attrs = _node.attrs;
+    const std::string text  = attrs.as_string("text", "");
+
+    return make_blueprint(
+        [attrs, text](imgui_frame& _frame)
+        {
+            const std::string face  = text.empty() ? "?" : text;
+            const std::string icon  = attrs.as_string("icon", "");
+            const ImGuiStyle& style = ImGui::GetStyle();
+            const float       width =
+                (icon.empty() ? ImGui::CalcTextSize(face.c_str(), nullptr,
+                                                    true).x
+                              : ImGui::GetFontSize()) +
+                style.FramePadding.x * 2.0f;
+
+            if (the_tab_pass() == tab_pass::measure)
+            {
+                // the first is flush with the bar's end; the rest a gap
+                // apart
+                the_tab_buttons() += width +
+                                     ((the_tab_buttons() > 0.0f)
+                                          ? style.ItemInnerSpacing.x
+                                          : 0.0f);
+
+                return;
+            }
+
+            if (the_tab_pass() != tab_pass::buttons)
+            {
+                return;
+            }
+
+            // after the first, each sits beside the one before
+            if (the_tab_button() > 0)
+            {
+                ImGui::SameLine(0.0f, style.ItemInnerSpacing.x);
+            }
+
+            ++the_tab_button();
+
+            const bool on = attrs.as_bool("on", false);
+
+            // frameless, in every style: a tool's button, not a field's
+            ImGui::PushStyleColor(ImGuiCol_Button,
+                                  on ? style.Colors[ImGuiCol_ButtonActive]
+                                     : ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+            ImGui::PushStyleVar(ImGuiStyleVar_FrameBorderSize, 0.0f);
+
+            const bool pressed =
+                ImGui::Button(icon.empty() ? face.c_str()
+                                           : ("##" + icon).c_str(),
+                              ImVec2(width, 0.0f));
+
+            ImGui::PopStyleVar();
+            ImGui::PopStyleColor();
+
+            if (!icon.empty())
+            {
+                const ImVec2 min = ImGui::GetItemRectMin();
+                const ImVec2 max = ImGui::GetItemRectMax();
+
+                draw_icon(ImGui::GetWindowDrawList(),
+                          icon,
+                          ImVec2(std::floor((min.x + max.x) * 0.5f) + 0.5f,
+                                 std::floor((min.y + max.y) * 0.5f) + 0.5f),
+                          ImGui::GetFontSize() * 0.8f,
+                          ImGui::GetColorU32(ImGuiCol_Text));
+            }
+
+            tooltip(attrs);
+
+            const std::string action = attrs.as_string("action", "");
+
+            if ( (pressed) &&
+                 (!action.empty()) )
+            {
+                const ::djinterp::option_value* value = attrs.find("value");
+
+                post(_frame,
+                     attrs,
+                     action,
+                     value ? payload_value(*value) : option_set{});
+            }
+
+            return;
+        },
+        text,
         attrs);
 }
 
@@ -770,12 +1302,51 @@ splitter(
                 active  ? ImGuiCol_SeparatorActive
                         : (hovered ? ImGuiCol_SeparatorHovered
                                    : ImGuiCol_Separator);
+            ImDrawList*    list   = ImGui::GetWindowDrawList();
+            const ImVec2   min    = ImGui::GetItemRectMin();
+            const ImVec2   max    = ImGui::GetItemRectMax();
 
-            ImGui::GetWindowDrawList()->AddRectFilled(
-                ImGui::GetItemRectMin(),
-                ImGui::GetItemRectMax(),
-                ImGui::GetColorU32(colour),
-                thickness * 0.5f);
+            if (attrs.as_string("style", "bar") == "line")
+            {
+                // a strip the panels' colour, and a hairline down it that
+                // thickens under the mouse
+                const ImVec4 panels = ImGui::GetStyleColorVec4(
+                    ImGuiCol_ChildBg);
+                const float  weight = ( (hovered) || (active) ) ? 2.0f
+                                                                : 1.0f;
+
+                list->AddRectFilled(
+                    min,
+                    max,
+                    ImGui::GetColorU32((panels.w > 0.0f) ? ImGuiCol_ChildBg
+                                                         : ImGuiCol_WindowBg));
+
+                if (vertical)
+                {
+                    const float x = std::floor((min.x + max.x - weight) *
+                                               0.5f);
+
+                    list->AddRectFilled(ImVec2(x, min.y),
+                                        ImVec2(x + weight, max.y),
+                                        ImGui::GetColorU32(colour));
+                }
+                else
+                {
+                    const float y = std::floor((min.y + max.y - weight) *
+                                               0.5f);
+
+                    list->AddRectFilled(ImVec2(min.x, y),
+                                        ImVec2(max.x, y + weight),
+                                        ImGui::GetColorU32(colour));
+                }
+            }
+            else
+            {
+                list->AddRectFilled(min,
+                                    max,
+                                    ImGui::GetColorU32(colour),
+                                    thickness * 0.5f);
+            }
 
             const std::string action = attrs.as_string("action", "");
             const float       delta  =
@@ -800,6 +1371,144 @@ splitter(
 }
 
 // ---------------------------------------------------- archetypes: controls
+
+/*
+window
+  A floating window is ImGui's own, sized and placed the first time it is
+shown; an overlay is placed every frame, its bottom edge where the layout
+has reached. The overlay's clock -- how long the mouse has been away --
+lives in the overlay's own storage, and starts again each time it appears.
+*/
+imgui_blueprint
+window(
+    const node_t& _node
+)
+{
+    const blocks_t   children = _node.children;
+    const option_set attrs    = _node.attrs;
+
+    return make_blueprint(
+        [children, attrs](imgui_frame& _frame)
+        {
+            const std::string id     = attrs.as_string("id", "window");
+            const std::string title  = attrs.as_string("title", "");
+            const std::string name   = (title.empty() ? id : title) +
+                                       "###" + id;
+            const float       width  =
+                static_cast<float>(attrs.as_double("width", 420.0));
+            const float       height = std::max(
+                1.0f,
+                static_cast<float>(attrs.as_double("height", 280.0)));
+
+            if (attrs.as_string("mode", "floating") == "overlay")
+            {
+                const ImVec2 anchor = ImGui::GetCursorScreenPos();
+                const float  wide   =
+                    (width > 0.0f) ? width
+                                   : std::max(1.0f,
+                                              ImGui::GetContentRegionAvail()
+                                                  .x);
+                const float  keep   =
+                    static_cast<float>(attrs.as_double("keep", 0.0));
+
+                ImGui::SetNextWindowPos(ImVec2(anchor.x, anchor.y - height));
+                ImGui::SetNextWindowSize(ImVec2(wide, height));
+                ImGui::Begin(name.c_str(),
+                             nullptr,
+                             ImGuiWindowFlags_NoTitleBar        |
+                             ImGuiWindowFlags_NoResize          |
+                             ImGuiWindowFlags_NoMove            |
+                             ImGuiWindowFlags_NoCollapse        |
+                             ImGuiWindowFlags_NoSavedSettings   |
+                             ImGuiWindowFlags_NoFocusOnAppearing);
+
+                draw_stack(children, _frame);
+
+                // away: outside it and its strip, nothing held, no popup
+                const ImVec2  min      = ImGui::GetWindowPos();
+                const ImVec2  max(min.x + ImGui::GetWindowSize().x,
+                                  min.y + ImGui::GetWindowSize().y + keep);
+                const bool    inside   =
+                    ImGui::IsMouseHoveringRect(min, max, false);
+                const bool    busy     =
+                    ( (ImGui::IsAnyItemActive()) ||
+                      (ImGui::IsPopupOpen("",
+                                          ImGuiPopupFlags_AnyPopupId |
+                                          ImGuiPopupFlags_AnyPopupLevel)) );
+                ImGuiStorage* storage  = ImGui::GetStateStorage();
+                const ImGuiID away     = ImGui::GetID("##away");
+                const float   now      = static_cast<float>(ImGui::GetTime());
+                const std::string leave =
+                    attrs.as_string("leave_action", "");
+
+                if ( (ImGui::IsWindowAppearing()) ||
+                     (inside)                     ||
+                     (busy) )
+                {
+                    storage->SetFloat(away, -1.0f);
+                }
+                else if (storage->GetFloat(away, -1.0f) < 0.0f)
+                {
+                    storage->SetFloat(away, now);
+                }
+                else if ( (now - storage->GetFloat(away, now) >=
+                               static_cast<float>(
+                                   attrs.as_double("linger", 0.4))) &&
+                          (!leave.empty()) )
+                {
+                    post(_frame, attrs, leave, option_set{});
+                }
+
+                ImGui::End();
+
+                return;
+            }
+
+            // floating: placed and sized once, then where the user leaves it
+            const ImGuiViewport* viewport = ImGui::GetMainViewport();
+
+            if ( (attrs.has("x")) ||
+                 (attrs.has("y")) )
+            {
+                float x = static_cast<float>(attrs.as_double("x", 0.0));
+                float y = static_cast<float>(attrs.as_double("y", 0.0));
+
+                // a negative place counts back from the far edge
+                x = (x < 0.0f) ? viewport->WorkSize.x + x - width : x;
+                y = (y < 0.0f) ? viewport->WorkSize.y + y - height : y;
+
+                ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + x,
+                                               viewport->WorkPos.y + y),
+                                        ImGuiCond_FirstUseEver);
+            }
+
+            ImGui::SetNextWindowSize(ImVec2(std::max(width, 1.0f), height),
+                                     ImGuiCond_FirstUseEver);
+
+            if (attrs.as_bool("focus", false))
+            {
+                ImGui::SetNextWindowFocus();
+            }
+
+            const std::string closing = attrs.as_string("close_action", "");
+            bool              open    = true;
+
+            ImGui::Begin(name.c_str(),
+                         closing.empty() ? nullptr : &open,
+                         ImGuiWindowFlags_NoCollapse);
+            draw_stack(children, _frame);
+            ImGui::End();
+
+            if (!open)
+            {
+                post(_frame, attrs, closing, option_set{});
+            }
+
+            return;
+        },
+        join_text(children),
+        attrs);
+}
 
 imgui_blueprint
 interactive(
@@ -946,7 +1655,9 @@ text_field(
                     ImGui::EndDisabled();
                 }
 
-                tooltip(attrs);
+                tooltip_whole(attrs,
+                              buffer,
+                              field_cut(buffer, attrs.has("label")));
 
                 if ( (changed) &&
                      (!action.empty()) )
@@ -1006,7 +1717,10 @@ text_field(
                 ImGui::EndDisabled();
             }
 
-            tooltip(attrs);
+            tooltip_whole(attrs,
+                          buffer,
+                          ( (!many) &&
+                            (field_cut(buffer, attrs.has("label"))) ));
 
             // many lines that report when done: the draft keeps the edit
             if (commit)
@@ -1077,7 +1791,7 @@ toggle(
                 ImGui::EndDisabled();
             }
 
-            tooltip(attrs);
+            tooltip_whole(attrs, text, cut_off());
 
             return;
         },
@@ -1144,7 +1858,7 @@ selectable(
                 ImGui::IsItemClicked(ImGuiMouseButton_Right);
 
             ImGui::PopStyleColor(colours);
-            tooltip(attrs);
+            tooltip_whole(attrs, text, cut_off());
 
             const long value = attrs.as_long("value", 0);
 
@@ -1431,7 +2145,15 @@ combo(
                 ImGui::EndDisabled();
             }
 
-            tooltip(attrs);
+            // the choice, if the box is too narrow to show it
+            const float room = ImGui::GetItemRectSize().x -
+                               ImGui::GetFrameHeight() -
+                               ImGui::GetStyle().FramePadding.x * 2.0f;
+
+            tooltip_whole(attrs,
+                          preview,
+                          ( (ImGui::CalcTextSize(preview.c_str()).x > room) ||
+                            (cut_off()) ));
 
             return;
         },
@@ -1683,7 +2405,16 @@ tree_node(
 
             if (!editing)
             {
-                tooltip(attrs);
+                // the title, if the panel's edge cuts it off
+                const float end = node_min.x +
+                                  ImGui::GetTreeNodeToLabelSpacing() +
+                                  ImGui::CalcTextSize(label.c_str()).x;
+
+                tooltip_whole(
+                    attrs,
+                    text,
+                    (end > ImGui::GetWindowDrawList()->GetClipRectMax().x +
+                               1.0f));
                 tree_drag_and_drop(attrs, text, _frame);
             }
 
@@ -2041,16 +2772,20 @@ table(
 
             for (std::size_t i = 0; i < headers.size(); ++i)
             {
-                const float width =
-                    (i < widths.size())
-                        ? static_cast<float>(std::atof(widths[i].c_str()))
-                        : 0.0f;
+                const std::string spec  =
+                    (i < widths.size()) ? widths[i] : std::string();
+                const float       width =
+                    static_cast<float>(std::atof(spec.c_str()));
+                const bool        share = ( (!spec.empty()) &&
+                                            (spec.back() == '*') );
 
-                // a width above zero fixes the column; the rest share
+                // a width above zero fixes the column; a starred one is a
+                // share of the table, and the rest share what is left
                 ImGui::TableSetupColumn(
                     headers[i].c_str(),
-                    (width > 0.0f) ? ImGuiTableColumnFlags_WidthFixed
-                                   : ImGuiTableColumnFlags_WidthStretch,
+                    ( (width > 0.0f) &&
+                      (!share) ) ? ImGuiTableColumnFlags_WidthFixed
+                                 : ImGuiTableColumnFlags_WidthStretch,
                     width);
                 titled = ( (titled) ||
                            (!headers[i].empty()) );
@@ -2204,6 +2939,7 @@ imgui_platform::on_archetype::operator()(
     if (archetype == archetype_panel)        { return panel(_node);        }
     if (archetype == archetype_tab_bar)      { return tab_bar(_node);      }
     if (archetype == archetype_tab)          { return tab(_node);          }
+    if (archetype == archetype_tab_button)   { return tab_button(_node);   }
     if (archetype == archetype_text_field)   { return text_field(_node);   }
     if (archetype == archetype_toggle)       { return toggle(_node);       }
     if (archetype == archetype_selectable)   { return selectable(_node);   }
@@ -2221,6 +2957,7 @@ imgui_platform::on_archetype::operator()(
     if (archetype == archetype_table)        { return table(_node);        }
     if (archetype == archetype_table_row)    { return table_row(_node);    }
     if (archetype == archetype_splitter)     { return splitter(_node);     }
+    if (archetype == archetype_window)       { return window(_node);       }
 
     return degraded(_node);
 }

@@ -7,11 +7,14 @@
 * that many pixels free. resize ("x", "y" or "") lets the user drag the
 * panel's edge, and scroll_x gives it a horizontal scroll bar for content
 * wider than it is.
+*   "hover_action" reports, once, that the mouse has rested over the panel
+* for "hover_delay" seconds, with the panel's "value"; it reports again
+* only after the mouse has left. A drawer's strip opens its drawer this way.
 *
 * path:      /inc/uxoxo/element_panel.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                         created: 2026.09.22
-*                                                            revised: 2026.10.04
+*                                                            revised: 2026.10.11
 *******************************************************************************/
 
 #ifndef UXOXO_ELEMENT_PANEL_HPP

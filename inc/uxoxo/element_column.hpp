@@ -4,12 +4,14 @@
 * The column element: children laid out top to bottom.
 *   A column is a container like row, with its orientation attribute set to
 * "vertical". It reuses the container archetype, so a backend that ignores
-* orientation still shows every child, just in a line.
+* orientation still shows every child, just in a line. Its "spacing" is the
+* gap between children in the backend's own unit, as a row's is: 1 is the
+* usual gap, 0 lays them flush.
 *
 * path:      /inc/uxoxo/element_column.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                         created: 2026.09.22
-*                                                            revised: 2026.09.22
+*                                                            revised: 2026.10.11
 *******************************************************************************/
 
 #ifndef UXOXO_ELEMENT_COLUMN_HPP

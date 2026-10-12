@@ -9,12 +9,14 @@
 * the rows and "resizable" lets the user drag the column edges. "height"
 * above zero gives the table a scrolling body with the header kept in view.
 * "widths", one per line like "headers", fixes a column at that many pixels;
-* a column given 0, or none, shares what is left.
+* a column given 0, or none, shares what is left. A width written with a
+* star, "2*", is a share instead: the starred columns divide the table's
+* width in proportion, however wide the table is drawn.
 *
 * path:      /inc/uxoxo/element_table.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                         created: 2026.10.04
-*                                                            revised: 2026.10.04
+*                                                            revised: 2026.10.11
 *******************************************************************************/
 
 #ifndef UXOXO_ELEMENT_TABLE_HPP

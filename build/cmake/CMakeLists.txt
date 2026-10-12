@@ -23,7 +23,7 @@
 # path:      /build/cmake/CMakeLists.txt
 # link(s):   TBA
 # author(s): Samuel 'teer' Neal-Blim                         created: 2026.10.04
-#                                                            revised: 2026.10.04
+#                                                            revised: 2026.10.11
 #*******************************************************************************
 cmake_minimum_required(VERSION 3.21)
 
@@ -222,5 +222,5 @@ if(UXOXO_BUILD_TESTS)
 
     add_test(NAME uxoxo_platform_smoke COMMAND uxoxo_platform_smoke)
     set_tests_properties(uxoxo_platform_smoke PROPERTIES
-        PASS_REGULAR_EXPRESSION "passed: 14   failed: 0")
+        PASS_REGULAR_EXPRESSION "passed: 20   failed: 0")
 endif()

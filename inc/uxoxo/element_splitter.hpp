@@ -9,11 +9,16 @@
 * pixels under "value", and the application resizes the panels.
 * "thickness" is its width across the drag; "length" its extent along
 * it, as a panel measures (0 for all of it).
+*   "style" is how it looks: a "bar" (the default) is a rounded bar the
+* thickness of the splitter; a "line" is a hairline down the middle of a
+* strip the colour of the panels beside it, which thickens and takes the
+* accent under the mouse -- for panels laid flush against it, so that the
+* line is all that divides them.
 *
 * path:      /inc/uxoxo/element_splitter.hpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                         created: 2026.10.04
-*                                                            revised: 2026.10.04
+*                                                            revised: 2026.10.11
 *******************************************************************************/
 
 #ifndef UXOXO_ELEMENT_SPLITTER_HPP

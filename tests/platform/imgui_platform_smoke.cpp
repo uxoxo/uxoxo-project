@@ -12,7 +12,16 @@
 * opens at the mouse and reports the item chosen; a tree node reports a
 * right-click and a double-click, and, edited in place, the text typed or
 * the edit given up; a text field in commit mode reports only when its edit
-* is done. And through all of it ImGui reports no error -- the misuses a
+* is done.
+*   Then what it needs for panels that come and go, and for text that does
+* not fit: a label too long for its column ends in an ellipsis and shows its
+* whole text under the mouse; a tab reports a click and a double-click on its
+* title, and a button at the bar's end its press; a splitter drawn as a line
+* still reports its drag, and a column at spacing 0 lays its children flush;
+* a panel reports the mouse resting over it, once; a floating window reports
+* its close button, and an overlay sits above where the layout reached and
+* reports the mouse leaving it; starred table columns share the width in
+* proportion. And through all of it ImGui reports no error -- the misuses a
 * release build recovers from and a debug build asserts on.
 *   A probe element -- a renderer registered with set_renderer, the way an
 * application adds its own -- records the rectangle and ID of the item drawn
@@ -21,7 +30,7 @@
 * path:      /tests/platform/imgui_platform_smoke.cpp
 * link(s):   TBA
 * author(s): Samuel 'teer' Neal-Blim                         created: 2026.10.04
-*                                                            revised: 2026.10.09
+*                                                            revised: 2026.10.11
 *******************************************************************************/
 // std
 #include <cstdio>   // std::printf
@@ -53,6 +62,7 @@
 #include <uxoxo/element_text_field.hpp>    // component::text_field
 #include <uxoxo/element_toggle.hpp>        // component::toggle
 #include <uxoxo/element_tree_node.hpp>     // component::tree_node
+#include <uxoxo/element_window.hpp>        // component::window
 #include <uxoxo/platform/imgui_platform.hpp>  // imgui_platform
 #include <uxoxo/realize.hpp>               // realize, set_renderer
 
@@ -257,6 +267,23 @@ centre(
                   (record.min.y + record.max.y) * 0.5f);
 }
 
+// tooltip_shown
+//   whether a tooltip window was drawn in the last frame.
+bool
+tooltip_shown()
+{
+    for (const ImGuiWindow* window : GImGui->Windows)
+    {
+        if ( ((window->Flags & ImGuiWindowFlags_Tooltip) != 0) &&
+             (window->WasActive) )
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 // find_event
 //   the first event of a kind, or nullptr.
 const event*
@@ -359,8 +386,12 @@ everything()
                           attr("open", true)) },
               attr("height", 120.0)),
         tabs("tabs", { tab("one", { label("page one") }),
-                       tab("two", { label("page two") }) }),
-        popup("menu", { menu_item("Rename", "rename"), separator() }) });
+                       tab("two", { label("page two") }),
+                       tab_button("x", "close") }),
+        popup("menu", { menu_item("Rename", "rename"), separator() }),
+        splitter(true, "split", attr("style", "line")),
+        window("floating", { label("afloat") }),
+        window("overlay", { label("over") }, attr("mode", "overlay")) });
 }
 
 }  // anonymous namespace
@@ -727,7 +758,306 @@ main()
                 (set->payload.as_string("value", "") == "abc") ));
     }
 
-    // 14. and through all of it, ImGui reported no misuse
+    // 14. a label too long for its column ends in an ellipsis, and shows
+    // its whole text under the mouse
+    {
+        using namespace ::uxoxo::component;
+
+        const std::string long_text =
+            "a label much too long for the narrow column it is put in";
+        std::vector<element_template> rows;
+
+        rows.push_back(table_row({ column({ label(long_text),
+                                            probe("label") }),
+                                   label("x") }));
+
+        const imgui_blueprint ui = realize<imgui_platform>(
+            column({ table("narrow", { "", "" }, std::move(rows),
+                           attr("widths", "60\n0")) }));
+
+        (void)frame(ui);
+
+        const probe_record seen  = probes()["label"];
+        const float        whole =
+            ImGui::CalcTextSize(long_text.c_str()).x;
+
+        io.AddMousePosEvent(seen.min.x + 4.0f,
+                            (seen.min.y + seen.max.y) * 0.5f);
+
+        for (int i = 0; i < 20; ++i)
+        {
+            (void)frame(ui);
+        }
+
+        const bool shown = tooltip_shown();
+
+        io.AddMousePosEvent(-100.0f, -100.0f);
+        (void)frame(ui);
+
+        check("a cut label shows its whole text",
+              ( (seen.max.x - seen.min.x < whole) &&
+                (seen.max.x - seen.min.x <= 61.0f) &&
+                (shown) ));
+    }
+
+    // 15. a tab reports a click and a double-click on its title; a button
+    // at the bar's end, its press
+    {
+        using namespace ::uxoxo::component;
+
+        option_set page;
+        page.set("value", 2L);
+        page.set("click_action", "clicked");
+        page.set("double_action", "doubled");
+
+        const imgui_blueprint ui = realize<imgui_platform>(
+            column({ tabs("bar",
+                          { tab("only", { label("page"), probe("page") },
+                                false, page),
+                            tab_button("-", "less", attr("icon", "pin")),
+                            tab_button("+", "more",
+                                       attr("value", 9L)) }),
+                     label("after") }));
+
+        (void)frame(ui);
+
+        // the title is just above the page, at the bar's left end; the
+        // button is at its right end
+        const probe_record content = probes()["page"];
+        const ImVec2       title(content.min.x + 12.0f,
+                                 content.min.y -
+                                     ImGui::GetStyle().ItemSpacing.y -
+                                     ImGui::GetFrameHeight() * 0.5f);
+
+        io.AddMousePosEvent(title.x, title.y);
+        (void)frame(ui);
+
+        std::vector<event> clicks = click(ui, ImGuiMouseButton_Left);
+        const std::vector<event> second = click(ui, ImGuiMouseButton_Left);
+
+        clicks.insert(clicks.end(), second.begin(), second.end());
+
+        // the button: right of everything, on the same line
+        const float right = ImGui::GetIO().DisplaySize.x -
+                            ImGui::GetStyle().WindowPadding.x - 8.0f;
+
+        io.AddMousePosEvent(right, title.y);
+        (void)frame(ui);
+
+        const std::vector<event> pressed = click(ui, ImGuiMouseButton_Left);
+        const event*             more    = find_event(pressed, "more");
+        const event*             clicked = find_event(clicks, "clicked");
+
+        check("tab clicks, and a tab bar button",
+              ( (clicked != nullptr)                              &&
+                (clicked->payload.as_long("value", 0) == 2L)      &&
+                (find_event(clicks, "doubled") != nullptr)        &&
+                (more != nullptr)                                 &&
+                (more->payload.as_long("value", 0) == 9L) ));
+    }
+
+    // 16. a splitter drawn as a line still reports its drag; a column at
+    // spacing 0 lays its children flush
+    {
+        using namespace ::uxoxo::component;
+
+        option_set line;
+        line.set("length", 200.0);
+        line.set("style", "line");
+
+        const imgui_blueprint ui = realize<imgui_platform>(
+            column({ splitter(true, "split", line), probe("line"),
+                     column({ button(label("one")), probe("one"),
+                              button(label("two")), probe("two") },
+                            0) }));
+        (void)frame(ui);
+
+        const ImVec2 start = centre("line");
+
+        io.AddMousePosEvent(start.x, start.y);
+        (void)frame(ui);
+        io.AddMouseButtonEvent(ImGuiMouseButton_Left, true);
+        (void)frame(ui);
+        io.AddMousePosEvent(start.x - 6.0f, start.y);
+
+        const std::vector<event> events = frame(ui);
+        const event*             moved  = find_event(events, "split");
+
+        io.AddMouseButtonEvent(ImGuiMouseButton_Left, false);
+        (void)frame(ui);
+
+        check("a line splitter, a flush column",
+              ( (moved != nullptr)                                     &&
+                (moved->payload.as_double("value", 0.0) == -6.0)       &&
+                (probes()["two"].min.y == probes()["one"].max.y) ));
+    }
+
+    // 17. a panel reports the mouse resting over it, once
+    {
+        using namespace ::uxoxo::component;
+
+        option_set rest;
+        rest.set("height", 60.0);
+        rest.set("hover_action", "rested");
+        rest.set("hover_delay", 0.1);
+        rest.set("value", 4L);
+
+        const imgui_blueprint ui = realize<imgui_platform>(
+            column({ panel("strip", { label("strip") }, rest),
+                     probe("strip") }));
+        (void)frame(ui);
+
+        io.AddMousePosEvent(centre("strip").x, centre("strip").y);
+
+        int told  = 0;
+        int early = 0;
+
+        for (int i = 0; i < 30; ++i)
+        {
+            const std::vector<event> events = frame(ui);
+            const event*             seen   = find_event(events, "rested");
+
+            if (seen != nullptr)
+            {
+                ++told;
+                early += (i < 4) ? 1 : 0;
+            }
+        }
+
+        io.AddMousePosEvent(-100.0f, -100.0f);
+        (void)frame(ui);
+
+        check("a panel reports a rest, once", ( (told == 1) &&
+                                                (early == 0) ));
+    }
+
+    // 18. a floating window reports its close button; an overlay sits above
+    // where the layout reached, and reports the mouse leaving it
+    {
+        using namespace ::uxoxo::component;
+
+        option_set afloat;
+        afloat.set("title", "Afloat");
+        afloat.set("x", 300.0);
+        afloat.set("y", 200.0);
+        afloat.set("width", 240.0);
+        afloat.set("height", 160.0);
+        afloat.set("close_action", "closed");
+
+        const imgui_blueprint floating = realize<imgui_platform>(
+            column({ window("afloat", { label("inside") }, afloat) }));
+
+        (void)frame(floating);
+        (void)frame(floating);
+
+        // the close button is at the title bar's right end
+        const ImGuiWindow* shown = ImGui::FindWindowByName("Afloat###afloat");
+        bool               placed = false;
+
+        if (shown != nullptr)
+        {
+            placed = ( (shown->Pos.x == 300.0f) &&
+                       (shown->Pos.y == 200.0f) );
+
+            const float bar = shown->TitleBarHeight;
+
+            io.AddMousePosEvent(shown->Pos.x + shown->Size.x -
+                                    ImGui::GetStyle().FramePadding.x -
+                                    bar * 0.5f,
+                                shown->Pos.y + bar * 0.5f);
+        }
+
+        (void)frame(floating);
+
+        const std::vector<event> closing = click(floating,
+                                                 ImGuiMouseButton_Left);
+
+        option_set drawer;
+        drawer.set("mode", "overlay");
+        drawer.set("width", 0.0);
+        drawer.set("height", 100.0);
+        drawer.set("keep", 30.0);
+        drawer.set("linger", 0.1);
+        drawer.set("leave_action", "left");
+
+        const imgui_blueprint overlay = realize<imgui_platform>(
+            column({ label("above"),
+                     label("above"),
+                     label("above"),
+                     label("above"),
+                     label("above"),
+                     label("above"),
+                     label("above"),
+                     label("above"),
+                     window("drawer", { label("in the drawer") }, drawer),
+                     button(label("strip")),
+                     probe("strip") }));
+
+        io.AddMousePosEvent(centre("strip").x, centre("strip").y);
+        (void)frame(overlay);
+        io.AddMousePosEvent(centre("strip").x, centre("strip").y);
+
+        // over its strip: it stays
+        int early = 0;
+
+        for (int i = 0; i < 12; ++i)
+        {
+            early += (find_event(frame(overlay), "left") != nullptr) ? 1 : 0;
+        }
+
+        const ImGuiWindow* drawn = ImGui::FindWindowByName("drawer###drawer");
+        const bool         above =
+            ( (drawn != nullptr) &&
+              (drawn->Pos.y + drawn->Size.y <= probes()["strip"].min.y +
+                                                   1.0f) );
+
+        // away from both: it reports leaving
+        io.AddMousePosEvent(1500.0f, 1000.0f);
+
+        int left = 0;
+
+        for (int i = 0; i < 20; ++i)
+        {
+            left += (find_event(frame(overlay), "left") != nullptr) ? 1 : 0;
+        }
+
+        check("floating and overlay windows",
+              ( (placed)                                      &&
+                (find_event(closing, "closed") != nullptr)    &&
+                (above)                                       &&
+                (early == 0)                                  &&
+                (left > 0) ));
+    }
+
+    // 19. starred columns share the table's width in proportion
+    {
+        using namespace ::uxoxo::component;
+
+        std::vector<element_template> rows;
+
+        rows.push_back(table_row({ column({ label("a"), probe("a") }),
+                                   column({ label("b"), probe("b") }) }));
+
+        option_set shares;
+        shares.set("widths", "1*\n3*");
+        shares.set("resizable", false);
+
+        const imgui_blueprint ui = realize<imgui_platform>(
+            column({ table("shares", { "", "" }, std::move(rows), shares) }));
+
+        (void)frame(ui);
+        (void)frame(ui);
+
+        const float first  = probes()["b"].min.x - probes()["a"].min.x;
+        const float whole  = ImGui::GetIO().DisplaySize.x -
+                             ImGui::GetStyle().WindowPadding.x * 2.0f;
+
+        check("starred columns share the width",
+              ( (first > whole * 0.20f) &&
+                (first < whole * 0.30f) ));
+    }
+
+    // 20. and through all of it, ImGui reported no misuse
     check("ImGui reports no error", (errors() == 0));
 
     ImGui_ImplNull_Shutdown();
